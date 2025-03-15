@@ -10,6 +10,10 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
     exchangeId = exchangeIdParam as ExchangeId;
   } else {
     let subdomain = request.hostname.split('.')[0];
+    // Handle localhost case
+    if (request.hostname === 'localhost') {
+      return ExchangeId.OGBerachain; // Default for localhost
+    }
     if (subdomain.endsWith('-automate-api')) {
       subdomain = subdomain.slice(0, -13); // Remove '-automate-api' suffix
     }
@@ -25,6 +29,8 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
 
   return exchangeId;
 }
+
+
 
 export const ApiExchangeIdParam = () =>
   ApiParam({
