@@ -5,7 +5,21 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggingMiddleware } from './logging.middleware';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: true });
+  const app = await NestFactory.create(AppModule);
+  
+  // Configure CORS
+  app.enableCors({
+    origin: [
+      /\.velocimeter\.xyz$/,  // Allow all subdomains of velocimeter.xyz
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:8000',
+      'http://localhost:8001'
+    ],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
   app.enableVersioning();
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
   app.use(new LoggingMiddleware().use);
