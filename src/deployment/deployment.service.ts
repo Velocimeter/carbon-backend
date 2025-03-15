@@ -6,10 +6,13 @@ import { EventTypes } from '../events/event-types';
 export const NATIVE_TOKEN = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 export enum BlockchainType {
-  // Ethereum = 'ethereum',
-  // Sei = 'sei-network',
-  // Celo = 'celo',
-  // Blast = 'blast',
+  Ethereum = 'ethereum',
+  Sei = 'sei-network',
+  Celo = 'celo',
+  Blast = 'blast',
+  Base = 'base',
+  Fantom = 'fantom',
+  Linea = 'linea',
   Iota = 'iota-evm',
   Mantle = 'mantle',
   Berachain = 'berachain',
@@ -17,10 +20,13 @@ export enum BlockchainType {
 }
 
 export enum ExchangeId {
-  // OGEthereum = 'ethereum',
-  // OGSei = 'sei',
-  // OGCelo = 'celo',
-  // OGBlast = 'blast',
+  OGEthereum = 'ethereum',
+  OGSei = 'sei',
+  OGCelo = 'celo',
+  OGBlast = 'blast',
+  OGBase = 'base',
+  OGFantom = 'fantom',
+  OGLinea = 'linea',
   OGIota = 'iota',
   OGMantle = 'mantle',
   OGBerachain = 'berachain',

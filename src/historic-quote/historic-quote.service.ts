@@ -41,14 +41,16 @@ export class HistoricQuoteService implements OnModuleInit {
       { name: 'coinmarketcap', enabled: true },
       { name: 'codex', enabled: true },
     ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Sei]: [{ name: 'codex', enabled: false}],
+    [BlockchainType.Celo]: [{ name: 'codex', enabled: false }],
+    [BlockchainType.Blast]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Fantom]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Fantom]: [{ name: 'codex', enabled: false }],
+    [BlockchainType.Linea]: [{ name: 'codex', enabled: false }],
+    [BlockchainType.Iota]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
@@ -78,8 +80,8 @@ export class HistoricQuoteService implements OnModuleInit {
     try {
       await Promise.all([
         await this.updateCoinMarketCapQuotes(),
-        await this.updateCodexQuotes(BlockchainType.Sei),
-        await this.updateCodexQuotes(BlockchainType.Celo),
+        await this.updateCodexQuotes(BlockchainType.Berachain),
+        // await this.updateCodexQuotes(BlockchainType.Sonic),
         // await this.updateCodexQuotes(BlockchainType.Base, BASE_NETWORK_ID),
       ]);
     } catch (error) {
