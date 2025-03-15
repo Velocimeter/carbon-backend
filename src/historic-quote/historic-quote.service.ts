@@ -38,19 +38,19 @@ export class HistoricQuoteService implements OnModuleInit {
   private shouldPollQuotes: boolean;
   private priceProviders: BlockchainProviderConfig = {
     [BlockchainType.Ethereum]: [
-      { name: 'coinmarketcap', enabled: true },
-      { name: 'codex', enabled: true },
+      { name: 'coinmarketcap', enabled: false },
+      { name: 'codex', enabled: false },
     ],
     [BlockchainType.Sei]: [{ name: 'codex', enabled: false}],
     [BlockchainType.Celo]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Blast]: [{ name: 'codex', enabled: false }],
-    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Base]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
     [BlockchainType.Fantom]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Linea]: [{ name: 'codex', enabled: false }],
-    [BlockchainType.Iota]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Iota]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
   };
 
   constructor(
@@ -81,8 +81,8 @@ export class HistoricQuoteService implements OnModuleInit {
       await Promise.all([
         await this.updateCoinMarketCapQuotes(),
         await this.updateCodexQuotes(BlockchainType.Berachain),
-        // await this.updateCodexQuotes(BlockchainType.Sonic),
-        // await this.updateCodexQuotes(BlockchainType.Base, BASE_NETWORK_ID),
+        await this.updateCodexQuotes(BlockchainType.Sonic),
+        //await this.updateCodexQuotes(BlockchainType.Mantle,),
       ]);
     } catch (error) {
       console.error('Error updating historic quotes:', error);
