@@ -10,15 +10,13 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
     exchangeId = exchangeIdParam as ExchangeId;
   } else {
     let subdomain = request.hostname.split('.')[0];
-    if (subdomain.endsWith('-api')) {
-      subdomain = subdomain.slice(0, -4); // Remove '-api' suffix
+    if (subdomain.endsWith('-automate-api')) {
+      subdomain = subdomain.slice(0, -13); // Remove '-automate-api' suffix
     }
-    if (subdomain === 'api') {
-      subdomain = ExchangeId.OGEthereum;
+    if (subdomain === 'automate-api') {
+      subdomain = ExchangeId.OGIota; // Adjust to your preferred default network
     }
-
-    // Default to 'ethereum' if subdomain is empty
-    exchangeId = subdomain ? (subdomain as ExchangeId) : ('ethereum' as ExchangeId);
+    exchangeId = subdomain ? (subdomain as ExchangeId) : (ExchangeId.OGIota as ExchangeId);
   }
 
   if (!Object.values(ExchangeId).includes(exchangeId)) {

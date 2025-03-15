@@ -93,8 +93,8 @@ export class HistoricQuoteService implements OnModuleInit {
     try {
       await Promise.all([
         await this.updateCoinMarketCapQuotes(),
-     //   await this.updateCodexQuotes(BlockchainType.Berachain), // turn these on once seed is done
-     //   await this.updateCodexQuotes(BlockchainType.Sonic),
+        await this.updateCodexQuotes(BlockchainType.Berachain), // turn these on once seed is done
+        await this.updateCodexQuotes(BlockchainType.Sonic),
         //await this.updateCodexQuotes(BlockchainType.Mantle,),
       ]);
     } catch (error) {
