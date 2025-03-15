@@ -13,6 +13,17 @@ import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-even
 import { VortexTradingResetEventService } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.service';
 import { VortexFundsWithdrawnEventService } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.service';
 import { ProtectionRemovedEventService } from '../events/protection-removed-event/protection-removed-event.service';
+
+// Hardcoded token metadata for Sonic blockchain
+const SONIC_TOKEN_METADATA = {
+  '0x29219dd400f2Bf60E5a23d13Be72B486D4038894': {
+    name: 'USDC',
+    symbol: 'USDC',
+    decimals: 6
+  },
+  // Add more tokens as needed
+};
+
 export interface TokensByAddress {
   [address: string]: Token;
 }
@@ -38,6 +49,11 @@ export class TokenService {
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
+    // First ensure hardcoded tokens exist for Sonic
+    if (deployment.blockchainType === BlockchainType.Sonic) {
+      await this.addHardcodedTokens(deployment);
+    }
+
     const lastProcessedEntity = `${deployment.blockchainType}-${deployment.exchangeId}-tokens`;
 
     // figure out start block
@@ -170,7 +186,7 @@ export class TokenService {
       }
     });
 
-    // fetch metadata
+    // fetch metadata for all tokens
     const decimals = await this.getDecimals(newAddresses, deployment);
     const symbols = await this.getSymbols(newAddresses, deployment);
     const names = await this.getNames(newAddresses, deployment);
@@ -184,8 +200,8 @@ export class TokenService {
           symbol: symbols[i],
           decimals: decimals[i],
           name: names[i],
-          blockchainType: deployment.blockchainType, // Include blockchainType
-          exchangeId: deployment.exchangeId, // Include exchangeId
+          blockchainType: deployment.blockchainType,
+          exchangeId: deployment.exchangeId,
         }),
       );
     }
@@ -223,5 +239,40 @@ export class TokenService {
     return this.token.find({
       where: { blockchainType },
     });
+  }
+
+  async addHardcodedTokens(deployment: Deployment) {
+    if (deployment.blockchainType !== BlockchainType.Sonic) {
+      return; // Only proceed for Sonic blockchain
+    }
+
+    const tokens = [];
+    for (const [address, metadata] of Object.entries(SONIC_TOKEN_METADATA)) {
+      // Check if token already exists
+      const existing = await this.token.findOne({
+        where: {
+          blockchainType: deployment.blockchainType,
+          exchangeId: deployment.exchangeId,
+          address: address
+        }
+      });
+
+      if (!existing) {
+        tokens.push(
+          this.token.create({
+            address,
+            symbol: metadata.symbol,
+            decimals: metadata.decimals,
+            name: metadata.name,
+            blockchainType: deployment.blockchainType,
+            exchangeId: deployment.exchangeId,
+          })
+        );
+      }
+    }
+
+    if (tokens.length > 0) {
+      await this.token.save(tokens);
+    }
   }
 }
