@@ -65,11 +65,24 @@ export class HistoricQuoteService implements OnModuleInit {
     this.shouldPollQuotes = this.configService.get('SHOULD_POLL_HISTORIC_QUOTES') === '1';
   }
 
-  onModuleInit() {
+  async onModuleInit() {
     if (this.shouldPollQuotes) {
       const callback = () => this.pollForUpdates();
       const interval = setInterval(callback, this.intervalDuration);
       this.schedulerRegistry.addInterval('pollForUpdates', interval);
+    }
+
+    const seedCodexOnStartup = this.configService.get('SEED_CODEX_ON_STARTUP') === '1';
+    
+    if (seedCodexOnStartup) {
+      const blockchainType = BlockchainType.Berachain; // Set the specific chain here
+      console.log(`Seeding Codex quotes for ${blockchainType}...`);
+      try {
+        await this.seedCodex(blockchainType);
+        console.log(`Finished seeding Codex quotes for ${blockchainType}`);
+      } catch (error) {
+        console.error(`Error seeding Codex quotes for ${blockchainType}:`, error);
+      }
     }
   }
 
@@ -80,8 +93,8 @@ export class HistoricQuoteService implements OnModuleInit {
     try {
       await Promise.all([
         await this.updateCoinMarketCapQuotes(),
-        await this.updateCodexQuotes(BlockchainType.Berachain),
-        await this.updateCodexQuotes(BlockchainType.Sonic),
+     //   await this.updateCodexQuotes(BlockchainType.Berachain), // turn these on once seed is done
+     //   await this.updateCodexQuotes(BlockchainType.Sonic),
         //await this.updateCodexQuotes(BlockchainType.Mantle,),
       ]);
     } catch (error) {
