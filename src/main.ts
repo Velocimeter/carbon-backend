@@ -9,13 +9,16 @@ async function bootstrap() {
   
   // Configure CORS
   app.enableCors({
-    origin: [
-      /\.velocimeter\.xyz$/,  // Allow all subdomains of velocimeter.xyz
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:8000',
-      'http://localhost:8001'
-    ],
+    origin: (origin, callback) => {
+      console.log('Incoming origin:', origin);  // Debug log
+      if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
+          ['http://localhost:3000', 'http://localhost:3001', 
+           'http://localhost:8000', 'http://localhost:8001'].includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });
