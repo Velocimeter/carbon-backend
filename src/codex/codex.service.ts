@@ -44,29 +44,54 @@ export class CodexService {
     }
 
     const result = {};
-    const batchSize = 100; // Process 50 tokens at a time
+    const batchSize = 100;
+    const delayBetweenBatches = 30; // 1 second delay between batches
+    const maxRetries = 3;
     
     // Process addresses in batches
     for (let i = 0; i < addresses.length; i += batchSize) {
       const batchAddresses = addresses.slice(i, i + batchSize);
-      console.log(`[CodexService] Processing batch ${i / batchSize + 1} of ${Math.ceil(addresses.length / batchSize)} (${batchAddresses.length} tokens)`);
+      const batchNum = Math.floor(i / batchSize) + 1;
+      const totalBatches = Math.ceil(addresses.length / batchSize);
       
-      try {
-        const tokens = await this.fetchTokens(networkId, batchAddresses);
-        tokens.forEach((t) => {
-          const address = t.token.address.toLowerCase();
-          if (address) {
-            result[address] = {
-              address,
-              usd: Number(t.priceUSD),
-              provider: 'codex',
-              last_updated_at: moment().unix(),
-            };
+      console.log(`[CodexService] Polling batch ${batchNum} of ${totalBatches} (${batchAddresses.length} tokens)`);
+      
+      let retryCount = 0;
+      while (retryCount < maxRetries) {
+        try {
+          const tokens = await this.fetchTokens(networkId, batchAddresses);
+          tokens.forEach((t) => {
+            const address = t.token.address.toLowerCase();
+            if (address) {
+              result[address] = {
+                address,
+                usd: Number(t.priceUSD),
+                provider: 'codex',
+                last_updated_at: moment().unix(),
+              };
+            }
+          });
+          
+          // If successful, break retry loop
+          break;
+        } catch (error) {
+          retryCount++;
+          console.error(`[CodexService] Error while polling batch ${batchNum} (attempt ${retryCount}/${maxRetries}):`, error);
+          
+          if (retryCount === maxRetries) {
+            console.error(`[CodexService] Failed to poll batch ${batchNum} after ${maxRetries} attempts, skipping...`);
+          } else {
+            // Wait longer between retries (exponential backoff)
+            const retryDelay = delayBetweenBatches * Math.pow(2, retryCount - 1);
+            console.log(`[CodexService] Retrying poll for batch ${batchNum} in ${retryDelay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
           }
-        });
-      } catch (error) {
-        console.error(`[CodexService] Error processing batch ${i / batchSize + 1}:`, error);
-        // Continue with next batch instead of failing completely
+        }
+      }
+
+      // Add delay between batches, but only if not the last batch
+      if (i + batchSize < addresses.length) {
+        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
       }
     }
 
@@ -102,7 +127,7 @@ export class CodexService {
         });
         return { ...bars.getBars, address: tokenAddress };
       } catch (error) {
-        console.error(`Error fetching data for ${tokenAddress}, retrying...`, error);
+        console.error(`Error during token price polling for ${tokenAddress}, retrying...`, error);
         return fetchWithRetry(tokenAddress, batchFrom, batchTo);
       }
     };
@@ -134,7 +159,7 @@ export class CodexService {
 
       return quotesByAddress;
     } catch (error) {
-      console.error('Unexpected error:', error);
+      console.error('Unexpected error during price polling:', error);
       throw error;
     }
   }
@@ -167,7 +192,7 @@ export class CodexService {
         allTokens = [...allTokens, ...fetched];
         offset += limit;
       } catch (error) {
-        console.error('Error fetching tokens:', error);
+        console.error('Error during token list polling:', error);
         throw error;
       }
     } while (fetched.length === limit);
