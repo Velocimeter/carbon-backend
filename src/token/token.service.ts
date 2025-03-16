@@ -171,7 +171,10 @@ export class TokenService {
 
     try {
       console.log(`[metadatatokens] Fetching token metadata from Codex for ${addresses.length} addresses on ${deployment.blockchainType}`);
+      console.log(`[metadatatokens] Addresses:`, addresses);
+      
       const results = await this.codexService.getTokenMetadata(networkId, addresses);
+      console.log(`[metadatatokens] Received ${results?.length || 0} results from Codex`);
 
       const metadataMap = new Map<string, TokenMetadata>();
       
@@ -181,6 +184,9 @@ export class TokenService {
           console.warn(`[metadatatokens] Received null/undefined result from Codex`);
           continue;
         }
+        
+        console.log(`[metadatatokens] Processing Codex result:`, JSON.stringify(result, null, 2));
+        
         if (!result.token) {
           console.warn(`[metadatatokens] Missing token data in Codex result:`, result);
           continue;
@@ -193,7 +199,14 @@ export class TokenService {
 
         // Only add to map if we have all required fields
         if (token.symbol && token.name && token.decimals != null) {
-          metadataMap.set(token.address.toLowerCase(), {
+          const lowerAddress = token.address.toLowerCase();
+          console.log(`[metadatatokens] Adding metadata for ${lowerAddress}:`, {
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+          });
+          
+          metadataMap.set(lowerAddress, {
             symbol: token.symbol,
             name: token.name,
             decimals: token.decimals,
@@ -208,6 +221,7 @@ export class TokenService {
       }
 
       console.log(`[metadatatokens] Found metadata for ${metadataMap.size} tokens from Codex`);
+      console.log(`[metadatatokens] Metadata map keys:`, Array.from(metadataMap.keys()));
       return metadataMap;
     } catch (error) {
       console.warn(`[metadatatokens] Failed to fetch token metadata from Codex: ${error.message}`);
@@ -218,6 +232,7 @@ export class TokenService {
   private async createFromAddresses(addresses: string[], deployment: Deployment) {
     try {
       console.log(`[metadatatokens] Starting token creation for ${addresses.length} addresses on ${deployment.blockchainType}`);
+      console.log(`[metadatatokens] Input addresses:`, addresses);
       
       // map all token addresses in an array
       const addressesSet = new Set(addresses);
@@ -241,12 +256,14 @@ export class TokenService {
       }
 
       console.log(`[metadatatokens] Fetching metadata for ${newAddresses.length} tokens on ${deployment.blockchainType}`);
+      console.log(`[metadatatokens] New addresses:`, newAddresses);
 
       // Try to get metadata from Codex first
       const codexMetadata = await this.getTokenMetadataFromCodex(newAddresses, deployment);
       
       // For tokens not found in Codex, fetch metadata from chain
       const missingAddresses = newAddresses.filter(addr => !codexMetadata.has(addr.toLowerCase()));
+      console.log(`[metadatatokens] Addresses missing from Codex:`, missingAddresses);
       
       let chainDecimals: number[] = [], chainSymbols: string[] = [], chainNames: string[] = [];
       if (missingAddresses.length > 0) {
@@ -255,6 +272,12 @@ export class TokenService {
           chainDecimals = await this.getDecimals(missingAddresses, deployment);
           chainSymbols = await this.getSymbols(missingAddresses, deployment);
           chainNames = await this.getNames(missingAddresses, deployment);
+          
+          console.log(`[metadatatokens] Chain metadata results:`, {
+            decimals: chainDecimals,
+            symbols: chainSymbols,
+            names: chainNames,
+          });
         } catch (error) {
           console.warn(`[metadatatokens] Failed to fetch on-chain metadata: ${error.message}`);
         }
@@ -266,20 +289,26 @@ export class TokenService {
       
       for (let i = 0; i < newAddresses.length; i++) {
         const address = newAddresses[i];
+        console.log(`[metadatatokens] Processing address ${address}`);
+        
         const codexData = codexMetadata.get(address.toLowerCase());
+        console.log(`[metadatatokens] Codex data for ${address}:`, codexData);
         
         let metadata: TokenMetadata | null = null;
         
         if (codexData) {
           metadata = codexData;
+          console.log(`[metadatatokens] Using Codex metadata for ${address}`);
         } else {
           const chainIndex = missingAddresses.indexOf(address);
+          console.log(`[metadatatokens] Chain index for ${address}: ${chainIndex}`);
           if (chainIndex >= 0 && chainDecimals[chainIndex] && chainSymbols[chainIndex] && chainNames[chainIndex]) {
             metadata = {
               decimals: chainDecimals[chainIndex],
               symbol: chainSymbols[chainIndex],
               name: chainNames[chainIndex],
             };
+            console.log(`[metadatatokens] Using chain metadata for ${address}:`, metadata);
           }
         }
         

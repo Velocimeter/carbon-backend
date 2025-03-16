@@ -225,6 +225,8 @@ export class CodexService {
   async getTokenMetadata(networkId: number, addresses: string[]): Promise<any> {
     try {
       console.log(`[codex] Fetching token metadata for ${addresses.length} addresses on network ${networkId}`);
+      console.log(`[codex] Addresses:`, addresses);
+      
       const result = await this.sdk.queries.filterTokens({
         filters: {
           network: [networkId],
@@ -232,6 +234,8 @@ export class CodexService {
         tokens: addresses,
         limit: addresses.length,
       });
+
+      console.log(`[codex] Raw filterTokens response:`, JSON.stringify(result, null, 2));
 
       if (!result?.filterTokens?.results) {
         console.warn(`[codex] No results returned from filterTokens query for network ${networkId}`);
@@ -243,6 +247,9 @@ export class CodexService {
         .filter(r => r?.token?.address)
         .map(r => r.token.address.toLowerCase())
       );
+      
+      console.log(`[codex] Found addresses:`, Array.from(foundAddresses));
+      
       const missingAddresses = addresses.filter(addr => !foundAddresses.has(addr.toLowerCase()));
       if (missingAddresses.length > 0) {
         console.warn(`[codex] No metadata found for ${missingAddresses.length} addresses:`, missingAddresses);
