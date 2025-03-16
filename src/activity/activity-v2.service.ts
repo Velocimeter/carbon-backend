@@ -34,137 +34,66 @@ export class ActivityV2Service {
   ) {}
 
   async update(endBlock: number, deployment: Deployment, tokens: TokensByAddress): Promise<void> {
-    console.log(`[actdunks][${deployment.blockchainType}] Starting activity update from block ${deployment.startBlock} to ${endBlock} (exchange: ${deployment.exchangeId})`);
+    console.log(`[actdunks][${deployment.blockchainType}] Starting activity update from block ${deployment.startBlock} to ${endBlock}`);
     const strategyStates: StrategyStatesMap = new Map<string, StrategyState>();
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-activities-v2`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
-    console.log(`[actdunks][${deployment.blockchainType}] Last processed block: ${lastProcessedBlock}, Start block: ${deployment.startBlock}, End block: ${endBlock}`);
+    console.log(`[actdunks][${deployment.blockchainType}] Last processed block: ${lastProcessedBlock}`);
 
     // Clean up existing activities for this batch range
-    try {
-      const deleteResult = await this.activityRepository
-        .createQueryBuilder()
-        .delete()
-        .where('"blockNumber" >= :lastProcessedBlock', { lastProcessedBlock })
-        .andWhere('"blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType })
-        .andWhere('"exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
-        .execute();
-      console.log(`[actdunks][${deployment.blockchainType}] Cleaned up ${deleteResult.affected || 0} existing activities`);
-    } catch (error) {
-      console.error(`[actdunks][${deployment.blockchainType}] Error cleaning up existing activities:`, error);
-      throw error;
-    }
+    const deleteResult = await this.activityRepository
+      .createQueryBuilder()
+      .delete()
+      .where('"blockNumber" >= :lastProcessedBlock', { lastProcessedBlock })
+      .andWhere('"blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType })
+      .andWhere('"exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
+      .execute();
+    console.log(`[actdunks][${deployment.blockchainType}] Cleaned up ${deleteResult.affected || 0} existing activities`);
 
-    // Check if we have any blocks to process
-    if (lastProcessedBlock >= endBlock) {
-      console.log(`[actdunks][${deployment.blockchainType}] No new blocks to process. Last processed: ${lastProcessedBlock}, End: ${endBlock}`);
-      return;
-    }
-
-    try {
-      await this.initializeStrategyStates(lastProcessedBlock, deployment, strategyStates);
-      console.log(`[actdunks][${deployment.blockchainType}] Initialized ${strategyStates.size} strategy states`);
-    } catch (error) {
-      console.error(`[actdunks][${deployment.blockchainType}] Error initializing strategy states:`, error);
-      throw error;
-    }
+    await this.initializeStrategyStates(lastProcessedBlock, deployment, strategyStates);
+    console.log(`[actdunks][${deployment.blockchainType}] Initialized ${strategyStates.size} strategy states`);
 
     // Process blocks in batches
-    let totalProcessedEvents = 0;
-    let totalGeneratedActivities = 0;
-
     for (let batchStart = lastProcessedBlock; batchStart < endBlock; batchStart += this.BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + this.BATCH_SIZE - 1, endBlock);
-      console.log(`[actdunks][${deployment.blockchainType}] Processing batch from block ${batchStart} to ${batchEnd} (size: ${batchEnd - batchStart + 1})`);
+      console.log(`[actdunks][${deployment.blockchainType}] Processing batch from block ${batchStart} to ${batchEnd}`);
 
       // Fetch events in parallel
-      try {
-        console.log(`[actdunks][${deployment.blockchainType}] Fetching events for batch ${batchStart}-${batchEnd}...`);
-        const [createdEvents, updatedEvents, deletedEvents, transferEvents] = await Promise.all([
-          this.strategyCreatedEventService.get(batchStart, batchEnd, deployment)
-            .catch(error => {
-              console.error(`[actdunks][${deployment.blockchainType}] Error fetching created events:`, error);
-              return [];
-            }),
-          this.strategyUpdatedEventService.get(batchStart, batchEnd, deployment)
-            .catch(error => {
-              console.error(`[actdunks][${deployment.blockchainType}] Error fetching updated events:`, error);
-              return [];
-            }),
-          this.strategyDeletedEventService.get(batchStart, batchEnd, deployment)
-            .catch(error => {
-              console.error(`[actdunks][${deployment.blockchainType}] Error fetching deleted events:`, error);
-              return [];
-            }),
-          this.voucherTransferEventService.get(batchStart, batchEnd, deployment)
-            .catch(error => {
-              console.error(`[actdunks][${deployment.blockchainType}] Error fetching transfer events:`, error);
-              return [];
-            }),
-        ]);
+      const [createdEvents, updatedEvents, deletedEvents, transferEvents] = await Promise.all([
+        this.strategyCreatedEventService.get(batchStart, batchEnd, deployment),
+        this.strategyUpdatedEventService.get(batchStart, batchEnd, deployment),
+        this.strategyDeletedEventService.get(batchStart, batchEnd, deployment),
+        this.voucherTransferEventService.get(batchStart, batchEnd, deployment),
+      ]);
 
-        const batchEvents = createdEvents.length + updatedEvents.length + deletedEvents.length + transferEvents.length;
-        totalProcessedEvents += batchEvents;
+      console.log(`[actdunks][${deployment.blockchainType}] Found events in batch: created=${createdEvents.length}, updated=${updatedEvents.length}, deleted=${deletedEvents.length}, transfer=${transferEvents.length}`);
 
-        console.log(`[actdunks][${deployment.blockchainType}] Found events in batch ${batchStart}-${batchEnd}:
-          Created: ${createdEvents.length} (valid events: ${createdEvents.filter(e => e !== null && e !== undefined).length})
-          Updated: ${updatedEvents.length} (valid events: ${updatedEvents.filter(e => e !== null && e !== undefined).length})
-          Deleted: ${deletedEvents.length} (valid events: ${deletedEvents.filter(e => e !== null && e !== undefined).length})
-          Transfer: ${transferEvents.length} (valid events: ${transferEvents.filter(e => e !== null && e !== undefined).length})
-          Total events in batch: ${batchEvents}
-        `);
+      // Process events into activities
+      const activities = this.processEvents(
+        createdEvents,
+        updatedEvents,
+        deletedEvents,
+        transferEvents,
+        deployment,
+        tokens,
+        strategyStates,
+      );
+      console.log(`[actdunks][${deployment.blockchainType}] Generated ${activities.length} activities from events`);
 
-        if (batchEvents === 0) {
-          console.log(`[actdunks][${deployment.blockchainType}] No events found in batch ${batchStart}-${batchEnd}`);
-          continue;
-        }
-
-        // Process events into activities
-        console.log(`[actdunks][${deployment.blockchainType}] Processing events into activities...`);
-        const activities = this.processEvents(
-          createdEvents,
-          updatedEvents,
-          deletedEvents,
-          transferEvents,
-          deployment,
-          tokens,
-          strategyStates,
-        );
-        totalGeneratedActivities += activities.length;
-        console.log(`[actdunks][${deployment.blockchainType}] Generated ${activities.length} activities from ${batchEvents} events (running total: ${totalGeneratedActivities})`);
-
-        // Save activities in smaller batches
-        if (activities.length > 0) {
-          let savedCount = 0;
-          for (let i = 0; i < activities.length; i += this.SAVE_BATCH_SIZE) {
-            const activityBatch = activities.slice(i, i + this.SAVE_BATCH_SIZE);
-            try {
-              await this.activityRepository.save(activityBatch);
-              savedCount += activityBatch.length;
-              console.log(`[actdunks][${deployment.blockchainType}] Saved batch of ${activityBatch.length} activities (${savedCount}/${activities.length})`);
-            } catch (error) {
-              console.error(`[actdunks][${deployment.blockchainType}] Error saving activities batch:`, error);
-              console.error(`[actdunks][${deployment.blockchainType}] Error details:`, error.stack);
-              throw error;
-            }
-          }
-        }
-
-        // Update the last processed block for this batch
-        try {
-          await this.lastProcessedBlockService.update(key, batchEnd);
-          console.log(`[actdunks][${deployment.blockchainType}] Updated last processed block to ${batchEnd}`);
-        } catch (error) {
-          console.error(`[actdunks][${deployment.blockchainType}] Error updating last processed block:`, error);
-          throw error;
-        }
-      } catch (error) {
-        console.error(`[actdunks][${deployment.blockchainType}] Error processing batch ${batchStart}-${batchEnd}:`, error);
-        console.error(`[actdunks][${deployment.blockchainType}] Stack trace:`, error.stack);
-        throw error;
+      // Save activities in smaller batches
+      let savedCount = 0;
+      for (let i = 0; i < activities.length; i += this.SAVE_BATCH_SIZE) {
+        const activityBatch = activities.slice(i, i + this.SAVE_BATCH_SIZE);
+        await this.activityRepository.save(activityBatch);
+        savedCount += activityBatch.length;
+        console.log(`[actdunks][${deployment.blockchainType}] Saved batch of ${activityBatch.length} activities (${savedCount}/${activities.length})`);
       }
+
+      // Update the last processed block for this batch
+      await this.lastProcessedBlockService.update(key, batchEnd);
+      console.log(`[actdunks][${deployment.blockchainType}] Updated last processed block to ${batchEnd}`);
     }
-    console.log(`[actdunks][${deployment.blockchainType}] Completed activity update. Total events processed: ${totalProcessedEvents}, Total activities generated: ${totalGeneratedActivities}`);
+    console.log(`[actdunks][${deployment.blockchainType}] Completed activity update`);
   }
 
   async getFilteredActivities(params: ActivityDto | ActivityMetaDto, deployment: Deployment): Promise<ActivityV2[]> {

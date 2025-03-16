@@ -98,39 +98,25 @@ export class UpdaterService {
         }
       }
 
-      // Log the start of each major update step
-      console.log(`[${deployment.blockchainType}] Starting update process at block ${endBlock}`);
-      console.log(`[${deployment.blockchainType}] Contract addresses:`, {
-        controller: deployment.contracts.CarbonController?.address,
-        voucher: deployment.contracts.CarbonVoucher?.address,
-        arbitrage: deployment.contracts.BancorArbitrage?.address,
-        vortex: deployment.contracts.CarbonVortex?.address,
-      });
-
       // handle PairCreated events
-      console.log(`[${deployment.blockchainType}] Processing pair creation events...`);
       await this.pairCreatedEventService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished pairs creation events`);
+      console.log(`CARBON SERVICE - Finished pairs creation events for ${deployment.exchangeId}`);
 
       // handle VortexTokensTraded events
-      console.log(`[${deployment.blockchainType}] Processing vortex tokens traded events...`);
       await this.vortexTokensTradedEventService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished Vortex tokens traded events`);
+      console.log(`CARBON SERVICE - Finished Vortex tokens traded events for ${deployment.exchangeId}`);
 
       // handle ArbitrageExecuted events
-      console.log(`[${deployment.blockchainType}] Processing arbitrage executed events...`);
       await this.arbitrageExecutedEventService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished updating arbitrage executed events`);
+      console.log(`CARBON SERVICE - Finished updating arbitrage executed events for ${deployment.exchangeId}`);
 
       // handle VortexTradingReset events
-      console.log(`[${deployment.blockchainType}] Processing vortex trading reset events...`);
       await this.vortexTradingResetEventService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished updating vortex trading reset events`);
+      console.log(`CARBON SERVICE - Finished updating vortex trading reset events for ${deployment.exchangeId}`);
 
       // handle ProtectionRemoved events
-      console.log(`[${deployment.blockchainType}] Processing protection removed events...`);
       await this.protectionRemovedEventService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished updating protection removed events`);
+      console.log(`CARBON SERVICE - Finished updating protection removed events for ${deployment.exchangeId}`);
 
       // TODO: REQUIRES HANDLING THE ABI TYPE MISMATCH
       // handle VortexFundsWithdrawn events
@@ -171,22 +157,20 @@ export class UpdaterService {
       console.log(`CARBON SERVICE - Finished updating voucher transfer events for ${deployment.exchangeId}`);
 
       await this.activityV2Service.update(endBlock, deployment, tokens);
-      console.log(`[${deployment.blockchainType}] Finished updating activities`);
+      console.log(`CARBON SERVICE - Finished updating activities for ${deployment.exchangeId}`);
 
       await this.tvlService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished updating tvl`);
+      console.log(`CARBON SERVICE - Finished updating tvl for ${deployment.exchangeId}`);
 
       // handle notifications
-      console.log(`[${deployment.blockchainType}] Processing notifications...`);
       await this.notificationService.update(endBlock, deployment);
-      console.log(`[${deployment.blockchainType}] Finished notifications`);
+      console.log(`CARBON SERVICE - Finished notifications for ${deployment.exchangeId}`);
 
-      console.log(`[${deployment.blockchainType}] Finished update iteration in:`, Date.now() - t, 'ms');
+      console.log(`CARBON SERVICE - Finished update iteration for ${deploymentKey} in:`, Date.now() - t, 'ms');
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     } catch (error) {
-      console.error(`[${deployment.blockchainType}] Error in carbon updater:`, error);
-      console.error(`[${deployment.blockchainType}] Stack trace:`, error.stack);
+      console.log(`error in carbon updater for ${deploymentKey}`, error, Date.now() - t);
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     }
