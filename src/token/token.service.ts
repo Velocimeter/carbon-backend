@@ -44,7 +44,7 @@ export class TokenService {
     const lastProcessedBlockNumber = await this.lastProcessedBlockService.getOrInit(lastProcessedEntity, 1);
 
     // Define batch size
-    const batchSize = 1;
+    const batchSize = 1000;
     let currentBlock = lastProcessedBlockNumber;
 
     while (currentBlock < endBlock) {
@@ -111,7 +111,7 @@ export class TokenService {
       addressesData.sort((a, b) => a.blockId - b.blockId);
 
       // create new tokens
-      const addressesBatches = _.chunk(addressesData, 1000);
+      const addressesBatches = _.chunk(addressesData, 1);
       for (const addressesBatch of addressesBatches) {
         // Extract just the addresses for token creation
         const addresses = addressesBatch.map((data) => data.address);
@@ -169,6 +169,8 @@ export class TokenService {
         newAddresses.push(t);
       }
     });
+
+    console.log('newAddresses sonic dunks before we try get the metadata', newAddresses);
 
     // fetch metadata
     const decimals = await this.getDecimals(newAddresses, deployment);
