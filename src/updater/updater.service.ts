@@ -83,8 +83,8 @@ export class UpdaterService {
 
     console.log(`CARBON SERVICE - Started update cycle for ${deploymentKey}`);
     let endBlock = -12;
-
     const t = Date.now();
+
     try {
       this.isUpdating[deploymentKey] = true;
       const lockDuration = parseInt(this.configService.get('CARBON_LOCK_DURATION')) || 30;
@@ -98,79 +98,47 @@ export class UpdaterService {
         }
       }
 
-      // handle PairCreated events
-      await this.pairCreatedEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished pairs creation events for ${deployment.exchangeId}`);
+      let tokens, pairs;
+      const services = [
+        { name: 'PairCreatedEventService', fn: async () => await this.pairCreatedEventService.update(endBlock, deployment) },
+        { name: 'VortexTokensTradedEventService', fn: async () => await this.vortexTokensTradedEventService.update(endBlock, deployment) },
+        { name: 'ArbitrageExecutedEventService', fn: async () => await this.arbitrageExecutedEventService.update(endBlock, deployment) },
+        { name: 'VortexTradingResetEventService', fn: async () => await this.vortexTradingResetEventService.update(endBlock, deployment) },
+        { name: 'ProtectionRemovedEventService', fn: async () => await this.protectionRemovedEventService.update(endBlock, deployment) },
+        { name: 'TokenService', fn: async () => {
+          await this.tokenService.update(endBlock, deployment);
+          tokens = await this.tokenService.allByAddress(deployment);
+        }},
+        { name: 'PairService', fn: async () => {
+          await this.pairService.update(endBlock, tokens, deployment);
+          pairs = await this.pairService.allAsDictionary(deployment);
+        }},
+        { name: 'StrategyService', fn: async () => await this.strategyService.update(endBlock, pairs, tokens, deployment) },
+        { name: 'TokensTradedEventService', fn: async () => await this.tokensTradedEventService.update(endBlock, pairs, tokens, deployment) },
+        { name: 'CoingeckoService', fn: async () => await this.coingeckoService.update(deployment) },
+        { name: 'TradingFeePpmUpdatedEventService', fn: async () => await this.tradingFeePpmUpdatedEventService.update(endBlock, deployment) },
+        { name: 'PairTradingFeePpmUpdatedEventService', fn: async () => await this.pairTradingFeePpmUpdatedEventService.update(endBlock, pairs, tokens, deployment) },
+        { name: 'VoucherTransferEventService', fn: async () => await this.voucherTransferEventService.update(endBlock, deployment) },
+        { name: 'ActivityV2Service', fn: async () => await this.activityV2Service.update(endBlock, deployment, tokens) },
+        { name: 'TvlService', fn: async () => await this.tvlService.update(endBlock, deployment) },
+        { name: 'NotificationService', fn: async () => await this.notificationService.update(endBlock, deployment) }
+      ];
 
-      // handle VortexTokensTraded events
-      await this.vortexTokensTradedEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished Vortex tokens traded events for ${deployment.exchangeId}`);
-
-      // handle ArbitrageExecuted events
-      await this.arbitrageExecutedEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating arbitrage executed events for ${deployment.exchangeId}`);
-
-      // handle VortexTradingReset events
-      await this.vortexTradingResetEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating vortex trading reset events for ${deployment.exchangeId}`);
-
-      // handle ProtectionRemoved events
-      await this.protectionRemovedEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating protection removed events for ${deployment.exchangeId}`);
-
-      // TODO: REQUIRES HANDLING THE ABI TYPE MISMATCH
-      // handle VortexFundsWithdrawn events
-      // await this.vortexFundsWithdrawnEventService.update(endBlock, deployment);
-      // console.log(`CARBON SERVICE - Finished Vortex funds withdrawn events for ${deployment.exchangeId}`);
-
-      // create tokens
-      await this.tokenService.update(endBlock, deployment);
-      const tokens = await this.tokenService.allByAddress(deployment);
-      console.log(`CARBON SERVICE - Finished tokens for ${deployment.exchangeId}`);
-
-      // create pairs
-      await this.pairService.update(endBlock, tokens, deployment);
-      const pairs = await this.pairService.allAsDictionary(deployment);
-      console.log(`CARBON SERVICE - Finished pairs for ${deployment.exchangeId}`);
-
-      // create strategies
-      await this.strategyService.update(endBlock, pairs, tokens, deployment);
-      console.log(`CARBON SERVICE - Finished strategies for ${deployment.exchangeId}`);
-
-      // create trades
-      await this.tokensTradedEventService.update(endBlock, pairs, tokens, deployment);
-      console.log(`CARBON SERVICE - Finished trades for ${deployment.exchangeId}`);
-
-      // coingecko tickers
-      await this.coingeckoService.update(deployment);
-      console.log(`CARBON SERVICE - Finished updating coingecko tickers for ${deployment.exchangeId}`);
-
-      // trading fee events
-      await this.tradingFeePpmUpdatedEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating trading fee events for ${deployment.exchangeId}`);
-
-      // pair trading fee events
-      await this.pairTradingFeePpmUpdatedEventService.update(endBlock, pairs, tokens, deployment);
-      console.log(`CARBON SERVICE - Finished updating pair trading fee events for ${deployment.exchangeId}`);
-
-      await this.voucherTransferEventService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating voucher transfer events for ${deployment.exchangeId}`);
-
-      await this.activityV2Service.update(endBlock, deployment, tokens);
-      console.log(`CARBON SERVICE - Finished updating activities for ${deployment.exchangeId}`);
-
-      await this.tvlService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating tvl for ${deployment.exchangeId}`);
-
-      // handle notifications
-      await this.notificationService.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished notifications for ${deployment.exchangeId}`);
+      for (const service of services) {
+        try {
+          await service.fn();
+          console.log(`CARBON SERVICE - Finished ${service.name} for ${deployment.exchangeId}`);
+        } catch (error) {
+          console.log(`error in carbon updater for ${deploymentKey} in ${service.name}:`, error, Date.now() - t);
+          throw error;
+        }
+      }
 
       console.log(`CARBON SERVICE - Finished update iteration for ${deploymentKey} in:`, Date.now() - t, 'ms');
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     } catch (error) {
-      console.log(`error in carbon updater for ${deploymentKey}`, error, Date.now() - t);
+      console.log(`error in carbon updater for ${deploymentKey}:`, error, Date.now() - t);
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     }
