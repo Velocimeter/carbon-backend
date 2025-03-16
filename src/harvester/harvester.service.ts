@@ -258,6 +258,12 @@ export class HarvesterService {
             }
 
             if (e.returnValues['token0'] && e.returnValues['token1'] && args.tokens) {
+              console.log('Debug dunks - tokens dictionary exists:', !!args.tokens);
+              console.log('Debug dunks - tokens keys:', Object.keys(args.tokens));
+              console.log('Debug dunks - looking for token0:', e.returnValues['token0']);
+              console.log('Debug dunks - looking for token1:', e.returnValues['token1']);
+              console.log('Debug dunks - token0 exists:', !!args.tokens[e.returnValues['token0']]);
+              console.log('Debug dunks - token1 exists:', !!args.tokens[e.returnValues['token1']]);
               newEvent['token0'] = args.tokens[e.returnValues['token0']];
               newEvent['token1'] = args.tokens[e.returnValues['token1']];
             }

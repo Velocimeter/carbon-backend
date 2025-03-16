@@ -200,6 +200,9 @@ export class DeploymentService {
           BancorArbitrage: {
             address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
           },
+          CarbonVortex: {
+            address: '0xbf279b9fbdc4c62a42eb507f02516d02b88fbec2',  // Replace with actual contract address
+          },
         },
       },
       {
