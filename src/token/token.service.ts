@@ -187,35 +187,36 @@ export class TokenService {
         
         console.log(`[metadatatokens] Processing Codex result:`, JSON.stringify(result, null, 2));
         
-        if (!result.token) {
-          console.warn(`[metadatatokens] Missing token data in Codex result:`, result);
+        const tokenInfo = result?.data?.getTokenInfo;
+        if (!tokenInfo) {
+          console.warn(`[metadatatokens] Missing getTokenInfo in Codex result:`, result);
           continue;
         }
-        const { token } = result;
-        if (!token.address) {
-          console.warn(`[metadatatokens] Missing address in Codex token data:`, token);
+
+        if (!tokenInfo.address) {
+          console.warn(`[metadatatokens] Missing address in Codex token data:`, tokenInfo);
           continue;
         }
 
         // Only add to map if we have all required fields
-        if (token.symbol && token.name && token.decimals != null) {
-          const lowerAddress = token.address.toLowerCase();
+        if (tokenInfo.symbol && tokenInfo.name && tokenInfo.decimals != null) {
+          const lowerAddress = tokenInfo.address.toLowerCase();
           console.log(`[metadatatokens] Adding metadata for ${lowerAddress}:`, {
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals,
+            symbol: tokenInfo.symbol,
+            name: tokenInfo.name,
+            decimals: tokenInfo.decimals,
           });
           
           metadataMap.set(lowerAddress, {
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals,
+            symbol: tokenInfo.symbol,
+            name: tokenInfo.name,
+            decimals: tokenInfo.decimals || 18, // Default to 18 if decimals is 0
           });
         } else {
-          console.warn(`[metadatatokens] Incomplete token metadata from Codex for ${token.address}:`, {
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals,
+          console.warn(`[metadatatokens] Incomplete token metadata from Codex for ${tokenInfo.address}:`, {
+            symbol: tokenInfo.symbol,
+            name: tokenInfo.name,
+            decimals: tokenInfo.decimals,
           });
         }
       }
@@ -231,21 +232,35 @@ export class TokenService {
 
   private async createFromAddresses(addresses: string[], deployment: Deployment) {
     try {
-      console.log(`[metadatatokens] Starting token creation for ${addresses.length} addresses on ${deployment.blockchainType}`);
-      console.log(`[metadatatokens] Input addresses:`, addresses);
-      
+      // Filter out invalid addresses first
+      const validAddresses = addresses.filter(addr => {
+        if (!addr) return false;
+        try {
+          // Ensure it's a valid hex address
+          const normalized = addr.toLowerCase();
+          return normalized.startsWith('0x') && normalized.length === 42;
+        } catch (e) {
+          console.warn(`[metadatatokens] Invalid address format: ${addr}`);
+          return false;
+        }
+      });
+
+      if (validAddresses.length < addresses.length) {
+        console.warn(`[metadatatokens] Filtered out ${addresses.length - validAddresses.length} invalid addresses`);
+      }
+
       // map all token addresses in an array
-      const addressesSet = new Set(addresses);
+      const addressesSet = new Set(validAddresses);
 
       // filter out already existing tokens
       const currentlyExistingTokens: any = await this.token.find({
         where: { blockchainType: deployment.blockchainType, exchangeId: deployment.exchangeId },
       });
-      const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address);
+      const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address.toLowerCase());
 
       const newAddresses = [];
       Array.from(addressesSet).forEach((t) => {
-        if (!currentlyExistingAddresses.includes(t)) {
+        if (!currentlyExistingAddresses.includes(t.toLowerCase())) {
           newAddresses.push(t);
         }
       });
@@ -313,22 +328,25 @@ export class TokenService {
         }
         
         if (!metadata) {
-          const message = `[metadatatokens] Skipping token creation for ${address} due to missing metadata`;
-          console.warn(message);
-          skippedTokens.push(address);
-          continue;
+          console.warn(`[metadatatokens] Creating placeholder token for ${address} due to missing metadata`);
+          metadata = {
+            symbol: 'UNKNOWN',
+            name: 'Unknown Token',
+            decimals: 18  // Most common default
+          };
         }
 
-        newTokens.push(
-          this.token.create({
-            address: address,
-            symbol: metadata.symbol,
-            decimals: metadata.decimals,
-            name: metadata.name,
-            blockchainType: deployment.blockchainType,
-            exchangeId: deployment.exchangeId,
-          }),
-        );
+        const token = this.token.create({
+          address: address,
+          symbol: metadata.symbol,
+          decimals: metadata.decimals,
+          name: metadata.name,
+          blockchainType: deployment.blockchainType,
+          exchangeId: deployment.exchangeId,
+          needsMetadataRefresh: !codexMetadata.has(address.toLowerCase()) // Mark for future refresh if we couldn't get metadata
+        });
+
+        newTokens.push(token);
       }
 
       if (newTokens.length > 0) {
