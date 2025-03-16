@@ -60,15 +60,26 @@ export class CodexService {
       while (retryCount < maxRetries) {
         try {
           const tokens = await this.fetchTokens(networkId, batchAddresses);
+          
+          // Log which tokens were found vs not found
+          const foundAddresses = new Set(tokens.map(t => t.token.address.toLowerCase()));
+          const missingAddresses = batchAddresses.filter(addr => !foundAddresses.has(addr.toLowerCase()));
+          
+          if (missingAddresses.length > 0) {
+            console.log(`[CodexService] Warning: No quotes found for ${missingAddresses.length} tokens in batch ${batchNum}:`, missingAddresses);
+          }
+          
           tokens.forEach((t) => {
             const address = t.token.address.toLowerCase();
-            if (address) {
+            if (address && t.priceUSD) {
               result[address] = {
                 address,
                 usd: Number(t.priceUSD),
                 provider: 'codex',
                 last_updated_at: moment().unix(),
               };
+            } else if (address) {
+              console.log(`[CodexService] Warning: Token found but no price for ${address}`);
             }
           });
           
@@ -80,6 +91,8 @@ export class CodexService {
           
           if (retryCount === maxRetries) {
             console.error(`[CodexService] Failed to poll batch ${batchNum} after ${maxRetries} attempts, skipping...`);
+            // Log the addresses that failed
+            console.error(`[CodexService] Failed addresses in batch ${batchNum}:`, batchAddresses);
           } else {
             // Wait longer between retries (exponential backoff)
             const retryDelay = delayBetweenBatches * Math.pow(2, retryCount - 1);
@@ -102,6 +115,15 @@ export class CodexService {
         provider: 'codex',
         last_updated_at: moment().unix(),
       };
+    }
+
+    // Log summary of results
+    const totalTokens = addresses.length;
+    const quotesFound = Object.keys(result).length;
+    console.log(`[CodexService] Summary: Found quotes for ${quotesFound}/${totalTokens} tokens`);
+    if (quotesFound < totalTokens) {
+      const missingAddresses = addresses.filter(addr => !result[addr.toLowerCase()]);
+      console.log(`[CodexService] Missing quotes for ${missingAddresses.length} tokens:`, missingAddresses);
     }
 
     return result;
