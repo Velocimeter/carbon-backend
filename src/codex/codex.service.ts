@@ -135,7 +135,7 @@ export class CodexService {
   }
 
   private async fetchTokens(networkId: number, addresses?: string[]) {
-    const limit = 200;
+    const limit = 100;
     let offset = 0;
     let allTokens = [];
     let fetched = [];

@@ -94,26 +94,26 @@ export class HistoricQuoteService implements OnModuleInit {
     try {
       const tasks = [
         this.updateCoinMarketCapQuotes().catch(error => {
-          console.error('[HistoricQuoteService] Error updating CoinMarketCap quotes:', error);
+          console.error('[HistoricQuoteService] Error while polling CoinMarketCap quotes:', error);
           return null;
         }),
         this.updateCodexQuotes(BlockchainType.Berachain).catch(error => {
-          console.error('[HistoricQuoteService] Error updating Berachain Codex quotes:', error);
+          console.error('[HistoricQuoteService] Error while polling Berachain Codex quotes:', error);
           return null;
         }),
         this.updateCodexQuotes(BlockchainType.Sonic).catch(error => {
-          console.error('[HistoricQuoteService] Error updating Sonic Codex quotes:', error);
+          console.error('[HistoricQuoteService] Error while polling Sonic Codex quotes:', error);
           return null;
         }),
         //this.updateCodexQuotes(BlockchainType.Mantle).catch(error => {
-        //  console.error('[HistoricQuoteService] Error updating Mantle Codex quotes:', error);
+        //  console.error('[HistoricQuoteService] Error while polling Mantle Codex quotes:', error);
         //  return null;
         //}),
       ];
 
       await Promise.all(tasks);
     } catch (error) {
-      console.error('[HistoricQuoteService] Critical error in pollForUpdates:', error);
+      console.error('[HistoricQuoteService] Critical error while polling for historic quotes:', error);
     } finally {
       this.isPolling = false;
       console.log('[HistoricQuoteService] Finished polling historic quotes');
