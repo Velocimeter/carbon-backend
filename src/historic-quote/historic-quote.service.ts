@@ -182,8 +182,19 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     const batches = _.chunk(newQuotes, 1000);
-    await Promise.all(batches.map((batch) => this.repository.save(batch)));
-    console.log(`[HistoricQuoteService] Finished polling Codex quotes for ${blockchainType}, found ${newQuotes.length} new quotes`);
+    try {
+      console.log(`[HistoricQuoteService] poll Saving ${batches.length} batches of quotes for ${blockchainType} (${newQuotes.length} total quotes)`);
+      for (let i = 0; i < batches.length; i++) {
+        const batch = batches[i];
+        console.log(`[HistoricQuoteService] Saving batch ${i + 1}/${batches.length} with ${batch.length} quotes for ${blockchainType}`);
+        await this.repository.save(batch);
+      }
+      console.log(`[HistoricQuoteService] poll Successfully saved all ${newQuotes.length} new Codex quotes for ${blockchainType} to database`);
+    } catch (error) {
+      console.error(`[HistoricQuoteService] poll Failed to save Codex quotes for ${blockchainType} to database:`, error);
+      throw error; // Re-throw to be caught by the higher level error handler
+    }
+    console.log(`[HistoricQuoteService] poll Finished polling Codex quotes for ${blockchainType}, found ${newQuotes.length} new quotes`);
   }
 
   async seed(): Promise<void> {
