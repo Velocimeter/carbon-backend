@@ -154,42 +154,66 @@ export class TokenService {
   }
 
   private async createFromAddresses(addresses: string[], deployment: Deployment) {
-    // map all token addresses in an array
-    const addressesSet = new Set(addresses);
+    try {
+      // map all token addresses in an array
+      const addressesSet = new Set(addresses);
 
-    // filter out already existing tokens
-    const currentlyExistingTokens: any = await this.token.find({
-      where: { blockchainType: deployment.blockchainType, exchangeId: deployment.exchangeId },
-    });
-    const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address);
+      // filter out already existing tokens
+      const currentlyExistingTokens: any = await this.token.find({
+        where: { blockchainType: deployment.blockchainType, exchangeId: deployment.exchangeId },
+      });
+      const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address);
 
-    const newAddresses = [];
-    Array.from(addressesSet).forEach((t) => {
-      if (!currentlyExistingAddresses.includes(t)) {
-        newAddresses.push(t);
+      const newAddresses = [];
+      Array.from(addressesSet).forEach((t) => {
+        if (!currentlyExistingAddresses.includes(t)) {
+          newAddresses.push(t);
+        }
+      });
+
+      if (newAddresses.length === 0) {
+        return;
       }
-    });
 
-    // fetch metadata
-    const decimals = await this.getDecimals(newAddresses, deployment);
-    const symbols = await this.getSymbols(newAddresses, deployment);
-    const names = await this.getNames(newAddresses, deployment);
+      // fetch metadata
+      let decimals: number[], symbols: string[], names: string[];
+      try {
+        decimals = await this.getDecimals(newAddresses, deployment);
+        symbols = await this.getSymbols(newAddresses, deployment);
+        names = await this.getNames(newAddresses, deployment);
+      } catch (error) {
+        console.error(`Failed to fetch token metadata for addresses ${newAddresses.join(', ')} on ${deployment.blockchainType}:`, error);
+        throw error;
+      }
 
-    // create new tokens
-    const newTokens = [];
-    for (let i = 0; i < newAddresses.length; i++) {
-      newTokens.push(
-        this.token.create({
-          address: newAddresses[i],
-          symbol: symbols[i],
-          decimals: decimals[i],
-          name: names[i],
-          blockchainType: deployment.blockchainType, // Include blockchainType
-          exchangeId: deployment.exchangeId, // Include exchangeId
-        }),
-      );
+      // create new tokens
+      const newTokens = [];
+      for (let i = 0; i < newAddresses.length; i++) {
+        if (!decimals[i] || !symbols[i] || !names[i]) {
+          console.warn(`Skipping token creation for ${newAddresses[i]} due to missing metadata: decimals=${decimals[i]}, symbol=${symbols[i]}, name=${names[i]}`);
+          continue;
+        }
+
+        newTokens.push(
+          this.token.create({
+            address: newAddresses[i],
+            symbol: symbols[i],
+            decimals: decimals[i],
+            name: names[i],
+            blockchainType: deployment.blockchainType,
+            exchangeId: deployment.exchangeId,
+          }),
+        );
+      }
+
+      if (newTokens.length > 0) {
+        await this.token.save(newTokens);
+        console.log(`Successfully created ${newTokens.length} tokens for ${deployment.blockchainType}`);
+      }
+    } catch (error) {
+      console.error(`Failed to create tokens for ${deployment.blockchainType}:`, error);
+      throw error;
     }
-    await this.token.save(newTokens);
   }
 
   private async getSymbols(addresses: string[], deployment: Deployment): Promise<string[]> {

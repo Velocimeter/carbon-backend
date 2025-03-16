@@ -397,12 +397,28 @@ export class HarvesterService {
 
   async stringsWithMulticallV3(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<string[]> {
     const data = await this.withMulticallSei(addresses, abi, fn, deployment);
-    return data.map((r) => hexToString(r).replace(/[^a-zA-Z0-9]/g, ''));
+    return data.map((r) => {
+      if (!r.success) return '';
+      try {
+        return hexToString(r.data).replace(/[^a-zA-Z0-9]/g, '');
+      } catch (error) {
+        console.warn('Failed to convert hex to string:', error);
+        return '';
+      }
+    });
   }
 
   async integersWithMulticallSei(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<number[]> {
     const data = await this.withMulticallSei(addresses, abi, fn, deployment);
-    return data.map((r) => parseInt(r));
+    return data.map((r) => {
+      if (!r.success) return 0;
+      try {
+        return parseInt(r.data);
+      } catch (error) {
+        console.warn('Failed to parse integer:', error);
+        return 0;
+      }
+    });
   }
   async withMulticallEthereum(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<any> {
     const web3 = new Web3(deployment.rpcEndpoint);
@@ -427,20 +443,60 @@ export class HarvesterService {
 
   async withMulticallSei(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<any> {
     const web3 = new Web3(deployment.rpcEndpoint);
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
 
-    const multicall: any = new web3.eth.Contract(multicallAbiSei, deployment.multicallAddress); // Use multicallAddress from deployment
+    const multicall: any = new web3.eth.Contract(multicallAbiSei, deployment.multicallAddress);
     let data = [];
     const batches = _.chunk(addresses, 1000);
+
     for (const batch of batches) {
       const calls = [];
       batch.forEach((address) => {
-        const contract = new web3.eth.Contract([abi], address);
-        calls.push({ target: contract.options.address, callData: contract.methods[fn]().encodeABI() });
+        try {
+          const contract = new web3.eth.Contract([abi], address);
+          calls.push({ target: contract.options.address, callData: contract.methods[fn]().encodeABI() });
+        } catch (error) {
+          console.warn(`Failed to create contract instance for address ${address}:`, error);
+          // Push null to maintain array index alignment
+          calls.push(null);
+        }
       });
 
-      if (calls.length > 0) {
-        const result = await multicall.methods.aggregate(calls).call();
-        data = data.concat(result.returnData);
+      // Filter out null calls
+      const validCalls = calls.filter(call => call !== null);
+
+      if (validCalls.length > 0) {
+        let lastError;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            const result = await multicall.methods.aggregate(validCalls).call();
+            
+            // Map the results back to the original array positions
+            let resultIndex = 0;
+            const batchData = calls.map(call => {
+              if (call === null) {
+                return { success: false, data: '0x' };
+              }
+              return { 
+                success: true, 
+                data: result.returnData[resultIndex++] 
+              };
+            });
+            
+            data = data.concat(batchData);
+            break;
+          } catch (error) {
+            lastError = error;
+            console.warn(`Multicall attempt ${attempt} failed for ${deployment.blockchainType}:`, error);
+            if (attempt < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+            }
+          }
+        }
+        if (lastError && data.length === 0) {
+          throw new Error(`Failed to fetch data after ${maxRetries} attempts: ${lastError.message}`);
+        }
       }
     }
     return data;
