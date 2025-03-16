@@ -178,45 +178,45 @@ export class TokenService {
 
       const metadataMap = new Map<string, TokenMetadata>();
       
+      if (!Array.isArray(results)) {
+        console.warn(`[metadatatokens] Expected array of results from Codex, got:`, results);
+        return metadataMap;
+      }
+      
       for (const result of results) {
         // Add defensive checks and detailed logging
-        if (!result) {
-          console.warn(`[metadatatokens] Received null/undefined result from Codex`);
+        if (!result?.token) {
+          console.warn(`[metadatatokens] Missing token data in result:`, result);
           continue;
         }
         
-        console.log(`[metadatatokens] Processing Codex result:`, JSON.stringify(result, null, 2));
-        
-        const tokenInfo = result?.data?.getTokenInfo;
-        if (!tokenInfo) {
-          console.warn(`[metadatatokens] Missing getTokenInfo in Codex result:`, result);
-          continue;
-        }
+        const { token } = result;
+        console.log(`[metadatatokens] Processing token:`, JSON.stringify(token, null, 2));
 
-        if (!tokenInfo.address) {
-          console.warn(`[metadatatokens] Missing address in Codex token data:`, tokenInfo);
+        if (!token.address) {
+          console.warn(`[metadatatokens] Missing address in token data:`, token);
           continue;
         }
 
         // Only add to map if we have all required fields
-        if (tokenInfo.symbol && tokenInfo.name && tokenInfo.decimals != null) {
-          const lowerAddress = tokenInfo.address.toLowerCase();
+        if (token.symbol && token.name && token.decimals != null) {
+          const lowerAddress = token.address.toLowerCase();
           console.log(`[metadatatokens] Adding metadata for ${lowerAddress}:`, {
-            symbol: tokenInfo.symbol,
-            name: tokenInfo.name,
-            decimals: tokenInfo.decimals,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
           });
           
           metadataMap.set(lowerAddress, {
-            symbol: tokenInfo.symbol,
-            name: tokenInfo.name,
-            decimals: tokenInfo.decimals || 18, // Default to 18 if decimals is 0
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals || 18, // Default to 18 if decimals is 0
           });
         } else {
-          console.warn(`[metadatatokens] Incomplete token metadata from Codex for ${tokenInfo.address}:`, {
-            symbol: tokenInfo.symbol,
-            name: tokenInfo.name,
-            decimals: tokenInfo.decimals,
+          console.warn(`[metadatatokens] Incomplete token metadata for ${token.address}:`, {
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
           });
         }
       }
