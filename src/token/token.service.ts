@@ -13,6 +13,8 @@ import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-even
 import { VortexTradingResetEventService } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.service';
 import { VortexFundsWithdrawnEventService } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.service';
 import { ProtectionRemovedEventService } from '../events/protection-removed-event/protection-removed-event.service';
+import { CodexService, NETWORK_IDS } from '../codex/codex.service';
+
 export interface TokensByAddress {
   [address: string]: Token;
 }
@@ -21,6 +23,12 @@ export interface TokensByAddress {
 interface AddressData {
   address: string;
   blockId: number;
+}
+
+interface TokenMetadata {
+  symbol: string;
+  name: string;
+  decimals: number;
 }
 
 @Injectable()
@@ -35,6 +43,7 @@ export class TokenService {
     private vortexTradingResetEventService: VortexTradingResetEventService,
     private vortexFundsWithdrawnEventService: VortexFundsWithdrawnEventService,
     private protectionRemovedEventService: ProtectionRemovedEventService,
+    private codexService: CodexService,
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
@@ -153,6 +162,37 @@ export class TokenService {
     });
   }
 
+  private async getTokenMetadataFromCodex(addresses: string[], deployment: Deployment): Promise<Map<string, TokenMetadata>> {
+    const networkId = NETWORK_IDS[deployment.blockchainType];
+    if (!networkId) {
+      console.log(`[metadatatokens] No Codex network ID for ${deployment.blockchainType}, falling back to multicall`);
+      return new Map();
+    }
+
+    try {
+      console.log(`[metadatatokens] Fetching token metadata from Codex for ${addresses.length} addresses on ${deployment.blockchainType}`);
+      const results = await this.codexService.getTokenMetadata(networkId, addresses);
+
+      const metadataMap = new Map<string, TokenMetadata>();
+      
+      for (const token of results) {
+        if (token.token?.address && token.token?.symbol && token.token?.name && token.token?.decimals) {
+          metadataMap.set(token.token.address.toLowerCase(), {
+            symbol: token.token.symbol,
+            name: token.token.name,
+            decimals: token.token.decimals,
+          });
+        }
+      }
+
+      console.log(`[metadatatokens] Found metadata for ${metadataMap.size} tokens from Codex`);
+      return metadataMap;
+    } catch (error) {
+      console.warn(`[metadatatokens] Failed to fetch token metadata from Codex: ${error.message}`);
+      return new Map();
+    }
+  }
+
   private async createFromAddresses(addresses: string[], deployment: Deployment) {
     try {
       console.log(`[metadatatokens] Starting token creation for ${addresses.length} addresses on ${deployment.blockchainType}`);
@@ -180,40 +220,60 @@ export class TokenService {
 
       console.log(`[metadatatokens] Fetching metadata for ${newAddresses.length} tokens on ${deployment.blockchainType}`);
 
-      // fetch metadata
-      let decimals: number[], symbols: string[], names: string[];
-      try {
-        decimals = await this.getDecimals(newAddresses, deployment);
-        console.log(`[metadatatokens] Successfully fetched decimals for ${deployment.blockchainType}`);
-        
-        symbols = await this.getSymbols(newAddresses, deployment);
-        console.log(`[metadatatokens] Successfully fetched symbols for ${deployment.blockchainType}`);
-        
-        names = await this.getNames(newAddresses, deployment);
-        console.log(`[metadatatokens] Successfully fetched names for ${deployment.blockchainType}`);
-      } catch (error) {
-        const metadataError = new Error(`[metadatatokens] Failed to fetch token metadata for addresses ${newAddresses.join(', ')} on ${deployment.blockchainType}: ${error.message}`);
-        console.error(metadataError);
-        throw metadataError;
+      // Try to get metadata from Codex first
+      const codexMetadata = await this.getTokenMetadataFromCodex(newAddresses, deployment);
+      
+      // For tokens not found in Codex, fetch metadata from chain
+      const missingAddresses = newAddresses.filter(addr => !codexMetadata.has(addr.toLowerCase()));
+      
+      let chainDecimals: number[] = [], chainSymbols: string[] = [], chainNames: string[] = [];
+      if (missingAddresses.length > 0) {
+        console.log(`[metadatatokens] Fetching metadata from chain for ${missingAddresses.length} tokens`);
+        try {
+          chainDecimals = await this.getDecimals(missingAddresses, deployment);
+          chainSymbols = await this.getSymbols(missingAddresses, deployment);
+          chainNames = await this.getNames(missingAddresses, deployment);
+        } catch (error) {
+          console.warn(`[metadatatokens] Failed to fetch on-chain metadata: ${error.message}`);
+        }
       }
 
       // create new tokens
       const newTokens = [];
       const skippedTokens = [];
+      
       for (let i = 0; i < newAddresses.length; i++) {
-        if (!decimals[i] || !symbols[i] || !names[i]) {
-          const message = `[metadatatokens] Skipping token creation for ${newAddresses[i]} due to missing metadata: decimals=${decimals[i]}, symbol=${symbols[i]}, name=${names[i]}`;
+        const address = newAddresses[i];
+        const codexData = codexMetadata.get(address.toLowerCase());
+        
+        let metadata: TokenMetadata | null = null;
+        
+        if (codexData) {
+          metadata = codexData;
+        } else {
+          const chainIndex = missingAddresses.indexOf(address);
+          if (chainIndex >= 0 && chainDecimals[chainIndex] && chainSymbols[chainIndex] && chainNames[chainIndex]) {
+            metadata = {
+              decimals: chainDecimals[chainIndex],
+              symbol: chainSymbols[chainIndex],
+              name: chainNames[chainIndex],
+            };
+          }
+        }
+        
+        if (!metadata) {
+          const message = `[metadatatokens] Skipping token creation for ${address} due to missing metadata`;
           console.warn(message);
-          skippedTokens.push(newAddresses[i]);
+          skippedTokens.push(address);
           continue;
         }
 
         newTokens.push(
           this.token.create({
-            address: newAddresses[i],
-            symbol: symbols[i],
-            decimals: decimals[i],
-            name: names[i],
+            address: address,
+            symbol: metadata.symbol,
+            decimals: metadata.decimals,
+            name: metadata.name,
             blockchainType: deployment.blockchainType,
             exchangeId: deployment.exchangeId,
           }),

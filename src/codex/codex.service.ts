@@ -221,4 +221,20 @@ export class CodexService {
 
     return allTokens;
   }
+
+  async getTokenMetadata(networkId: number, addresses: string[]): Promise<any> {
+    try {
+      const result = await this.sdk.queries.filterTokens({
+        filters: {
+          network: [networkId],
+        },
+        tokens: addresses,
+        limit: addresses.length,
+      });
+      return result?.filterTokens?.results || [];
+    } catch (error) {
+      console.warn(`[codex] Failed to fetch token metadata: ${error.message}`);
+      return [];
+    }
+  }
 }
