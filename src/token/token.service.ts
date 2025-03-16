@@ -133,14 +133,18 @@ export class TokenService {
   }
 
   async allByAddress(deployment: Deployment): Promise<TokensByAddress> {
+    console.log(`Loading tokens for ${deployment.blockchainType}:${deployment.exchangeId}`);
     const all = await this.token.find({
       where: {
         blockchainType: deployment.blockchainType,
         exchangeId: deployment.exchangeId,
       },
     });
+    console.log('Found tokens:', all.map(t => ({ address: t.address, blockchainType: t.blockchainType, exchangeId: t.exchangeId })));
     const tokensByAddress = {};
     all.forEach((t) => (tokensByAddress[t.address] = t));
+    console.log('Looking for:', '0x29219dd400f2Bf60E5a23d13Be72B486D4038894');
+    console.log('Is token in dictionary:', !!tokensByAddress['0x29219dd400f2Bf60E5a23d13Be72B486D4038894']);
     return tokensByAddress;
   }
 
