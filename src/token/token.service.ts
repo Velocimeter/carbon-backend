@@ -175,12 +175,34 @@ export class TokenService {
 
       const metadataMap = new Map<string, TokenMetadata>();
       
-      for (const token of results) {
-        if (token.token?.address && token.token?.symbol && token.token?.name && token.token?.decimals) {
-          metadataMap.set(token.token.address.toLowerCase(), {
-            symbol: token.token.symbol,
-            name: token.token.name,
-            decimals: token.token.decimals,
+      for (const result of results) {
+        // Add defensive checks and detailed logging
+        if (!result) {
+          console.warn(`[metadatatokens] Received null/undefined result from Codex`);
+          continue;
+        }
+        if (!result.token) {
+          console.warn(`[metadatatokens] Missing token data in Codex result:`, result);
+          continue;
+        }
+        const { token } = result;
+        if (!token.address) {
+          console.warn(`[metadatatokens] Missing address in Codex token data:`, token);
+          continue;
+        }
+
+        // Only add to map if we have all required fields
+        if (token.symbol && token.name && token.decimals != null) {
+          metadataMap.set(token.address.toLowerCase(), {
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+          });
+        } else {
+          console.warn(`[metadatatokens] Incomplete token metadata from Codex for ${token.address}:`, {
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
           });
         }
       }
