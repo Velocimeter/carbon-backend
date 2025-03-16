@@ -44,19 +44,31 @@ export class CodexService {
     }
 
     const result = {};
-    const tokens = await this.fetchTokens(networkId, addresses);
-
-    tokens.forEach((t) => {
-      const address = t.token.address.toLowerCase();
-      if (address) {
-        result[address] = {
-          address,
-          usd: Number(t.priceUSD),
-          provider: 'codex',
-          last_updated_at: moment().unix(),
-        };
+    const batchSize = 100; // Process 50 tokens at a time
+    
+    // Process addresses in batches
+    for (let i = 0; i < addresses.length; i += batchSize) {
+      const batchAddresses = addresses.slice(i, i + batchSize);
+      console.log(`[CodexService] Processing batch ${i / batchSize + 1} of ${Math.ceil(addresses.length / batchSize)} (${batchAddresses.length} tokens)`);
+      
+      try {
+        const tokens = await this.fetchTokens(networkId, batchAddresses);
+        tokens.forEach((t) => {
+          const address = t.token.address.toLowerCase();
+          if (address) {
+            result[address] = {
+              address,
+              usd: Number(t.priceUSD),
+              provider: 'codex',
+              last_updated_at: moment().unix(),
+            };
+          }
+        });
+      } catch (error) {
+        console.error(`[CodexService] Error processing batch ${i / batchSize + 1}:`, error);
+        // Continue with next batch instead of failing completely
       }
-    });
+    }
 
     if (deployment.nativeTokenAlias && result[deployment.nativeTokenAlias.toLowerCase()]) {
       result[NATIVE_TOKEN.toLowerCase()] = {
