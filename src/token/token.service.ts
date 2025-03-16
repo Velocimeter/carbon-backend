@@ -7,7 +7,7 @@ import { Token } from './token.entity';
 import { HarvesterService } from '../harvester/harvester.service';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
 import { PairCreatedEventService } from '../events/pair-created-event/pair-created-event.service';
-import { BlockchainType, Deployment } from '../deployment/deployment.service';
+import { BlockchainType, Deployment, ExchangeId } from '../deployment/deployment.service';
 import { VortexTokensTradedEventService } from '../events/vortex-tokens-traded-event/vortex-tokens-traded-event.service';
 import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-event/arbitrage-executed-event.service';
 import { VortexTradingResetEventService } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.service';
@@ -337,14 +337,14 @@ export class TokenService {
         }
 
         const token = this.token.create({
-          address: address,
-          symbol: metadata.symbol,
-          decimals: metadata.decimals,
-          name: metadata.name,
           blockchainType: deployment.blockchainType,
           exchangeId: deployment.exchangeId,
-          needsMetadataRefresh: !codexMetadata.has(address.toLowerCase()) // Mark for future refresh if we couldn't get metadata
-        });
+          address: address.toLowerCase(), // Ensure consistent case
+          symbol: metadata.symbol,
+          name: metadata.name,
+          decimals: metadata.decimals,
+          needsMetadataRefresh: !codexMetadata.has(address.toLowerCase())
+        } as Partial<Token>);
 
         newTokens.push(token);
       }
