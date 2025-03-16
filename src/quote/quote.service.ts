@@ -35,13 +35,16 @@ export class QuoteService implements OnModuleInit {
       { name: 'coingecko', enabled: true },
       { name: 'codex', enabled: true },
     ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: false }],
-    [BlockchainType.Celo]: [{ name: 'codex', enabled: false }],
-    [BlockchainType.Blast]: [{ name: 'codex', enabled: false }],
-    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Sei]: [{ name: 'codex', enabled: false }],
+    // [BlockchainType.Celo]: [{ name: 'codex', enabled: false }],
+    // [BlockchainType.Blast]: [{ name: 'codex', enabled: false }],
+    // [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Iota]: [{ name: 'codex', enabled: true }], not available in codex
+    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
+
   };
 
   constructor(
