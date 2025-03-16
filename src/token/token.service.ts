@@ -7,14 +7,12 @@ import { Token } from './token.entity';
 import { HarvesterService } from '../harvester/harvester.service';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
 import { PairCreatedEventService } from '../events/pair-created-event/pair-created-event.service';
-import { BlockchainType, Deployment, ExchangeId } from '../deployment/deployment.service';
+import { BlockchainType, Deployment } from '../deployment/deployment.service';
 import { VortexTokensTradedEventService } from '../events/vortex-tokens-traded-event/vortex-tokens-traded-event.service';
 import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-event/arbitrage-executed-event.service';
 import { VortexTradingResetEventService } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.service';
 import { VortexFundsWithdrawnEventService } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.service';
 import { ProtectionRemovedEventService } from '../events/protection-removed-event/protection-removed-event.service';
-import { CodexService, NETWORK_IDS } from '../codex/codex.service';
-
 export interface TokensByAddress {
   [address: string]: Token;
 }
@@ -23,12 +21,6 @@ export interface TokensByAddress {
 interface AddressData {
   address: string;
   blockId: number;
-}
-
-interface TokenMetadata {
-  symbol: string;
-  name: string;
-  decimals: number;
 }
 
 @Injectable()
@@ -43,7 +35,6 @@ export class TokenService {
     private vortexTradingResetEventService: VortexTradingResetEventService,
     private vortexFundsWithdrawnEventService: VortexFundsWithdrawnEventService,
     private protectionRemovedEventService: ProtectionRemovedEventService,
-    private codexService: CodexService,
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
@@ -53,7 +44,7 @@ export class TokenService {
     const lastProcessedBlockNumber = await this.lastProcessedBlockService.getOrInit(lastProcessedEntity, 1);
 
     // Define batch size
-    const batchSize = 10000;
+    const batchSize = 1;
     let currentBlock = lastProcessedBlockNumber;
 
     while (currentBlock < endBlock) {
@@ -162,176 +153,71 @@ export class TokenService {
     });
   }
 
-  private async getTokenMetadataFromCodex(addresses: string[], deployment: Deployment): Promise<Map<string, TokenMetadata>> {
-    const networkId = NETWORK_IDS[deployment.blockchainType];
-    if (!networkId) {
-      console.log(`[metadatatokens] No Codex network ID for ${deployment.blockchainType}, falling back to multicall`);
-      return new Map();
-    }
+  private async createFromAddresses(addresses: string[], deployment: Deployment) {
+    // map all token addresses in an array
+    const addressesSet = new Set(addresses);
 
-    try {
-      console.log(`[metadatatokens] Fetching token metadata from Codex for ${addresses.length} addresses on ${deployment.blockchainType}`);
-      console.log(`[metadatatokens] Addresses:`, addresses);
-      
-      const results = await this.codexService.getTokenMetadata(networkId, addresses);
-      console.log(`[metadatatokens] Received ${results?.length || 0} results from Codex`);
+    // filter out already existing tokens
+    const currentlyExistingTokens: any = await this.token.find({
+      where: { blockchainType: deployment.blockchainType, exchangeId: deployment.exchangeId },
+    });
+    const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address);
 
-      const metadataMap = new Map<string, TokenMetadata>();
-      
-      if (!Array.isArray(results)) {
-        console.warn(`[metadatatokens] Expected array of results from Codex, got:`, results);
-        return metadataMap;
+    const newAddresses = [];
+    Array.from(addressesSet).forEach((t) => {
+      if (!currentlyExistingAddresses.includes(t)) {
+        newAddresses.push(t);
       }
-      
-      for (const result of results) {
-        // Add defensive checks and detailed logging
-        if (!result?.token) {
-          console.warn(`[metadatatokens] Missing token data in result:`, result);
-          continue;
-        }
-        
-        const { token } = result;
-        console.log(`[metadatatokens] Processing token:`, JSON.stringify(token, null, 2));
+    });
 
-        if (!token.address) {
-          console.warn(`[metadatatokens] Missing address in token data:`, token);
-          continue;
-        }
+    // fetch metadata
+    const decimals = await this.getDecimals(newAddresses, deployment);
+    console.log('decimals', decimals);
+    const symbols = await this.getSymbols(newAddresses, deployment);
+    const names = await this.getNames(newAddresses, deployment);
 
-        // Only add to map if we have all required fields
-        if (token.symbol && token.name && token.decimals != null) {
-          const lowerAddress = token.address.toLowerCase();
-          console.log(`[metadatatokens] Adding metadata for ${lowerAddress}:`, {
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals,
-          });
-          
-          metadataMap.set(lowerAddress, {
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals || 18, // Default to 18 if decimals is 0
-          });
-        } else {
-          console.warn(`[metadatatokens] Incomplete token metadata for ${token.address}:`, {
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals,
-          });
-        }
-      }
-
-      console.log(`[metadatatokens] Found metadata for ${metadataMap.size} tokens from Codex`);
-      console.log(`[metadatatokens] Metadata map keys:`, Array.from(metadataMap.keys()));
-      return metadataMap;
-    } catch (error) {
-      console.warn(`[metadatatokens] Failed to fetch token metadata from Codex: ${error.message}`);
-      return new Map();
+    // create new tokens
+    const newTokens = [];
+    for (let i = 0; i < newAddresses.length; i++) {
+      newTokens.push(
+        this.token.create({
+          address: newAddresses[i],
+          symbol: symbols[i],
+          decimals: decimals[i],
+          name: names[i],
+          blockchainType: deployment.blockchainType, // Include blockchainType
+          exchangeId: deployment.exchangeId, // Include exchangeId
+        }),
+      );
     }
+    await this.token.save(newTokens);
   }
 
-  private async createFromAddresses(addresses: string[], deployment: Deployment) {
-    try {
-      // Filter out invalid addresses first
-      const validAddresses = addresses.filter(addr => {
-        if (!addr) return false;
-        try {
-          // Ensure it's a valid hex address
-          const normalized = addr.toLowerCase();
-          return normalized.startsWith('0x') && normalized.length === 42;
-        } catch (e) {
-          console.warn(`[metadatatokens] Invalid address format: ${addr}`);
-          return false;
-        }
-      });
-
-      if (validAddresses.length < addresses.length) {
-        console.warn(`[metadatatokens] Filtered out ${addresses.length - validAddresses.length} invalid addresses`);
-      }
-
-      // map all token addresses in an array
-      const addressesSet = new Set(validAddresses);
-
-      // filter out already existing tokens
-      const currentlyExistingTokens: any = await this.token.find({
-        where: { blockchainType: deployment.blockchainType, exchangeId: deployment.exchangeId },
-      });
-      const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address.toLowerCase());
-
-      const newAddresses = [];
-      Array.from(addressesSet).forEach((t) => {
-        if (!currentlyExistingAddresses.includes(t.toLowerCase())) {
-          newAddresses.push(t);
-        }
-      });
-
-      if (newAddresses.length === 0) {
-        console.log(`[metadatatokens] No new tokens to create for ${deployment.blockchainType}`);
-        return;
-      }
-
-      console.log(`[metadatatokens] Fetching metadata for ${newAddresses.length} tokens on ${deployment.blockchainType}`);
-      console.log(`[metadatatokens] New addresses:`, newAddresses);
-
-      // Get metadata from Codex
-      const codexMetadata = await this.getTokenMetadataFromCodex(newAddresses, deployment);
-      
-      // create new tokens
-      const newTokens = [];
-      
-      for (let i = 0; i < newAddresses.length; i++) {
-        const address = newAddresses[i];
-        console.log(`[metadatatokens] Processing address ${address}`);
-        
-        const codexData = codexMetadata.get(address.toLowerCase());
-        console.log(`[metadatatokens] Codex data for ${address}:`, codexData);
-        
-        let metadata: TokenMetadata | null = null;
-        
-        if (codexData) {
-          metadata = codexData;
-          console.log(`[metadatatokens] Using Codex metadata for ${address}`);
-        }
-        
-        if (!metadata) {
-          console.warn(`[metadatatokens] Creating placeholder token for ${address} due to missing Codex metadata`);
-          metadata = {
-            symbol: 'UNKNOWN',
-            name: 'Unknown Token',
-            decimals: 18  // Most common default
-          };
-        }
-
-        const token = this.token.create({
-          blockchainType: deployment.blockchainType,
-          exchangeId: deployment.exchangeId,
-          address: address.toLowerCase(), // Ensure consistent case
-          symbol: metadata.symbol,
-          name: metadata.name,
-          decimals: metadata.decimals,
-          needsMetadataRefresh: !codexData // Mark for refresh if we couldn't get Codex data
-        } as Partial<Token>);
-
-        newTokens.push(token);
-      }
-
-      if (newTokens.length > 0) {
-        try {
-          await this.token.save(newTokens);
-          console.log(`[metadatatokens] Successfully created ${newTokens.length} tokens for ${deployment.blockchainType}`);
-        } catch (saveError) {
-          const dbError = new Error(`[metadatatokens] Database error while saving tokens for ${deployment.blockchainType}: ${saveError.message}`);
-          console.error(dbError);
-          throw dbError;
-        }
-      } else {
-        console.warn(`[metadatatokens] No valid tokens to create for ${deployment.blockchainType}`);
-      }
-    } catch (error) {
-      const finalError = new Error(`[metadatatokens] Failed to create tokens for ${deployment.blockchainType}: ${error.message}`);
-      console.error(finalError);
-      throw finalError;
+  private async getSymbols(addresses: string[], deployment: Deployment): Promise<string[]> {
+    const symbols = await this.harvesterService.stringsWithMulticall(addresses, symbolABI, 'symbol', deployment);
+    const index = addresses.indexOf(deployment.gasToken.address);
+    if (index >= 0) {
+      symbols[index] = deployment.gasToken.symbol;
     }
+    return symbols;
+  }
+
+  private async getNames(addresses: string[], deployment: Deployment): Promise<string[]> {
+    const names = await this.harvesterService.stringsWithMulticall(addresses, nameABI, 'name', deployment);
+    const index = addresses.indexOf(deployment.gasToken.address);
+    if (index >= 0) {
+      names[index] = deployment.gasToken.name;
+    }
+    return names;
+  }
+
+  private async getDecimals(addresses: string[], deployment: Deployment): Promise<number[]> {
+    const decimals = await this.harvesterService.integersWithMulticall(addresses, decimalsABI, 'decimals', deployment);
+    const index = addresses.indexOf(deployment.gasToken.address);
+    if (index >= 0) {
+      decimals[index] = 18;
+    }
+    return decimals;
   }
 
   async getTokensByBlockchainType(blockchainType: BlockchainType): Promise<Token[]> {
