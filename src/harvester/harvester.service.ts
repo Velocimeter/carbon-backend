@@ -396,26 +396,43 @@ export class HarvesterService {
   }
 
   async stringsWithMulticallV3(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<string[]> {
+    console.log(`[metadatatokens] Starting string multicall for ${addresses.length} addresses on ${deployment.blockchainType}`);
     const data = await this.withMulticallSei(addresses, abi, fn, deployment);
-    return data.map((r) => {
-      if (!r.success) return '';
+    return data.map((r, index) => {
+      if (!r.success) {
+        console.warn(`[metadatatokens] No success flag for address ${addresses[index]} on ${deployment.blockchainType}`);
+        return '';
+      }
       try {
-        return hexToString(r.data).replace(/[^a-zA-Z0-9]/g, '');
+        const result = hexToString(r.data).replace(/[^a-zA-Z0-9]/g, '');
+        if (!result) {
+          console.warn(`[metadatatokens] Empty string result for address ${addresses[index]} on ${deployment.blockchainType}`);
+        }
+        return result;
       } catch (error) {
-        console.warn('[metadatatokens] Failed to convert hex to string:', error);
+        console.warn(`[metadatatokens] Failed to convert hex to string for address ${addresses[index]} on ${deployment.blockchainType}:`, error);
         return '';
       }
     });
   }
 
   async integersWithMulticallSei(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<number[]> {
+    console.log(`[metadatatokens] Starting integer multicall for ${addresses.length} addresses on ${deployment.blockchainType}`);
     const data = await this.withMulticallSei(addresses, abi, fn, deployment);
-    return data.map((r) => {
-      if (!r.success) return 0;
+    return data.map((r, index) => {
+      if (!r.success) {
+        console.warn(`[metadatatokens] No success flag for address ${addresses[index]} on ${deployment.blockchainType}`);
+        return 0;
+      }
       try {
-        return parseInt(r.data);
+        const result = parseInt(r.data);
+        if (isNaN(result)) {
+          console.warn(`[metadatatokens] Invalid number result for address ${addresses[index]} on ${deployment.blockchainType}`);
+          return 0;
+        }
+        return result;
       } catch (error) {
-        console.warn('[metadatatokens] Failed to parse integer:', error);
+        console.warn(`[metadatatokens] Failed to parse integer for address ${addresses[index]} on ${deployment.blockchainType}:`, error);
         return 0;
       }
     });
@@ -442,6 +459,7 @@ export class HarvesterService {
   }
 
   async withMulticallSei(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<any> {
+    console.log(`[metadatatokens] Starting multicall batch processing for ${addresses.length} addresses on ${deployment.blockchainType}`);
     const web3 = new Web3(deployment.rpcEndpoint);
     const maxRetries = 3;
     const retryDelay = 1000; // 1 second
@@ -451,26 +469,36 @@ export class HarvesterService {
     const batches = _.chunk(addresses, 1000);
 
     for (const batch of batches) {
+      console.log(`[metadatatokens] Processing batch of ${batch.length} addresses on ${deployment.blockchainType}`);
       const calls = [];
+      let failedContracts = 0;
+      
       batch.forEach((address) => {
         try {
           const contract = new web3.eth.Contract([abi], address);
           calls.push({ target: contract.options.address, callData: contract.methods[fn]().encodeABI() });
         } catch (error) {
-          console.warn(`[metadatatokens] Failed to create contract instance for address ${address}:`, error);
+          console.warn(`[metadatatokens] Failed to create contract instance for address ${address} on ${deployment.blockchainType}:`, error);
+          failedContracts++;
           // Push null to maintain array index alignment
           calls.push(null);
         }
       });
 
+      if (failedContracts > 0) {
+        console.warn(`[metadatatokens] Failed to create ${failedContracts} contract instances out of ${batch.length} for ${deployment.blockchainType}`);
+      }
+
       // Filter out null calls
       const validCalls = calls.filter(call => call !== null);
 
       if (validCalls.length > 0) {
+        console.log(`[metadatatokens] Making multicall with ${validCalls.length} valid calls for ${deployment.blockchainType}`);
         let lastError;
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
           try {
             const result = await multicall.methods.aggregate(validCalls).call();
+            console.log(`[metadatatokens] Multicall succeeded on attempt ${attempt} for ${deployment.blockchainType}`);
             
             // Map the results back to the original array positions
             let resultIndex = 0;
@@ -488,17 +516,25 @@ export class HarvesterService {
             break;
           } catch (error) {
             lastError = error;
-            console.warn(`[metadatatokens] Multicall attempt ${attempt} failed for ${deployment.blockchainType}:`, error);
+            console.warn(`[metadatatokens] Multicall attempt ${attempt}/${maxRetries} failed for ${deployment.blockchainType}:`, error);
             if (attempt < maxRetries) {
-              await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+              const delay = retryDelay * attempt;
+              console.log(`[metadatatokens] Retrying after ${delay}ms for ${deployment.blockchainType}`);
+              await new Promise(resolve => setTimeout(resolve, delay));
             }
           }
         }
         if (lastError && data.length === 0) {
-          throw new Error(`[metadatatokens] Failed to fetch data after ${maxRetries} attempts: ${lastError.message}`);
+          const errorMsg = `[metadatatokens] Failed to fetch data after ${maxRetries} attempts for ${deployment.blockchainType}: ${lastError.message}`;
+          console.error(errorMsg);
+          throw new Error(errorMsg);
         }
+      } else {
+        console.warn(`[metadatatokens] No valid calls to make for batch on ${deployment.blockchainType}`);
       }
     }
+    
+    console.log(`[metadatatokens] Completed multicall processing for ${deployment.blockchainType} with ${data.length} results`);
     return data;
   }
 }
