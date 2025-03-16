@@ -402,7 +402,7 @@ export class HarvesterService {
       try {
         return hexToString(r.data).replace(/[^a-zA-Z0-9]/g, '');
       } catch (error) {
-        console.warn('Failed to convert hex to string:', error);
+        console.warn('[metadatatokens] Failed to convert hex to string:', error);
         return '';
       }
     });
@@ -415,7 +415,7 @@ export class HarvesterService {
       try {
         return parseInt(r.data);
       } catch (error) {
-        console.warn('Failed to parse integer:', error);
+        console.warn('[metadatatokens] Failed to parse integer:', error);
         return 0;
       }
     });
@@ -457,7 +457,7 @@ export class HarvesterService {
           const contract = new web3.eth.Contract([abi], address);
           calls.push({ target: contract.options.address, callData: contract.methods[fn]().encodeABI() });
         } catch (error) {
-          console.warn(`Failed to create contract instance for address ${address}:`, error);
+          console.warn(`[metadatatokens] Failed to create contract instance for address ${address}:`, error);
           // Push null to maintain array index alignment
           calls.push(null);
         }
@@ -488,14 +488,14 @@ export class HarvesterService {
             break;
           } catch (error) {
             lastError = error;
-            console.warn(`Multicall attempt ${attempt} failed for ${deployment.blockchainType}:`, error);
+            console.warn(`[metadatatokens] Multicall attempt ${attempt} failed for ${deployment.blockchainType}:`, error);
             if (attempt < maxRetries) {
               await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
             }
           }
         }
         if (lastError && data.length === 0) {
-          throw new Error(`Failed to fetch data after ${maxRetries} attempts: ${lastError.message}`);
+          throw new Error(`[metadatatokens] Failed to fetch data after ${maxRetries} attempts: ${lastError.message}`);
         }
       }
     }

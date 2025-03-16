@@ -182,7 +182,7 @@ export class TokenService {
         symbols = await this.getSymbols(newAddresses, deployment);
         names = await this.getNames(newAddresses, deployment);
       } catch (error) {
-        console.error(`Failed to fetch token metadata for addresses ${newAddresses.join(', ')} on ${deployment.blockchainType}:`, error);
+        console.error(`[metadatatokens] Failed to fetch token metadata for addresses ${newAddresses.join(', ')} on ${deployment.blockchainType}:`, error);
         throw error;
       }
 
@@ -190,7 +190,7 @@ export class TokenService {
       const newTokens = [];
       for (let i = 0; i < newAddresses.length; i++) {
         if (!decimals[i] || !symbols[i] || !names[i]) {
-          console.warn(`Skipping token creation for ${newAddresses[i]} due to missing metadata: decimals=${decimals[i]}, symbol=${symbols[i]}, name=${names[i]}`);
+          console.warn(`[metadatatokens] Skipping token creation for ${newAddresses[i]} due to missing metadata: decimals=${decimals[i]}, symbol=${symbols[i]}, name=${names[i]}`);
           continue;
         }
 
@@ -208,10 +208,10 @@ export class TokenService {
 
       if (newTokens.length > 0) {
         await this.token.save(newTokens);
-        console.log(`Successfully created ${newTokens.length} tokens for ${deployment.blockchainType}`);
+        console.log(`[metadatatokens] Successfully created ${newTokens.length} tokens for ${deployment.blockchainType}`);
       }
     } catch (error) {
-      console.error(`Failed to create tokens for ${deployment.blockchainType}:`, error);
+      console.error(`[metadatatokens] Failed to create tokens for ${deployment.blockchainType}:`, error);
       throw error;
     }
   }
