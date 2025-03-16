@@ -92,19 +92,32 @@ export class HistoricQuoteService implements OnModuleInit {
     this.isPolling = true;
 
     try {
-      await Promise.all([
-        await this.updateCoinMarketCapQuotes(),
-        await this.updateCodexQuotes(BlockchainType.Berachain), // turn these on once seed is done
-        await this.updateCodexQuotes(BlockchainType.Sonic),
-        //await this.updateCodexQuotes(BlockchainType.Mantle,),
-      ]);
-    } catch (error) {
-      console.error('Error updating historic quotes:', error);
-      this.isPolling = false;
-    }
+      const tasks = [
+        this.updateCoinMarketCapQuotes().catch(error => {
+          console.error('[HistoricQuoteService] Error updating CoinMarketCap quotes:', error);
+          return null;
+        }),
+        this.updateCodexQuotes(BlockchainType.Berachain).catch(error => {
+          console.error('[HistoricQuoteService] Error updating Berachain Codex quotes:', error);
+          return null;
+        }),
+        this.updateCodexQuotes(BlockchainType.Sonic).catch(error => {
+          console.error('[HistoricQuoteService] Error updating Sonic Codex quotes:', error);
+          return null;
+        }),
+        //this.updateCodexQuotes(BlockchainType.Mantle).catch(error => {
+        //  console.error('[HistoricQuoteService] Error updating Mantle Codex quotes:', error);
+        //  return null;
+        //}),
+      ];
 
-    this.isPolling = false;
-    console.log('[HistoricQuoteService] Finished polling historic quotes');
+      await Promise.all(tasks);
+    } catch (error) {
+      console.error('[HistoricQuoteService] Critical error in pollForUpdates:', error);
+    } finally {
+      this.isPolling = false;
+      console.log('[HistoricQuoteService] Finished polling historic quotes');
+    }
   }
 
   private async updateCoinMarketCapQuotes(): Promise<void> {
