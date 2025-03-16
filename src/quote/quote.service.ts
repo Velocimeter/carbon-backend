@@ -72,24 +72,28 @@ export class QuoteService implements OnModuleInit {
       return;
     }
 
+    console.log('[QuoteService] Starting to poll for latest quotes...');
     this.isPolling = true;
 
     try {
       const deployments = await this.deploymentService.getDeployments();
+      console.log(`[QuoteService] Polling quotes for ${deployments.length} deployments`);
 
       await Promise.all(deployments.map((deployment) => this.pollForDeployment(deployment)));
     } catch (error) {
       this.logger.error(`Error fetching and storing quotes: ${error.message}`);
     } finally {
-      console.log('QUOTES SERVICE - Finished updating quotes');
+      console.log('[QuoteService] Finished polling quotes');
       this.isPolling = false; // Reset the flag regardless of success or failure
     }
   }
 
   async pollForDeployment(deployment: Deployment): Promise<void> {
+    console.log(`[QuoteService] Polling quotes for ${deployment.blockchainType}`);
     try {
       const tokens = await this.tokenService.getTokensByBlockchainType(deployment.blockchainType);
       const addresses = tokens.map((t) => t.address);
+      console.log(`[QuoteService] Polling ${addresses.length} tokens for ${deployment.blockchainType}`);
 
       let newPrices;
       if (deployment.blockchainType === BlockchainType.Ethereum) {
@@ -101,6 +105,7 @@ export class QuoteService implements OnModuleInit {
       }
 
       await this.updateQuotes(tokens, newPrices, deployment);
+      console.log(`[QuoteService] Successfully polled quotes for ${deployment.blockchainType}`);
     } catch (error) {
       this.logger.error(
         `Error fetching and storing quotes for blockchain ${deployment.blockchainType}: ${error.message}`,

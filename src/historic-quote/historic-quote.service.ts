@@ -88,6 +88,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
   async pollForUpdates(): Promise<void> {
     if (this.isPolling) return;
+    console.log('[HistoricQuoteService] Starting to poll for historic quotes...');
     this.isPolling = true;
 
     try {
@@ -103,11 +104,12 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     this.isPolling = false;
-    console.log('Historic quotes updated');
+    console.log('[HistoricQuoteService] Finished polling historic quotes');
   }
 
   private async updateCoinMarketCapQuotes(): Promise<void> {
-    const latest = await this.getLatest(BlockchainType.Ethereum); // Pass the deployment to filter by blockchainType
+    console.log('[HistoricQuoteService] Starting to poll CoinMarketCap quotes...');
+    const latest = await this.getLatest(BlockchainType.Ethereum);
     const quotes = await this.coinmarketcapService.getLatestQuotes();
     const newQuotes = [];
 
@@ -123,13 +125,16 @@ export class HistoricQuoteService implements OnModuleInit {
 
     const batches = _.chunk(newQuotes, 1000);
     await Promise.all(batches.map((batch) => this.repository.save(batch)));
-    console.log('CoinMarketCap quotes updated');
+    console.log(`[HistoricQuoteService] Finished polling CoinMarketCap quotes, found ${newQuotes.length} new quotes`);
   }
 
   private async updateCodexQuotes(blockchainType: BlockchainType): Promise<void> {
+    console.log(`[HistoricQuoteService] Starting to poll Codex quotes for ${blockchainType}...`);
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const latest = await this.getLatest(blockchainType);
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
+    console.log(`[HistoricQuoteService] Polling ${addresses.length} tokens for ${blockchainType}`);
+    
     const quotes = await this.codexService.getLatestPrices(deployment, addresses);
     const newQuotes = [];
 
@@ -138,7 +143,7 @@ export class HistoricQuoteService implements OnModuleInit {
       const price = `${quote.usd}`;
 
       if (latest[address] && latest[address].usd === price) continue;
-
+      console.log(`[HistoricQuoteService] Found new quote for ${address} in ${blockchainType}`);
       newQuotes.push(
         this.repository.create({
           tokenAddress: address,
@@ -165,7 +170,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
     const batches = _.chunk(newQuotes, 1000);
     await Promise.all(batches.map((batch) => this.repository.save(batch)));
-    console.log('Codex quotes updated');
+    console.log(`[HistoricQuoteService] Finished polling Codex quotes for ${blockchainType}, found ${newQuotes.length} new quotes`);
   }
 
   async seed(): Promise<void> {
