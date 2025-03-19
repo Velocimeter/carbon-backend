@@ -105,6 +105,10 @@ export class HistoricQuoteService implements OnModuleInit {
           console.error('[HistoricQuoteService] Error while polling Sonic Codex quotes:', error);
           return null;
         }),
+        this.updateCodexQuotes(BlockchainType.Base).catch(error => {
+          console.error('[HistoricQuoteService] Error while polling Base Codex quotes:', error);
+          return null;
+        }),
         //this.updateCodexQuotes(BlockchainType.Mantle).catch(error => {
         //  console.error('[HistoricQuoteService] Error while polling Mantle Codex quotes:', error);
         //  return null;
@@ -285,7 +289,7 @@ export class HistoricQuoteService implements OnModuleInit {
         }
       }
 
-      const batches = _.chunk(newQuotes, 1000);
+      const batches = _.chunk(newQuotes, 200);
       await Promise.all(batches.map((batch) => this.repository.save(batch)));
       console.log(`History quote seeding, finished ${++i} of ${addresses.length}`, new Date());
     }
