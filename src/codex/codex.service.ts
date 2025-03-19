@@ -5,20 +5,18 @@ import moment from 'moment';
 import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 
 export const NETWORK_IDS = {
-  // [BlockchainType.Sei]: 531,
-  // [BlockchainType.Celo]: 42220,
-  // [BlockchainType.Ethereum]: 1,
+  [BlockchainType.Sei]: 531,
+  [BlockchainType.Celo]: 42220,
+  [BlockchainType.Ethereum]: 1,
 
-  // [BlockchainType.Fantom]: 250,
-
-  // [BlockchainType.Blast]: 81457,
-  // [BlockchainType.Linea]: 59144,
+  [BlockchainType.Fantom]: 250,
   [BlockchainType.Mantle]: 5000,
+  [BlockchainType.Blast]: 81457,
+  [BlockchainType.Linea]: 59144,
   [BlockchainType.Berachain]: 80094,
-  [BlockchainType.Sonic]: 122,
   [BlockchainType.Base]: 8453,
-
-
+  [BlockchainType.Sonic]: 122,
+  [BlockchainType.Iota]: 42161,
 };
 
 @Injectable()
@@ -132,37 +130,13 @@ export class CodexService {
 
   async getAllTokenAddresses(deployment: Deployment): Promise<string[]> {
     const networkId = NETWORK_IDS[deployment.blockchainType];
-    
-    // For Base, just get top tokens
-    if (deployment.blockchainType === BlockchainType.Base) {
-      const topTokens = await this.fetchTopTokens(networkId, 5000); // Get top 5000 tokens
-      return Array.from(new Set(topTokens.map((t) => t.token.address.toLowerCase())));
-    } else {
-      // Use original approach for other blockchains
-      const tokens = await this.fetchTokens(networkId);
-      return Array.from(new Set(tokens.map((t) => t.token.address.toLowerCase())));
-    }
-  }
-
-  async fetchTopTokens(networkId: number, limit: number): Promise<any[]> {
-    try {
-      const result = await this.sdk.queries.filterTokens({
-        filters: {
-          network: [networkId]
-        },
-        limit: Math.min(limit, 3000),
-        offset: 0
-      });
-
-      return result.filterTokens.results || [];
-    } catch (error) {
-      console.error('Error fetching top tokens:', error);
-      return [];
-    }
+    const tokens = await this.fetchTokens(networkId);
+    const uniqueAddresses = Array.from(new Set(tokens.map((t) => t.token.address.toLowerCase())));
+    return uniqueAddresses;
   }
 
   private async fetchTokens(networkId: number, addresses?: string[]) {
-    const limit = 100;
+    const limit = 200;
     let offset = 0;
     let allTokens = [];
     let fetched = [];
