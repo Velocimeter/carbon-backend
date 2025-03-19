@@ -33,12 +33,12 @@ export class QuoteService implements OnModuleInit {
   private readonly priceProviders: BlockchainProviderConfig = {
     [BlockchainType.Ethereum]: [
       { name: 'coingecko', enabled: true },
-      { name: 'codex', enabled: true },
+      { name: 'codex', enabled: false },
     ],
     // [BlockchainType.Sei]: [{ name: 'codex', enabled: false }],
     // [BlockchainType.Celo]: [{ name: 'codex', enabled: false }],
     // [BlockchainType.Blast]: [{ name: 'codex', enabled: false }],
-    // [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
@@ -108,7 +108,7 @@ export class QuoteService implements OnModuleInit {
       }
 
       await this.updateQuotes(tokens, newPrices, deployment);
-      console.log(`[QuoteService] Successfully polled quotes for ${deployment.blockchainType}`);
+      console.log(`[QuoteService] Successfully polled quotes for base dunks${deployment.blockchainType}`);
     } catch (error) {
       this.logger.error(
         `Error fetching and storing quotes for blockchain ${deployment.blockchainType}: ${error.message}`,

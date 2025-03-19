@@ -134,6 +134,46 @@ export class DeploymentService {
           },
         },
       },
+      { 
+        exchangeId: ExchangeId.OGBase,
+        blockchainType: BlockchainType.Base,
+        rpcEndpoint: this.configService.get('BASE_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 2000,
+        harvestConcurrency: 10,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 11025601,
+        gasToken: {
+          name: 'BASE',
+          symbol: 'BASE',
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        },  
+        nativeTokenAlias: '0x4200000000000000000000000000000000000006',
+        contracts: {
+          CarbonController: {
+            address: '0xfbF069Dbbf453C1ab23042083CFa980B3a672BbA',
+          },
+          CarbonVoucher: {
+            address: '0x907F03ae649581EBFF369a21C587cb8F154A0B84',  // Replace with actual contract address
+          },
+          BancorArbitrage: {
+            address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
+          },
+          
+        },
+        notifications: {
+          explorerUrl: this.configService.get('BASE_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('BASE_CARBON_WALLET_URL'),
+          title: 'Base',
+          telegram: {
+            botToken: this.configService.get('BASE_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              carbonThreadId: this.configService.get('BASE_CARBON_THREAD_ID'),
+              fastlaneId: this.configService.get('BASE_FASTLANE_THREAD_ID'),
+              vortexId: this.configService.get('BASE_VORTEX_THREAD_ID'),
+            },
+          },
+        },
+      },
       {
         exchangeId: ExchangeId.OGMantle,
         blockchainType: BlockchainType.Mantle,
@@ -201,7 +241,7 @@ export class DeploymentService {
             address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
           },
           CarbonVortex: {
-            address: '0xbf279b9fbdc4c62a42eb507f02516d02b88fbec2',  // Replace with actual contract address
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
           },
         },
       },
