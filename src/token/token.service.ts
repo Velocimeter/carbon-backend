@@ -44,7 +44,7 @@ export class TokenService {
     const lastProcessedBlockNumber = await this.lastProcessedBlockService.getOrInit(lastProcessedEntity, 1);
 
     // Define batch size
-    const batchSize = 1;
+    const batchSize = 10000;
     let currentBlock = lastProcessedBlockNumber;
 
     while (currentBlock < endBlock) {
@@ -111,7 +111,7 @@ export class TokenService {
       addressesData.sort((a, b) => a.blockId - b.blockId);
 
       // create new tokens
-      const addressesBatches = _.chunk(addressesData, 1);
+      const addressesBatches = _.chunk(addressesData, 1000);
       for (const addressesBatch of addressesBatches) {
         // Extract just the addresses for token creation
         const addresses = addressesBatch.map((data) => data.address);
@@ -133,18 +133,14 @@ export class TokenService {
   }
 
   async allByAddress(deployment: Deployment): Promise<TokensByAddress> {
-    console.log(`Loading tokens for ${deployment.blockchainType}:${deployment.exchangeId}`);
     const all = await this.token.find({
       where: {
         blockchainType: deployment.blockchainType,
         exchangeId: deployment.exchangeId,
       },
     });
-    console.log('Found tokens:', all.map(t => ({ address: t.address, blockchainType: t.blockchainType, exchangeId: t.exchangeId })));
     const tokensByAddress = {};
     all.forEach((t) => (tokensByAddress[t.address] = t));
-    console.log('Looking for:', '0x29219dd400f2Bf60E5a23d13Be72B486D4038894');
-    console.log('Is token in dictionary:', !!tokensByAddress['0x29219dd400f2Bf60E5a23d13Be72B486D4038894']);
     return tokensByAddress;
   }
 
@@ -174,11 +170,8 @@ export class TokenService {
       }
     });
 
-    console.log('newAddresses sonic dunks before we try get the metadata', newAddresses);
-
     // fetch metadata
     const decimals = await this.getDecimals(newAddresses, deployment);
-    console.log('decimals', decimals);
     const symbols = await this.getSymbols(newAddresses, deployment);
     const names = await this.getNames(newAddresses, deployment);
 
