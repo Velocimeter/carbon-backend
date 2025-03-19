@@ -8,14 +8,17 @@ export const NETWORK_IDS = {
   // [BlockchainType.Sei]: 531,
   // [BlockchainType.Celo]: 42220,
   // [BlockchainType.Ethereum]: 1,
+
   // [BlockchainType.Fantom]: 250,
+
   // [BlockchainType.Blast]: 81457,
   // [BlockchainType.Linea]: 59144,
-  [BlockchainType.Berachain]: 80094,
-  [BlockchainType.Sonic]: 146,
-  [BlockchainType.Iota]: 8822,
   [BlockchainType.Mantle]: 5000,
+  [BlockchainType.Berachain]: 80094,
+  [BlockchainType.Sonic]: 122,
   [BlockchainType.Base]: 8453,
+
+
 };
 
 @Injectable()
@@ -44,69 +47,19 @@ export class CodexService {
     }
 
     const result = {};
-    const batchSize = 500;
-    const delayBetweenBatches = 30; // 1 second delay between batches
-    const maxRetries = 3;
-    
-    // Process addresses in batches
-    for (let i = 0; i < addresses.length; i += batchSize) {
-      const batchAddresses = addresses.slice(i, i + batchSize);
-      const batchNum = Math.floor(i / batchSize) + 1;
-      const totalBatches = Math.ceil(addresses.length / batchSize);
-      
-      console.log(`[CodexService] Polling batch ${batchNum} of ${totalBatches} (${batchAddresses.length} tokens)`);
-      
-      let retryCount = 0;
-      while (retryCount < maxRetries) {
-        try {
-          const tokens = await this.fetchTokens(networkId, batchAddresses);
-          
-          // Log which tokens were found vs not found
-          const foundAddresses = new Set(tokens.map(t => t.token.address.toLowerCase()));
-          const missingAddresses = batchAddresses.filter(addr => !foundAddresses.has(addr.toLowerCase()));
-          
-          if (missingAddresses.length > 0) {
-            console.log(`[CodexService] Warning: No quotes found for ${missingAddresses.length} tokens in batch ${batchNum}:`, missingAddresses);
-          }
-          
-          tokens.forEach((t) => {
-            const address = t.token.address.toLowerCase();
-            if (address && t.priceUSD) {
-              result[address] = {
-                address,
-                usd: Number(t.priceUSD),
-                provider: 'codex',
-                last_updated_at: moment().unix(),
-              };
-            } else if (address) {
-              console.log(`[CodexService] Warning: Token found but no price for ${address}`);
-            }
-          });
-          
-          // If successful, break retry loop
-          break;
-        } catch (error) {
-          retryCount++;
-          console.error(`[CodexService] Error while polling batch ${batchNum} (attempt ${retryCount}/${maxRetries}):`, error);
-          
-          if (retryCount === maxRetries) {
-            console.error(`[CodexService] Failed to poll batch ${batchNum} after ${maxRetries} attempts, skipping...`);
-            // Log the addresses that failed
-            console.error(`[CodexService] Failed addresses in batch ${batchNum}:`, batchAddresses);
-          } else {
-            // Wait longer between retries (exponential backoff)
-            const retryDelay = delayBetweenBatches * Math.pow(2, retryCount - 1);
-            console.log(`[CodexService] Retrying poll for batch ${batchNum} in ${retryDelay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-          }
-        }
-      }
+    const tokens = await this.fetchTokens(networkId, addresses);
 
-      // Add delay between batches, but only if not the last batch
-      if (i + batchSize < addresses.length) {
-        await new Promise(resolve => setTimeout(resolve, delayBetweenBatches));
+    tokens.forEach((t) => {
+      const address = t.token.address.toLowerCase();
+      if (address) {
+        result[address] = {
+          address,
+          usd: Number(t.priceUSD),
+          provider: 'codex',
+          last_updated_at: moment().unix(),
+        };
       }
-    }
+    });
 
     if (deployment.nativeTokenAlias && result[deployment.nativeTokenAlias.toLowerCase()]) {
       result[NATIVE_TOKEN.toLowerCase()] = {
@@ -115,15 +68,6 @@ export class CodexService {
         provider: 'codex',
         last_updated_at: moment().unix(),
       };
-    }
-
-    // Log summary of results
-    const totalTokens = addresses.length;
-    const quotesFound = Object.keys(result).length;
-    console.log(`[CodexService] Summary: Found quotes for ${quotesFound}/${totalTokens} tokens`);
-    if (quotesFound < totalTokens) {
-      const missingAddresses = addresses.filter(addr => !result[addr.toLowerCase()]);
-      console.log(`[CodexService] Missing quotes for ${missingAddresses.length} tokens:`, missingAddresses);
     }
 
     return result;
@@ -149,7 +93,7 @@ export class CodexService {
         });
         return { ...bars.getBars, address: tokenAddress };
       } catch (error) {
-        console.error(`Error during token price polling for ${tokenAddress}, retrying...`, error);
+        console.error(`Error fetching data for ${tokenAddress}, retrying...`, error);
         return fetchWithRetry(tokenAddress, batchFrom, batchTo);
       }
     };
@@ -181,7 +125,7 @@ export class CodexService {
 
       return quotesByAddress;
     } catch (error) {
-      console.error('Unexpected error during price polling:', error);
+      console.error('Unexpected error:', error);
       throw error;
     }
   }
@@ -201,12 +145,6 @@ export class CodexService {
 
     do {
       try {
-        // Check if next offset would exceed limit
-        if (offset + limit > 10000) {
-          console.log(`[CodexService] Reached maximum pagination limit (10,000) for network ${networkId}`);
-          break;
-        }
-        
         const result = await this.sdk.queries.filterTokens({
           filters: {
             network: [networkId],
@@ -220,27 +158,11 @@ export class CodexService {
         allTokens = [...allTokens, ...fetched];
         offset += limit;
       } catch (error) {
-        console.error('Error during token list polling:', error);
+        console.error('Error fetching tokens:', error);
         throw error;
       }
     } while (fetched.length === limit);
 
     return allTokens;
-  }
-
-  async getTokenMetadata(networkId: number, addresses: string[]): Promise<any> {
-    try {
-      console.log(`[codex] Fetching token metadata for ${addresses.length} addresses on network ${networkId}`);
-      const tokens = await this.fetchTokens(networkId, addresses);
-      return tokens.map(t => ({
-        address: t.token.address,
-        symbol: t.token.symbol,
-        name: t.token.name,
-        decimals: t.token.decimals
-      }));
-    } catch (error) {
-      console.warn(`[codex] Failed to fetch token metadata: ${error.message}`);
-      return [];
-    }
   }
 }
