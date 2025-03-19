@@ -5,12 +5,12 @@ import moment from 'moment';
 import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 
 export const NETWORK_IDS = {
-  [BlockchainType.Sei]: 531,
-  [BlockchainType.Celo]: 42220,
-  [BlockchainType.Ethereum]: 1,
-  [BlockchainType.Fantom]: 250,
-  [BlockchainType.Blast]: 81457,
-  [BlockchainType.Linea]: 59144,
+  // [BlockchainType.Sei]: 531,
+  // [BlockchainType.Celo]: 42220,
+  // [BlockchainType.Ethereum]: 1,
+  // [BlockchainType.Fantom]: 250,
+  // [BlockchainType.Blast]: 81457,
+  // [BlockchainType.Linea]: 59144,
   [BlockchainType.Berachain]: 80094,
   [BlockchainType.Sonic]: 146,
   [BlockchainType.Iota]: 8822,
@@ -44,7 +44,7 @@ export class CodexService {
     }
 
     const result = {};
-    const batchSize = 100;
+    const batchSize = 500;
     const delayBetweenBatches = 30; // 1 second delay between batches
     const maxRetries = 3;
     
@@ -201,6 +201,12 @@ export class CodexService {
 
     do {
       try {
+        // Check if next offset would exceed limit
+        if (offset + limit > 10000) {
+          console.log(`[CodexService] Reached maximum pagination limit (10,000) for network ${networkId}`);
+          break;
+        }
+        
         const result = await this.sdk.queries.filterTokens({
           filters: {
             network: [networkId],
