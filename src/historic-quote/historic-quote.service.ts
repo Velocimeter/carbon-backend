@@ -185,7 +185,7 @@ export class HistoricQuoteService implements OnModuleInit {
       );
     }
 
-    const batches = _.chunk(newQuotes, 1000);
+    const batches = _.chunk(newQuotes, 50);
     try {
       console.log(`[HistoricQuoteService] poll Saving ${batches.length} batches of quotes for ${blockchainType} (${newQuotes.length} total quotes)`);
       for (let i = 0; i < batches.length; i++) {
