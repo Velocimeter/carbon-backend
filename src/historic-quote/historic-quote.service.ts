@@ -289,7 +289,7 @@ export class HistoricQuoteService implements OnModuleInit {
         }
       }
 
-      const batches = _.chunk(newQuotes, 200);
+      const batches = _.chunk(newQuotes, 50);
       await Promise.all(batches.map((batch) => this.repository.save(batch)));
       console.log(`History quote seeding, finished ${++i} of ${addresses.length}`, new Date());
     }
