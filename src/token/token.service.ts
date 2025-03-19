@@ -44,7 +44,7 @@ export class TokenService {
     const lastProcessedBlockNumber = await this.lastProcessedBlockService.getOrInit(lastProcessedEntity, 1);
 
     // Define batch size
-    const batchSize = 1000;
+    const batchSize = 1;
     let currentBlock = lastProcessedBlockNumber;
 
     while (currentBlock < endBlock) {
