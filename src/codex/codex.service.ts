@@ -141,7 +141,7 @@ export class CodexService {
     let offset = 0;
     let allTokens = [];
     let fetched = [];
-    const MAX_OFFSET = 10000; // Maximum allowed offset + limit
+    const MAX_OFFSET = 1000; // Maximum allowed offset + limit
 
     do {
       try {
@@ -165,6 +165,15 @@ export class CodexService {
         });
 
         fetched = result.filterTokens.results;
+        
+        // Log the first batch of tokens with their volume
+        if (offset === 0) {
+          console.log(`First ${limit} tokens by 24h volume:`);
+          fetched.forEach((token, index) => {
+            console.log(`${index + 1}. Address: ${token.token.address}, Volume24: ${token.volume24}, Symbol: ${token.token.symbol}`);
+          });
+        }
+
         allTokens = [...allTokens, ...fetched];
         offset += limit;
       } catch (error) {
