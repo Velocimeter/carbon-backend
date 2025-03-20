@@ -140,9 +140,16 @@ export class CodexService {
     let offset = 0;
     let allTokens = [];
     let fetched = [];
+    const MAX_OFFSET = 10000; // Maximum allowed offset + limit
 
     do {
       try {
+        // Check if we're about to exceed the maximum offset
+        if (offset + limit > MAX_OFFSET) {
+          console.warn(`Reached maximum offset limit of ${MAX_OFFSET}`);
+          break;
+        }
+
         const result = await this.sdk.queries.filterTokens({
           filters: {
             network: [networkId],
