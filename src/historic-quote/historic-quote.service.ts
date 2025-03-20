@@ -92,30 +92,27 @@ export class HistoricQuoteService implements OnModuleInit {
     this.isPolling = true;
 
     try {
-      const tasks = [
-        this.updateCoinMarketCapQuotes().catch(error => {
-          console.error('[HistoricQuoteService] Error while polling CoinMarketCap quotes:', error);
-          return null;
-        }),
-        this.updateCodexQuotes(BlockchainType.Berachain).catch(error => {
-          console.error('[HistoricQuoteService] Error while polling Berachain Codex quotes:', error);
-          return null;
-        }),
-        this.updateCodexQuotes(BlockchainType.Sonic).catch(error => {
-          console.error('[HistoricQuoteService] Error while polling Sonic Codex quotes:', error);
-          return null;
-        }),
-        this.updateCodexQuotes(BlockchainType.Base).catch(error => {
-          console.error('[HistoricQuoteService] Error while polling Base Codex quotes:', error);
-          return null;
-        }),
-        //this.updateCodexQuotes(BlockchainType.Mantle).catch(error => {
-        //  console.error('[HistoricQuoteService] Error while polling Mantle Codex quotes:', error);
-        //  return null;
-        //}),
+      // Process chains sequentially instead of in parallel to avoid rate limits
+      await this.updateCoinMarketCapQuotes().catch(error => {
+        console.error('[HistoricQuoteService] Error while polling CoinMarketCap quotes:', error);
+      });
+
+      // Process each chain one at a time
+      const chains = [
+        BlockchainType.Berachain,
+        BlockchainType.Sonic,
+        BlockchainType.Base,
+        // BlockchainType.Mantle, // Commented out as per original code
       ];
 
-      await Promise.all(tasks);
+      for (const chain of chains) {
+        try {
+          await this.updateCodexQuotes(chain);
+        } catch (error) {
+          console.error(`[HistoricQuoteService] Error while polling ${chain} Codex quotes:`, error);
+          // Continue with next chain even if one fails
+        }
+      }
     } catch (error) {
       console.error('[HistoricQuoteService] Critical error while polling for historic quotes:', error);
     } finally {
