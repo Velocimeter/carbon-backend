@@ -136,7 +136,7 @@ export class CodexService {
   }
 
   private async fetchTokens(networkId: number, addresses?: string[]) {
-    const limit = 50;
+    const limit = 50;  // Each request is limited to 50 tokens
     let offset = 0;
     let allTokens = [];
     let fetched = [];
@@ -147,7 +147,7 @@ export class CodexService {
           filters: {
             network: [networkId],
           },
-          tokens: addresses || undefined, // Use addresses if provided, otherwise fetch all
+          tokens: addresses || undefined,
           limit,
           offset,
         });

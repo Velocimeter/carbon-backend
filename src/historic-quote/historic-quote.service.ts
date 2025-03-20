@@ -150,55 +150,62 @@ export class HistoricQuoteService implements OnModuleInit {
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const latest = await this.getLatest(blockchainType);
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
-    console.log(`[HistoricQuoteService] Polling ${addresses.length} tokens for ${blockchainType}`);
     
-    const quotes = await this.codexService.getLatestPrices(deployment, addresses);
+    // Process in batches of 50 tokens
+    const batchSize = 200;
     const newQuotes = [];
+    
+    for (let i = 0; i < addresses.length; i += batchSize) {
+      const addressBatch = addresses.slice(i, i + batchSize);
+      console.log(`[HistoricQuoteService] Polling batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(addresses.length/batchSize)} for ${blockchainType}`);
+      
+      const quotes = await this.codexService.getLatestPrices(deployment, addressBatch);
+      
+      for (const address of Object.keys(quotes)) {
+        const quote = quotes[address];
+        const price = `${quote.usd}`;
 
-    for (const address of Object.keys(quotes)) {
-      const quote = quotes[address];
-      const price = `${quote.usd}`;
+        if (latest[address] && latest[address].usd === price) continue;
+        
+        newQuotes.push(
+          this.repository.create({
+            tokenAddress: address,
+            usd: quote.usd,
+            timestamp: moment.unix(quote.last_updated_at).utc().toISOString(),
+            provider: 'codex',
+            blockchainType: blockchainType,
+          }),
+        );
+      }
 
-      if (latest[address] && latest[address].usd === price) continue;
-      console.log(`[HistoricQuoteService] Found new quote for ${address} in ${blockchainType}`);
-      newQuotes.push(
-        this.repository.create({
-          tokenAddress: address,
-          usd: quote.usd,
-          timestamp: moment.unix(quote.last_updated_at).utc().toISOString(),
-          provider: 'codex',
-          blockchainType: blockchainType,
-        }),
-      );
+      // Handle native token if needed
+      if (deployment.nativeTokenAlias && quotes[deployment.nativeTokenAlias]) {
+        const quote = quotes[deployment.nativeTokenAlias];
+        newQuotes.push(
+          this.repository.create({
+            tokenAddress: NATIVE_TOKEN.toLowerCase(),
+            usd: quote.usd,
+            timestamp: moment.unix(quote.last_updated_at).utc().toISOString(),
+            provider: 'codex',
+            blockchainType: deployment.blockchainType,
+          }),
+        );
+      }
     }
 
-    if (deployment.nativeTokenAlias) {
-      const quote = quotes[deployment.nativeTokenAlias];
-      newQuotes.push(
-        this.repository.create({
-          tokenAddress: NATIVE_TOKEN.toLowerCase(),
-          usd: quote.usd,
-          timestamp: moment.unix(quote.last_updated_at).utc().toISOString(),
-          provider: 'codex',
-          blockchainType: deployment.blockchainType,
-        }),
-      );
-    }
-
-    const batches = _.chunk(newQuotes, 50);
+    // Save in batches of 50
+    const saveBatches = _.chunk(newQuotes, 50);
     try {
-      console.log(`[HistoricQuoteService] poll Saving ${batches.length} batches of quotes for ${blockchainType} (${newQuotes.length} total quotes)`);
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        console.log(`[HistoricQuoteService] Saving batch ${i + 1}/${batches.length} with ${batch.length} quotes for ${blockchainType}`);
+      console.log(`[HistoricQuoteService] Saving ${saveBatches.length} batches of quotes for ${blockchainType} (${newQuotes.length} total quotes)`);
+      for (let i = 0; i < saveBatches.length; i++) {
+        const batch = saveBatches[i];
+        console.log(`[HistoricQuoteService] Saving batch ${i + 1}/${saveBatches.length} with ${batch.length} quotes for ${blockchainType}`);
         await this.repository.save(batch);
       }
-      console.log(`[HistoricQuoteService] poll Successfully saved all ${newQuotes.length} new Codex quotes for ${blockchainType} to database`);
     } catch (error) {
-      console.error(`[HistoricQuoteService] poll Failed to save Codex quotes for ${blockchainType} to database:`, error);
-      throw error; // Re-throw to be caught by the higher level error handler
+      console.error(`[HistoricQuoteService] Failed to save Codex quotes for ${blockchainType} to database:`, error);
+      throw error;
     }
-    console.log(`[HistoricQuoteService] poll Finished polling Codex quotes for ${blockchainType}, found ${newQuotes.length} new quotes`);
   }
 
   async seed(): Promise<void> {
