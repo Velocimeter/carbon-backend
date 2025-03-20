@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Codex } from '@codex-data/sdk';
+import { TokenRankingAttribute, RankingDirection } from '@codex-data/sdk/dist/sdk/generated/graphql';
 import moment from 'moment';
 import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 
@@ -157,6 +158,10 @@ export class CodexService {
           tokens: addresses || undefined,
           limit,
           offset,
+          rankings: [{
+            attribute: TokenRankingAttribute.Volume24,
+            direction: RankingDirection.Desc
+          }]
         });
 
         fetched = result.filterTokens.results;
