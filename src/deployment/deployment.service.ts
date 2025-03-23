@@ -270,7 +270,7 @@ export class DeploymentService {
             address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
           },
           CarbonVortex: {
-            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
+            address: '0xbf279b9fbDC4c62A42Eb507F02516D02B88fbEc2',  // Replace with actual contract address
           },
         },
       },
