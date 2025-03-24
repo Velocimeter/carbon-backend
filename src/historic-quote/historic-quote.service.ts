@@ -51,9 +51,9 @@ export class HistoricQuoteService implements OnModuleInit {
     [BlockchainType.Fantom]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Linea]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Iota]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
-    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Mantle]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Berachain]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Sonic]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
   };
 
   constructor(
