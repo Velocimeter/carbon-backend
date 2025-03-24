@@ -266,12 +266,8 @@ export class DeploymentService {
           CarbonVoucher: {
             address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
           },
-          BancorArbitrage: {
-            address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
-          },
           CarbonVortex: {
-            address: '0xbf279b9fbDC4c62A42Eb507F02516D02B88fbEc2',  // Replace with actual contract address
-          },
+            address: '0x089c1A38c7616DB8d5f5beb5F311FD3f130E4463',  // updated other one was incorrect
         },
       },
     ];
