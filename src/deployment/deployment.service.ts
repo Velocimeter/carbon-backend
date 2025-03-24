@@ -268,6 +268,7 @@ export class DeploymentService {
           },
           CarbonVortex: {
             address: '0x089c1A38c7616DB8d5f5beb5F311FD3f130E4463',  // updated other one was incorrect
+          },
         },
       },
     ];
