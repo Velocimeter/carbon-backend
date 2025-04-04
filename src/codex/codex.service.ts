@@ -141,7 +141,7 @@ export class CodexService {
     let offset = 0;
     let allTokens = [];
     let fetched = [];
-    const MAX_OFFSET = 1000; // Maximum allowed offset + limit
+    const MAX_OFFSET = 5000; // Maximum allowed offset + limit
 
     do {
       try {
