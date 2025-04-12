@@ -272,8 +272,24 @@ export function ordersEqual(obj1: any, obj2: any): boolean {
 
 
 
+
+
 /**
  * Calculates the fee based on the fee scheme from Strategies.sol
+ * 
+ * Fee scheme from the contract:
+ * For bySourceAmount (byTargetAmount = false):
+ * - Trader transfers fixed source amount
+ * - Fee is taken from target amount
+ * - Fee is in target token
+ * 
+ * For byTargetAmount (byTargetAmount = true):
+ * - Trader transfers variable source amount
+ * - Fee is taken from source amount
+ * - Fee is in source token
+ * 
+ * Note: liquidity deltas are already normalized by their respective token decimals
+ * 
  * @param tokensTradedEvent The TokensTradedEvent containing fee information
  * @param strategyUpdatedEvent The StrategyUpdatedEvent that triggered the trade (one of potentially many)
  * @param liquidity0Delta The liquidity delta for token0
@@ -281,62 +297,56 @@ export function ordersEqual(obj1: any, obj2: any): boolean {
  * @returns An object containing the fee amount and the token it's denominated in
  */
 export function calculateFeeFromTokensTradedEvent(
-  tokensTradedEvent: TokensTradedEvent,
-  strategyUpdatedEvent: StrategyUpdatedEvent,
+  tokensTradedEvent: {
+    tradingFeeAmount: string,
+    sourceAmount: string,
+    targetAmount: string,
+    byTargetAmount: boolean,
+    sourceToken: { address: string, symbol: string },
+    targetToken: { address: string, symbol: string }
+  },
+  strategyUpdatedEvent: {
+    token0: { address: string },
+    token1: { address: string }
+  },
   liquidity0Delta: Decimal,
-  liquidity1Delta: Decimal,
-): { fee: string; feeToken: string } {
+  liquidity1Delta: Decimal
+): { fee: string, feeToken: string } {
   if (!tokensTradedEvent.tradingFeeAmount) {
     return { fee: '0', feeToken: '' };
   }
 
-  const tradeFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount);
+  const totalTradeFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount);
   const byTargetAmount = tokensTradedEvent.byTargetAmount;
+
+  // Check if the trade's source token matches the strategy's token0
+  const sourceIsToken0 = tokensTradedEvent.sourceToken.address === strategyUpdatedEvent.token0.address;
+
+  // For bySourceAmount: fee is in target token (p - q), use target delta
+  // For byTargetAmount: fee is in source token (q - p), use source delta
+  const relevantDelta = byTargetAmount
+    ? (sourceIsToken0 ? liquidity0Delta : liquidity1Delta)  // source delta
+    : (sourceIsToken0 ? liquidity1Delta : liquidity0Delta); // target delta
+
+  // Compare deltas with fee amount
+  console.log('Deltas vs Fee:', {
+    byTargetAmount,
+    sourceIsToken0,
+    liquidity0Delta: liquidity0Delta.toString(),
+    liquidity1Delta: liquidity1Delta.toString(),
+    relevantDelta: relevantDelta.toString(),
+    feeToken: byTargetAmount ? tokensTradedEvent.sourceToken.symbol : tokensTradedEvent.targetToken.symbol,
+    tradeFeeAmount: totalTradeFeeAmount.toString()
+  });
+
+  // Calculate this strategy's proportion of the total trade
+  const proportion = relevantDelta.abs().dividedBy(totalTradeFeeAmount);
   
-  // Calculate the total amount of the trade
-  const sourceAmount = new Decimal(tokensTradedEvent.sourceAmount);
-  const targetAmount = new Decimal(tokensTradedEvent.targetAmount);
-  
-  // Determine which token's liquidity delta to use based on byTargetAmount
-  // For bySourceAmount (byTargetAmount = false), the fee is in the target token
-  // For byTargetAmount (byTargetAmount = true), the fee is in the source token
-  const relevantLiquidityDelta = byTargetAmount ? liquidity0Delta : liquidity1Delta;
-  const totalTradeAmount = byTargetAmount ? sourceAmount : targetAmount;
-  
-  // Calculate the proportion of the trade that this strategy captured
-  // This is the ratio of the strategy's liquidity delta to the total trade amount
-  // Note: This assumes that the totalTradeAmount represents the total amount across all strategies
-  // If this is not the case, we would need to adjust the calculation
-  const proportion = relevantLiquidityDelta.div(totalTradeAmount);
-  
-  // Calculate the strategy's portion of the fee
-  const strategyFee = tradeFeeAmount.mul(proportion);
-  
-  // Determine which token the fee is denominated in based on the TokensTradedEvent
-  // This is the source of truth for which token the fee is in
-  // For bySourceAmount (byTargetAmount = false), the fee is in the target token
-  // For byTargetAmount (byTargetAmount = true), the fee is in the source token
-  const feeToken = byTargetAmount 
-    ? tokensTradedEvent.sourceToken.symbol 
-    : tokensTradedEvent.targetToken.symbol;
-  
-  // Get the decimals from the appropriate token in the TokensTradedEvent
-  const decimals = byTargetAmount 
-    ? tokensTradedEvent.sourceToken.decimals 
-    : tokensTradedEvent.targetToken.decimals;
-  
-  // Verify that the fee token from the strategy matches the fee token from the trade
-  // This is a sanity check to ensure we're using the correct token
-  const feeTokenFromStrategy = byTargetAmount 
-    ? strategyUpdatedEvent.token0.symbol 
-    : strategyUpdatedEvent.token1.symbol;
-  
-  if (feeTokenFromStrategy !== feeToken) {
-    console.warn(`Fee token mismatch: Strategy says ${feeTokenFromStrategy}, but trade says ${feeToken}. Using ${feeToken}.`);
-  }
-  
+  // Calculate this strategy's portion of the fee
+  const strategyFee = totalTradeFeeAmount.mul(proportion);
+
   return {
-    fee: strategyFee.div(`1e${decimals}`).toString(),
-    feeToken
+    fee: strategyFee.toString(),
+    feeToken: byTargetAmount ? tokensTradedEvent.sourceToken.symbol : tokensTradedEvent.targetToken.symbol
   };
 }
