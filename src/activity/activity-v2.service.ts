@@ -345,7 +345,7 @@ export class ActivityV2Service {
             // Calculate fees for trade events
             let fees = null;
             if (updatedEvent.reason === 1) {
-              fees = await this.strategyUpdatedEventService.calculateFees(updatedEvent);
+              fees = await this.strategyUpdatedEventService.calculateFees(updatedEvent, strategyStates);
             }
             
             const activity = createActivityFromEvent(

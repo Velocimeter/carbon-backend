@@ -111,7 +111,7 @@ export function createActivityFromEvent(
   deployment: Deployment,
   tokens: TokensByAddress,
   strategyStates: StrategyStatesMap,
-  fees?: { fee: string; feeToken: string } | null,
+  fees?: { fee: string; feeToken: string } | null
 ): ActivityV2 {
   // Handle other event types (StrategyCreatedEvent, StrategyUpdatedEvent, StrategyDeletedEvent)
   const token0 = tokens[event.token0.address];
@@ -302,8 +302,8 @@ export function calculateFeeFromTokensTradedEvent(
     sourceAmount: string,
     targetAmount: string,
     byTargetAmount: boolean,
-    sourceToken: { address: string, symbol: string },
-    targetToken: { address: string, symbol: string }
+    sourceToken: { address: string, symbol: string, decimals: number },
+    targetToken: { address: string, symbol: string, decimals: number }
   },
   strategyUpdatedEvent: {
     token0: { address: string },
@@ -311,7 +311,10 @@ export function calculateFeeFromTokensTradedEvent(
   },
   liquidity0Delta: Decimal,
   liquidity1Delta: Decimal
-): { fee: string, feeToken: string } {
+): { 
+  fee: string,  // human readable fee
+  feeToken: string 
+} {
   if (!tokensTradedEvent.tradingFeeAmount) {
     return { fee: '0', feeToken: '' };
   }
@@ -319,34 +322,98 @@ export function calculateFeeFromTokensTradedEvent(
   const totalTradeFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount);
   const byTargetAmount = tokensTradedEvent.byTargetAmount;
 
-  // Check if the trade's source token matches the strategy's token0
-  const sourceIsToken0 = tokensTradedEvent.sourceToken.address === strategyUpdatedEvent.token0.address;
+  // First determine which token the fee is in
+  // if byTargetAmount = true: fee is in source token
+  // if byTargetAmount = false: fee is in target token
+  let feeToken;
+  if (tokensTradedEvent.byTargetAmount === true) {
+    // Fee is in source token when target amount is fixed
+    feeToken = tokensTradedEvent.sourceToken;
+  } else if (tokensTradedEvent.byTargetAmount === false) {
+    // Fee is in target token when source amount is fixed
+    feeToken = tokensTradedEvent.targetToken;
+  }
 
-  // For bySourceAmount: fee is in target token (p - q), use target delta
-  // For byTargetAmount: fee is in source token (q - p), use source delta
-  const relevantDelta = byTargetAmount
-    ? (sourceIsToken0 ? liquidity0Delta : liquidity1Delta)  // source delta
-    : (sourceIsToken0 ? liquidity1Delta : liquidity0Delta); // target delta
+  // Log total fee info immediately after we have both fee amount and token
+  const humanReadableTotalFee = totalTradeFeeAmount.dividedBy(new Decimal(10).pow(feeToken.decimals));
+  console.log('Trade Fee Info:', {
+    totalTradeFeeAmount: totalTradeFeeAmount.toString() + ' (raw)',
+    humanReadableTotalFee: humanReadableTotalFee.toString() + ' (human readable)',
+    feeToken: feeToken.symbol,
+    decimals: feeToken.decimals
+  });
 
-  // Compare deltas with fee amount
+  // use the same delta as the fee was paid in now that we know which token that is. If token0 then liquidity0Delta, otherwise liquidity1Delta
+  const feeIsToken0 = feeToken.address === strategyUpdatedEvent.token0.address;
+
+  let relevantDelta;
+  if (feeIsToken0 === true) {
+    relevantDelta = liquidity0Delta;
+  } else if (feeIsToken0 === false) {
+    relevantDelta = liquidity1Delta;
+  }
+
+  // Compare relevant delta with source / target as a sanity check
   console.log('Deltas vs Fee:', {
     byTargetAmount,
-    sourceIsToken0,
-    liquidity0Delta: liquidity0Delta.toString(),
-    liquidity1Delta: liquidity1Delta.toString(),
-    relevantDelta: relevantDelta.toString(),
-    feeToken: byTargetAmount ? tokensTradedEvent.sourceToken.symbol : tokensTradedEvent.targetToken.symbol,
-    tradeFeeAmount: totalTradeFeeAmount.toString()
+    feeIsToken0,
+    liquidity0Delta: liquidity0Delta.toString() + ' (raw)',
+    liquidity1Delta: liquidity1Delta.toString() + ' (raw)',
+    relevantDelta: relevantDelta.toString() + ' (raw)',
+    sourceAmount: tokensTradedEvent.sourceAmount + ' (raw)',
+    targetAmount: tokensTradedEvent.targetAmount + ' (raw)',
+    humanReadableLiquidity0Delta: new Decimal(liquidity0Delta).div(`1e${tokensTradedEvent.sourceToken.decimals}`).toFixed(18) + ' (normalized)',
+    humanReadableLiquidity1Delta: new Decimal(liquidity1Delta).div(`1e${tokensTradedEvent.targetToken.decimals}`).toFixed(18) + ' (normalized)',
+    humanReadableSourceAmount: new Decimal(tokensTradedEvent.sourceAmount).div(`1e${tokensTradedEvent.sourceToken.decimals}`).toFixed(18) + ' (normalized)',
+    humanReadableTargetAmount: new Decimal(tokensTradedEvent.targetAmount).div(`1e${tokensTradedEvent.targetToken.decimals}`).toFixed(18) + ' (normalized)',
+    humanReadableTradeFeeAmount: new Decimal(totalTradeFeeAmount).div(`1e${feeToken.decimals}`).toFixed(18) + ' (normalized)',
+    feeToken: feeToken.symbol,
+    tradeFeeAmount: totalTradeFeeAmount.toString() + ' (raw)'
   });
 
   // Calculate this strategy's proportion of the total trade
-  const proportion = relevantDelta.abs().dividedBy(totalTradeFeeAmount);
+  const totalAmount = byTargetAmount 
+    ? new Decimal(tokensTradedEvent.sourceAmount).div(`1e${feeToken.decimals}`)  // normalize source amount
+    : new Decimal(tokensTradedEvent.targetAmount).div(`1e${feeToken.decimals}`); // normalize target amount
+
+  // Calculate proportion using normalized values
+  const proportion = relevantDelta.abs().div(totalAmount);
   
-  // Calculate this strategy's portion of the fee
-  const strategyFee = totalTradeFeeAmount.mul(proportion);
+  // Calculate this strategy's portion of the fee (in raw form)
+  const rawStrategyFee = totalTradeFeeAmount.mul(proportion);
+  
+  // Convert to human readable for return value
+  const humanReadableStrategyFee = rawStrategyFee.div(`1e${feeToken.decimals}`);
+
+  // Calculate what percent the fee is of the relevant delta (should be ~0.3%)
+  const feePercent = humanReadableStrategyFee
+    .div(relevantDelta.abs())  // Using normalized values
+    .mul(100);
+
+  // Calculate what percent the total fee is of the total trade amount (should be ~0.3%)
+  const totalFeePercent = totalTradeFeeAmount
+    .div(`1e${feeToken.decimals}`)  // normalize fee
+    .div(totalAmount)  // totalAmount is already normalized
+    .mul(100);
+  
+  console.log('Fee percentages:', {
+    rawStrategyFee: rawStrategyFee.toString() + ' (raw)',
+    relevantDelta: relevantDelta.abs().toString() + ' (raw)',
+    feePercent: feePercent.toString() + '%',
+    totalFeePercent: totalFeePercent.toString() + '%',
+    expectedPercent: '0.3%',
+    isExpectedRange: feePercent.gte(0.29) && feePercent.lte(0.31)
+  });
+
+  console.log('Final Fee:', {
+    strategyFee: Number(humanReadableStrategyFee).toFixed(18),
+    totalFee: Number(totalTradeFeeAmount.div(`1e${feeToken.decimals}`)).toFixed(18),
+    token: feeToken.symbol,
+    decimals: feeToken.decimals
+  });
 
   return {
-    fee: strategyFee.toString(),
-    feeToken: byTargetAmount ? tokensTradedEvent.sourceToken.symbol : tokensTradedEvent.targetToken.symbol
+    fee: humanReadableStrategyFee.toString(),  // human readable version
+    feeToken: byTargetAmount ? tokensTradedEvent.sourceToken.address : tokensTradedEvent.targetToken.address
   };
 }

@@ -9,7 +9,8 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { Deployment } from '../../deployment/deployment.service';
 import { TokensTradedEvent } from '../tokens-traded-event/tokens-traded-event.entity';
 import { Decimal } from 'decimal.js';
-import { calculateFeeFromTokensTradedEvent } from '../../activity/activity.utils';
+import { calculateFeeFromTokensTradedEvent, parseOrder, processOrders } from '../../activity/activity.utils';
+import { StrategyStatesMap } from '../../activity/activity.types';
 
 @Injectable()
 export class StrategyUpdatedEventService {
@@ -101,7 +102,10 @@ export class StrategyUpdatedEventService {
       .getOne();
   }
 
-  async calculateFees(strategyUpdatedEvent: StrategyUpdatedEvent): Promise<{ fee: string; feeToken: string } | null> {
+  async calculateFees(
+    strategyUpdatedEvent: StrategyUpdatedEvent,
+    strategyStates: StrategyStatesMap
+  ): Promise<{ fee: string; feeToken: string } | null> {
     // Only calculate fees for trade events (reason = 1)
     if (strategyUpdatedEvent.reason !== 1) {
       return null;
@@ -113,12 +117,30 @@ export class StrategyUpdatedEventService {
       return null;
     }
 
-    // Parse the orders to get liquidity deltas
-    const order0 = JSON.parse(strategyUpdatedEvent.order0);
-    const order1 = JSON.parse(strategyUpdatedEvent.order1);
-    
-    const liquidity0Delta = new Decimal(BigNumber.from(order0.y).toString());
-    const liquidity1Delta = new Decimal(BigNumber.from(order1.y).toString());
+    // Get the previous state
+    const previousState = strategyStates.get(strategyUpdatedEvent.strategyId);
+    if (!previousState) {
+      return null;
+    }
+
+    // Process both current and previous orders
+    const currentOrders = processOrders(
+      parseOrder(strategyUpdatedEvent.order0),
+      parseOrder(strategyUpdatedEvent.order1),
+      new Decimal(tokensTradedEvent.sourceToken.decimals),
+      new Decimal(tokensTradedEvent.targetToken.decimals)
+    );
+
+    const prevOrders = processOrders(
+      parseOrder(previousState.order0),
+      parseOrder(previousState.order1),
+      new Decimal(tokensTradedEvent.sourceToken.decimals),
+      new Decimal(tokensTradedEvent.targetToken.decimals)
+    );
+
+    // Calculate liquidity deltas
+    const liquidity0Delta = currentOrders.liquidity0.minus(prevOrders.liquidity0);
+    const liquidity1Delta = currentOrders.liquidity1.minus(prevOrders.liquidity1);
 
     // Calculate fees using the utility function
     return calculateFeeFromTokensTradedEvent(
