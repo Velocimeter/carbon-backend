@@ -325,6 +325,22 @@ export function calculateFeeFromTokensTradedEvent(
   // First determine which token the fee is in
   // if byTargetAmount = true: fee is in source token
   // if byTargetAmount = false: fee is in target token
+/*
+  fee scheme:
+ * +-------------------+---------------------------------+---------------------------------+
+ * | trade function    | trader transfers to contract    | contract transfers to trader    |
+ * +-------------------+---------------------------------+---------------------------------+
+ * | byTargetAmount(x) | trader transfers to contract: x | p = expectedTargetAmount(x)     |
+ * |false              |                                 | q = p * (100 - fee%) / 100      |
+ * |                   |                                 | contract transfers to trader: q |
+ * |                   |                                 | contract retains as fee: p - q  |
+ * +-------------------+---------------------------------+---------------------------------+
+ * | byTargetAmount(x) | p = requiredSourceAmount(x)     | contract transfers to trader: x |
+ * |true               | q = p * 100 / (100 - fee%)      |                                 |
+ * |                   | trader transfers to contract: q |                                 |
+ * |                   | contract retains as fee: q - p  |                                 |
+ * +-------------------+---------------------------------+---------------------------------+
+ */
   let feeToken;
   if (tokensTradedEvent.byTargetAmount === true) {
     // Fee is in source token when target amount is fixed
@@ -338,7 +354,7 @@ export function calculateFeeFromTokensTradedEvent(
   const humanReadableTotalFee = totalTradeFeeAmount.dividedBy(new Decimal(10).pow(feeToken.decimals));
   console.log('Trade Fee Info:', {
     totalTradeFeeAmount: totalTradeFeeAmount.toString() + ' (raw)',
-    humanReadableTotalFee: humanReadableTotalFee.toString() + ' (human readable)',
+    humanReadableTotalFee: humanReadableTotalFee.toFixed(18) + ' (human readable)',
     feeToken: feeToken.symbol,
     decimals: feeToken.decimals
   });
@@ -372,12 +388,12 @@ export function calculateFeeFromTokensTradedEvent(
   });
 
   // Calculate this strategy's proportion of the total trade
-  const totalAmount = byTargetAmount 
-    ? new Decimal(tokensTradedEvent.sourceAmount).div(`1e${feeToken.decimals}`)  // normalize source amount
-    : new Decimal(tokensTradedEvent.targetAmount).div(`1e${feeToken.decimals}`); // normalize target amount
+  const totalDelta = byTargetAmount
+    ? new Decimal(tokensTradedEvent.sourceAmount)  // already includes fee (q)
+    : new Decimal(tokensTradedEvent.targetAmount).sub(totalTradeFeeAmount);  // q = p - fee for target
 
-  // Calculate proportion using normalized values
-  const proportion = relevantDelta.abs().div(totalAmount);
+  // Calculate proportion using normalized values (both represent amounts after fees)
+  const proportion = relevantDelta.abs().div(totalDelta.div(`1e${feeToken.decimals}`));
   
   // Calculate this strategy's portion of the fee (in raw form)
   const rawStrategyFee = totalTradeFeeAmount.mul(proportion);
@@ -387,20 +403,19 @@ export function calculateFeeFromTokensTradedEvent(
 
   // Calculate what percent the fee is of the relevant delta (should be ~0.3%)
   const feePercent = humanReadableStrategyFee
-    .div(relevantDelta.abs())  // Using normalized values
+    .div(relevantDelta.abs())  // both are normalized now
     .mul(100);
 
-  // Calculate what percent the total fee is of the total trade amount (should be ~0.3%)
+  // Calculate what percent the total fee is of the total trade amount
   const totalFeePercent = totalTradeFeeAmount
-    .div(`1e${feeToken.decimals}`)  // normalize fee
-    .div(totalAmount)  // totalAmount is already normalized
+    .div(totalDelta)  // both are raw now
     .mul(100);
   
   console.log('Fee percentages:', {
     rawStrategyFee: rawStrategyFee.toString() + ' (raw)',
     relevantDelta: relevantDelta.abs().toString() + ' (raw)',
-    feePercent: feePercent.toString() + '%',
-    totalFeePercent: totalFeePercent.toString() + '%',
+    feePercent: feePercent.toFixed(18) + '%',
+    totalFeePercent: totalFeePercent.toFixed(18) + '%',
     expectedPercent: '0.3%',
     isExpectedRange: feePercent.gte(0.29) && feePercent.lte(0.31)
   });
@@ -414,6 +429,7 @@ export function calculateFeeFromTokensTradedEvent(
 
   return {
     fee: humanReadableStrategyFee.toString(),  // human readable version
+    //
     feeToken: byTargetAmount ? tokensTradedEvent.sourceToken.address : tokensTradedEvent.targetToken.address
   };
 }
