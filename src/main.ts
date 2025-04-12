@@ -5,7 +5,9 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggingMiddleware } from './logging.middleware';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    snapshot: true
+  });
   
   // Configure CORS
   app.enableCors({
@@ -31,9 +33,16 @@ async function bootstrap() {
     .setTitle('Carbon API')
     .setDescription('The Carbon API description')
     .setVersion('1.0')
+    .addTag('activity', 'Activity endpoints')
+    .addTag('analytics', 'Analytics endpoints')
+    .addTag('cmc', 'CoinMarketCap endpoints')
+    .addTag('coingecko', 'CoinGecko endpoints')
+    .addTag('roi', 'ROI endpoints')
+    .addTag('simulator', 'Simulator endpoints')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('', app, document);
+  SwaggerModule.setup('api', app, document);
 
   await app.listen(3000);
 }

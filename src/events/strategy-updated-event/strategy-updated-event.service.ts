@@ -7,12 +7,17 @@ import { PairsDictionary } from '../../pair/pair.service';
 import { TokensByAddress } from '../../token/token.service';
 import { BigNumber } from '@ethersproject/bignumber';
 import { Deployment } from '../../deployment/deployment.service';
+import { TokensTradedEvent } from '../tokens-traded-event/tokens-traded-event.entity';
+import { Decimal } from 'decimal.js';
+import { calculateFeeFromTokensTradedEvent } from '../../activity/activity.utils';
 
 @Injectable()
 export class StrategyUpdatedEventService {
   constructor(
     @InjectRepository(StrategyUpdatedEvent)
     private repository: Repository<StrategyUpdatedEvent>,
+    @InjectRepository(TokensTradedEvent)
+    private tokensTradedRepository: Repository<TokensTradedEvent>,
     private harvesterService: HarvesterService,
   ) {}
 
@@ -81,5 +86,46 @@ export class StrategyUpdatedEventService {
     }
 
     return event;
+  }
+
+  async findTokensTradedEvent(strategyUpdatedEvent: StrategyUpdatedEvent): Promise<TokensTradedEvent | null> {
+    // Find the TokensTradedEvent that occurred in the same transaction
+    return this.tokensTradedRepository
+      .createQueryBuilder('tokensTradedEvents')
+      .leftJoinAndSelect('tokensTradedEvents.pair', 'pair')
+      .leftJoinAndSelect('tokensTradedEvents.sourceToken', 'sourceToken')
+      .leftJoinAndSelect('tokensTradedEvents.targetToken', 'targetToken')
+      .where('tokensTradedEvents.transactionHash = :transactionHash', { transactionHash: strategyUpdatedEvent.transactionHash })
+      .andWhere('tokensTradedEvents.blockchainType = :blockchainType', { blockchainType: strategyUpdatedEvent.blockchainType })
+      .andWhere('tokensTradedEvents.exchangeId = :exchangeId', { exchangeId: strategyUpdatedEvent.exchangeId })
+      .getOne();
+  }
+
+  async calculateFees(strategyUpdatedEvent: StrategyUpdatedEvent): Promise<{ fee: string; feeToken: string } | null> {
+    // Only calculate fees for trade events (reason = 1)
+    if (strategyUpdatedEvent.reason !== 1) {
+      return null;
+    }
+
+    // Find the corresponding TokensTradedEvent
+    const tokensTradedEvent = await this.findTokensTradedEvent(strategyUpdatedEvent);
+    if (!tokensTradedEvent) {
+      return null;
+    }
+
+    // Parse the orders to get liquidity deltas
+    const order0 = JSON.parse(strategyUpdatedEvent.order0);
+    const order1 = JSON.parse(strategyUpdatedEvent.order1);
+    
+    const liquidity0Delta = new Decimal(BigNumber.from(order0.y).toString());
+    const liquidity1Delta = new Decimal(BigNumber.from(order1.y).toString());
+
+    // Calculate fees using the utility function
+    return calculateFeeFromTokensTradedEvent(
+      tokensTradedEvent,
+      strategyUpdatedEvent,
+      liquidity0Delta,
+      liquidity1Delta
+    );
   }
 }

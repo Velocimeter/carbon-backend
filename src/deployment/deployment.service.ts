@@ -87,7 +87,7 @@ export class DeploymentService {
         exchangeId: ExchangeId.OGIota,
         blockchainType: BlockchainType.Iota,
         rpcEndpoint: this.configService.get('IOTA_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
+        harvestEventsBatchSize: 2000,
         harvestConcurrency: 10, 
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 1936731,
@@ -138,7 +138,7 @@ export class DeploymentService {
         exchangeId: ExchangeId.OGBase,
         blockchainType: BlockchainType.Base,
         rpcEndpoint: this.configService.get('BASE_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
+        harvestEventsBatchSize: 2000,
         harvestConcurrency: 10,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 5314581,
@@ -178,7 +178,7 @@ export class DeploymentService {
         exchangeId: ExchangeId.OGMantle,
         blockchainType: BlockchainType.Mantle,
         rpcEndpoint: this.configService.get('MANTLE_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
+        harvestEventsBatchSize: 2000,
         harvestConcurrency: 10,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 69829239,
@@ -249,8 +249,8 @@ export class DeploymentService {
         exchangeId: ExchangeId.OGBerachain,
         blockchainType: BlockchainType.Berachain,
         rpcEndpoint: this.configService.get('BERACHAIN_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
-        harvestConcurrency: 10,
+        harvestEventsBatchSize: 2000,
+        harvestConcurrency: 5,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 1375430,
         gasToken: {
@@ -275,7 +275,12 @@ export class DeploymentService {
   }
 
   getDeployments(): Deployment[] {
-    return this.deployments;
+    const activeDeployments = this.configService.get('ACTIVE_DEPLOYMENTS');
+    if (!activeDeployments) {
+      return this.deployments;
+    }
+    const deploymentList = activeDeployments.split(',').map(d => d.trim());
+    return this.deployments.filter(d => deploymentList.includes(d.blockchainType));
   }
 
   getDeploymentByExchangeId(exchangeId: ExchangeId): Deployment {

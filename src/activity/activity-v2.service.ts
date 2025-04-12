@@ -69,7 +69,7 @@ export class ActivityV2Service {
       console.log(`[actdunks][${deployment.blockchainType}] Found events in batch: created=${createdEvents.length}, updated=${updatedEvents.length}, deleted=${deletedEvents.length}, transfer=${transferEvents.length}`);
 
       // Process events into activities
-      const activities = this.processEvents(
+      const activities = await this.processEvents(
         createdEvents,
         updatedEvents,
         deletedEvents,
@@ -302,7 +302,7 @@ export class ActivityV2Service {
     };
   }
 
-  processEvents(
+  private async processEvents(
     createdEvents: StrategyCreatedEvent[],
     updatedEvents: StrategyUpdatedEvent[],
     deletedEvents: StrategyDeletedEvent[],
@@ -310,7 +310,7 @@ export class ActivityV2Service {
     deployment: Deployment,
     tokens: TokensByAddress,
     strategyStates: StrategyStatesMap,
-  ): ActivityV2[] {
+  ): Promise<ActivityV2[]> {
     console.log(`[actdunks][${deployment.blockchainType}] Processing events`);
     const activities: ActivityV2[] = [];
 
@@ -341,12 +341,20 @@ export class ActivityV2Service {
           if (state) {
             const updatedEvent = event as StrategyUpdatedEvent;
             console.log(`[actdunks][${deployment.blockchainType}] Processing update event for strategy ${updatedEvent.strategyId}`);
+            
+            // Calculate fees for trade events
+            let fees = null;
+            if (updatedEvent.reason === 1) {
+              fees = await this.strategyUpdatedEventService.calculateFees(updatedEvent);
+            }
+            
             const activity = createActivityFromEvent(
               updatedEvent,
               this.determineUpdateType(updatedEvent, state),
               deployment,
               tokens,
               strategyStates,
+              fees
             );
             activities.push(activity);
             state.order0 = updatedEvent.order0;

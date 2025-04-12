@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 import { StrategyCreatedEvent } from '../events/strategy-created-event/strategy-created-event.entity';
 import { StrategyUpdatedEvent } from '../events/strategy-updated-event/strategy-updated-event.entity';
 import { StrategyDeletedEvent } from '../events/strategy-deleted-event/strategy-deleted-event.entity';
+import { TokensTradedEvent } from '../events/tokens-traded-event/tokens-traded-event.entity';
 import { Deployment } from '../deployment/deployment.service';
 import { ActivityV2 } from './activity-v2.entity';
 import { TokensByAddress } from '../token/token.service';
@@ -102,14 +103,17 @@ export function processOrders(
     buyPriceB,
   };
 }
-
+// TODO: Add tradeByAmou
+// Note: TokensTradedEvent is handled separately in createActivityFromTokensTradedEvent
 export function createActivityFromEvent(
   event: StrategyCreatedEvent | StrategyUpdatedEvent | StrategyDeletedEvent,
   action: string,
   deployment: Deployment,
   tokens: TokensByAddress,
   strategyStates: StrategyStatesMap,
+  fees?: { fee: string; feeToken: string } | null,
 ): ActivityV2 {
+  // Handle other event types (StrategyCreatedEvent, StrategyUpdatedEvent, StrategyDeletedEvent)
   const token0 = tokens[event.token0.address];
   const token1 = tokens[event.token1.address];
 
@@ -143,8 +147,9 @@ export function createActivityFromEvent(
   const activity = new ActivityV2();
   activity.blockchainType = deployment.blockchainType;
   activity.exchangeId = deployment.exchangeId;
-  activity.strategyId = event.strategyId;
   activity.action = action;
+  
+  activity.strategyId = event.strategyId;
   activity.baseQuote = `${event.token0.symbol}/${event.token1.symbol}`;
 
   // Set token information.
@@ -209,6 +214,9 @@ export function createActivityFromEvent(
     activity.sellBudgetChange = liquidity0Delta.toString();
     activity.buyBudgetChange = liquidity1Delta.toString();
 
+    // dunksFees 
+
+
     // Price deltas.
     activity.sellPriceADelta = processedOrders.sellPriceA.minus(prevProcessed.sellPriceA).toString();
     activity.sellPriceMargDelta = processedOrders.sellPriceMarg.minus(prevProcessed.sellPriceMarg).toString();
@@ -217,7 +225,7 @@ export function createActivityFromEvent(
     activity.buyPriceMargDelta = processedOrders.buyPriceMarg.minus(prevProcessed.buyPriceMarg).toString();
     activity.buyPriceBDelta = processedOrders.buyPriceB.minus(prevProcessed.buyPriceB).toString();
 
-    // For trade events (reason = 1) compute additional trade info.
+    // For trade events (reason = 1) compute additional trade info and fees
     if (event instanceof StrategyUpdatedEvent && event.reason === 1) {
       if (liquidity0Delta.isNegative() && liquidity1Delta.gte(0)) {
         activity.strategySold = liquidity0Delta.negated().toString();
@@ -233,6 +241,12 @@ export function createActivityFromEvent(
         activity.tokenBought = event.token0.symbol;
         activity.avgPrice = liquidity0Delta.isZero() ? '0' : liquidity1Delta.negated().div(liquidity0Delta).toString();
         activity.action = 'buy_low';
+      }
+
+      // Add fee information if available
+      if (fees) {
+        activity.fee = fees.fee;
+        activity.feeToken = fees.feeToken;
       }
     }
   }
@@ -254,4 +268,75 @@ export function ordersEqual(obj1: any, obj2: any): boolean {
     }
     return val1 === val2;
   });
+}
+
+
+
+/**
+ * Calculates the fee based on the fee scheme from Strategies.sol
+ * @param tokensTradedEvent The TokensTradedEvent containing fee information
+ * @param strategyUpdatedEvent The StrategyUpdatedEvent that triggered the trade (one of potentially many)
+ * @param liquidity0Delta The liquidity delta for token0
+ * @param liquidity1Delta The liquidity delta for token1
+ * @returns An object containing the fee amount and the token it's denominated in
+ */
+export function calculateFeeFromTokensTradedEvent(
+  tokensTradedEvent: TokensTradedEvent,
+  strategyUpdatedEvent: StrategyUpdatedEvent,
+  liquidity0Delta: Decimal,
+  liquidity1Delta: Decimal,
+): { fee: string; feeToken: string } {
+  if (!tokensTradedEvent.tradingFeeAmount) {
+    return { fee: '0', feeToken: '' };
+  }
+
+  const tradeFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount);
+  const byTargetAmount = tokensTradedEvent.byTargetAmount;
+  
+  // Calculate the total amount of the trade
+  const sourceAmount = new Decimal(tokensTradedEvent.sourceAmount);
+  const targetAmount = new Decimal(tokensTradedEvent.targetAmount);
+  
+  // Determine which token's liquidity delta to use based on byTargetAmount
+  // For bySourceAmount (byTargetAmount = false), the fee is in the target token
+  // For byTargetAmount (byTargetAmount = true), the fee is in the source token
+  const relevantLiquidityDelta = byTargetAmount ? liquidity0Delta : liquidity1Delta;
+  const totalTradeAmount = byTargetAmount ? sourceAmount : targetAmount;
+  
+  // Calculate the proportion of the trade that this strategy captured
+  // This is the ratio of the strategy's liquidity delta to the total trade amount
+  // Note: This assumes that the totalTradeAmount represents the total amount across all strategies
+  // If this is not the case, we would need to adjust the calculation
+  const proportion = relevantLiquidityDelta.div(totalTradeAmount);
+  
+  // Calculate the strategy's portion of the fee
+  const strategyFee = tradeFeeAmount.mul(proportion);
+  
+  // Determine which token the fee is denominated in based on the TokensTradedEvent
+  // This is the source of truth for which token the fee is in
+  // For bySourceAmount (byTargetAmount = false), the fee is in the target token
+  // For byTargetAmount (byTargetAmount = true), the fee is in the source token
+  const feeToken = byTargetAmount 
+    ? tokensTradedEvent.sourceToken.symbol 
+    : tokensTradedEvent.targetToken.symbol;
+  
+  // Get the decimals from the appropriate token in the TokensTradedEvent
+  const decimals = byTargetAmount 
+    ? tokensTradedEvent.sourceToken.decimals 
+    : tokensTradedEvent.targetToken.decimals;
+  
+  // Verify that the fee token from the strategy matches the fee token from the trade
+  // This is a sanity check to ensure we're using the correct token
+  const feeTokenFromStrategy = byTargetAmount 
+    ? strategyUpdatedEvent.token0.symbol 
+    : strategyUpdatedEvent.token1.symbol;
+  
+  if (feeTokenFromStrategy !== feeToken) {
+    console.warn(`Fee token mismatch: Strategy says ${feeTokenFromStrategy}, but trade says ${feeToken}. Using ${feeToken}.`);
+  }
+  
+  return {
+    fee: strategyFee.div(`1e${decimals}`).toString(),
+    feeToken
+  };
 }

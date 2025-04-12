@@ -6,6 +6,9 @@ import moment from 'moment';
 import { DeploymentService, ExchangeId } from '../../deployment/deployment.service';
 import { ApiExchangeIdParam, ExchangeIdParam } from '../../exchange-id-param.decorator';
 import { ActivityV2Service } from '../../activity/activity-v2.service';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+
+@ApiTags('activity')
 @Controller({ version: '1', path: ':exchangeId?/activity' })
 export class ActivityController {
   constructor(private activityV2Service: ActivityV2Service, private deploymentService: DeploymentService) {}
@@ -145,5 +148,19 @@ export class ActivityController {
     // Collect meta information
     const actions = [...new Set(data.actions.map((d) => this.formatAction(d)))];
     return { ...data, actions };
+  }
+
+  @Get('all')
+  @CacheTTL(1 * 60 * 1000)
+  @Header('Cache-Control', 'public, max-age=60')
+  @ApiOperation({ summary: 'Get all activities', description: 'Returns all activities without requiring any filters' })
+  @ApiResponse({ status: 200, description: 'List of activities returned successfully' })
+  @ApiExchangeIdParam()
+  async getAll(@ExchangeIdParam() exchangeId: ExchangeId): Promise<any> {
+    const deployment = await this.getDeployment(exchangeId);
+    const params = new ActivityDto();
+    params.limit = 100;
+    const data = await this.activityV2Service.getFilteredActivities(params, deployment);
+    return data.map((d) => this.mapData(d));
   }
 }

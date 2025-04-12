@@ -1,0 +1,53 @@
+ {
+    "id": 2953,
+    "blockchainType": "berachain",
+    "exchangeId": "berachain",
+    "strategyId": "1701411834604692317316873037158841057287",
+    "timestamp": "2025-03-21T01:56:55.000Z",
+    "reason": 1,
+    "order0": "{\"y\":\"0\",\"z\":\"16139531799284808519\",\"A\":\"0\",\"B\":\"426964143336159\"}",
+    "order1": "{\"y\":\"28153274421586553327\",\"z\":\"28153274421586553327\",\"A\":\"14772961336224\",\"B\":\"243536424358404\"}",
+    "transactionIndex": 0,
+    "transactionHash": "0xdb5f35c4669404f3f2bcacc9ce10c04634151935c320cb7418335c293710ae87",  
+    "logIndex": 1,
+    "createdAt": "2025-04-11T15:09:40.767Z",
+    "updatedAt": "2025-04-11T15:09:40.767Z",
+    "block": {
+      "id": 2619038,
+      "blockchainType": "berachain",
+      "timestamp": "2025-03-21T01:56:55.000Z",
+      "createdAt": "2025-04-11T15:09:40.619Z",
+      "updatedAt": "2025-04-11T15:09:40.619Z"
+    },
+    "pair": {
+      "id": 53,
+      "blockchainType": "berachain",
+      "exchangeId": "berachain",
+      "name": "WBERA_iBERA",
+      "createdAt": "2025-04-11T15:03:30.163Z",
+      "updatedAt": "2025-04-11T15:03:30.163Z"
+    },
+    "token0": {
+      "id": 32,
+      "blockchainType": "berachain",
+      "exchangeId": "berachain",
+      "address": "0x9b6761bf2397Bb5a6624a856cC84A3A14Dcd3fe5",
+      "symbol": "iBERA",
+      "name": "InfraredBERA",
+      "decimals": 18,
+      "createdAt": "2025-04-11T15:02:42.866Z",
+      "updatedAt": "2025-04-11T15:02:42.866Z"
+    },
+    "token1": {
+      "id": 31,
+      "blockchainType": "berachain",
+      "exchangeId": "berachain",
+      "address": "0x6969696969696969696969696969696969696969",
+      "symbol": "WBERA",
+      "name": "WrappedBera",
+      "decimals": 18,
+      "createdAt": "2025-04-11T15:02:42.866Z",
+      "updatedAt": "2025-04-11T15:02:42.866Z"
+    }
+  }
+]

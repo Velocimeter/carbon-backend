@@ -177,4 +177,10 @@ export class ActivityV2 {
 
   @Column({ nullable: true })
   token1Id: number;
+
+  @Column({ nullable: true })
+  fee: string;
+
+  @Column({ nullable: true })
+  feeToken: string;
 }
