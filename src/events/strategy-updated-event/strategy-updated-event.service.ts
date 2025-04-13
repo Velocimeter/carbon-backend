@@ -127,15 +127,15 @@ export class StrategyUpdatedEventService {
     const currentOrders = processOrders(
       parseOrder(strategyUpdatedEvent.order0),
       parseOrder(strategyUpdatedEvent.order1),
-      new Decimal(tokensTradedEvent.sourceToken.decimals),
-      new Decimal(tokensTradedEvent.targetToken.decimals)
+      new Decimal(strategyUpdatedEvent.token0.decimals),
+      new Decimal(strategyUpdatedEvent.token1.decimals)
     );
 
     const prevOrders = processOrders(
       parseOrder(previousState.order0),
       parseOrder(previousState.order1),
-      new Decimal(tokensTradedEvent.sourceToken.decimals),
-      new Decimal(tokensTradedEvent.targetToken.decimals)
+      new Decimal(strategyUpdatedEvent.token0.decimals),
+      new Decimal(strategyUpdatedEvent.token1.decimals)
     );
 
     // Calculate liquidity deltas

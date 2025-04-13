@@ -179,7 +179,7 @@ export class HarvesterService {
         tasks.push(
           concurrency(async () => {
             try {
-              // Direct contract call instead of using the non-existent retry method
+             
               const _events = await contract.getPastEvents(eventName, { fromBlock: startBlock, toBlock: endBlock });
               if (_events.length > 0) {
                 _events.forEach((e) => events.push(e));
