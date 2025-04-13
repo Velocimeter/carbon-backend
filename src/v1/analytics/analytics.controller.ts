@@ -84,6 +84,25 @@ export class AnalyticsController {
     return this.volumeService.getVolume(deployment, query, tokens);
   }
 
+  @Get('volume/pairs/all')
+  @CacheTTL(1 * 60 * 1000)
+  @Header('Cache-Control', 'public, max-age=60')
+  @ApiExchangeIdParam()
+  async volumeByAllPairs(@ExchangeIdParam() exchangeId: ExchangeId): Promise<any> {
+    const deployment = this.deploymentService.getDeploymentByExchangeId(exchangeId);
+    const tokens = await this.tokenService.allByAddress(deployment);
+    const allPairs = await this.pairService.all(deployment);
+    
+    // Create a VolumePairsDto with all pairs
+    const query = new VolumePairsDto();
+    query.pairs = allPairs.map(pair => ({
+      token0: pair.token0.address,
+      token1: pair.token1.address
+    }));
+    
+    return this.volumeService.getVolume(deployment, query, tokens, await this.pairService.allAsDictionary(deployment));
+  }
+
   @Get('generic')
   @CacheTTL(1 * 60 * 1000)
   @Header('Cache-Control', 'public, max-age=60')

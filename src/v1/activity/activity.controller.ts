@@ -51,13 +51,22 @@ export class ActivityController {
           min: d.sellPriceA.toString(),
           max: d.sellPriceB.toString(),
           marginal: d.sellPriceMarg.toString(),
-        },
+        }
       },
       blockNumber: d.blockNumber,
       txHash: d.txhash,
       timestamp: moment(d.timestamp).unix(),
       changes: {},
     };
+
+    // Add fee information to the appropriate action's changes
+    if (d.fee && (action === 'buy' || action === 'sell')) {
+      result.changes[action] = {
+        ...result.changes[action],
+        fee: d.fee.toString(),
+        feeToken: d.feeToken
+      };
+    }
 
     if (d.buyBudgetChange) {
       result['changes']['buy'] = { ...result['changes']['buy'], budget: d.buyBudgetChange.toString() };
