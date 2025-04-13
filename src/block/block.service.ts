@@ -36,7 +36,7 @@ export class BlockService {
   }
 
   private async fetchAndStore(blocks: Array<number>, deployment: Deployment): Promise<void> {
-    const batches = _.chunk(blocks, 100);
+    const batches = _.chunk(blocks, 1000);
     const limit = (await import('p-limit')).default;
     const concurrencyLimit = limit(deployment.harvestConcurrency);
 

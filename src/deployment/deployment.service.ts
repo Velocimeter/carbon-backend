@@ -138,8 +138,8 @@ export class DeploymentService {
         exchangeId: ExchangeId.OGBase,
         blockchainType: BlockchainType.Base,
         rpcEndpoint: this.configService.get('BASE_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 2000,
-        harvestConcurrency: 10,
+        harvestEventsBatchSize: 1000,
+        harvestConcurrency: 5,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 5314581,
         gasToken: {
