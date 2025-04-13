@@ -23,13 +23,10 @@ import { ConfigService } from '@nestjs/config';
 import { sleep } from '../utilities';
 import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
 
-// Test mode configuration
-const TEST_MODE = process.env.TEST_MODE === 'true';
-const TEST_MAX_BLOCKS = parseInt(process.env.TEST_MAX_BLOCKS || '100', 10);
-const TEST_BATCH_SIZE = parseInt(process.env.TEST_BATCH_SIZE || '50', 10);
+
 
 // Default maximum block range for RPC providers
-const DEFAULT_MAX_BLOCK_RANGE = 2000;
+const DEFAULT_MAX_BLOCK_RANGE = 5000;
 
 export const VERSIONS = {
   // PoolMigrator: [{ terminatesAt: 14830503, version: 1 }, { version: 2 }],
@@ -137,55 +134,7 @@ export class HarvesterService {
     private configService: ConfigService,
   ) {}
 
-  /**
-   * Recursively fetch events with automatic retry on block range errors
-   * This handles RPC provider limitations by automatically splitting large ranges
-   */
-  private async fetchEventsWithRetry(
-    contract: any,
-    eventName: string,
-    fromBlock: number,
-    toBlock: number,
-    maxRetries: number = 3,
-    currentRetry: number = 0
-  ): Promise<any[]> {
-    try {
-      // Try to fetch events with the full range
-      const events = await contract.getPastEvents(eventName, {
-        fromBlock: fromBlock,
-        toBlock: toBlock,
-      });
-      return events;
-    } catch (error) {
-      // Check if this is a block range error
-      const isRangeError = error.message && (
-        error.message.includes('exceeds the range allowed') || 
-        error.message.includes('Invalid params') ||
-        error.message.includes('range')
-      );
-      
-      if (isRangeError && currentRetry < maxRetries) {
-        console.log(`[harvester] Block range error detected: ${error.message}`);
-        console.log(`[harvester] Splitting range ${fromBlock}-${toBlock} into smaller chunks (attempt ${currentRetry + 1}/${maxRetries})`);
-        
-        // Calculate the midpoint
-        const midBlock = Math.floor((fromBlock + toBlock) / 2);
-        
-        // Recursively fetch both halves
-        const [events1, events2] = await Promise.all([
-          this.fetchEventsWithRetry(contract, eventName, fromBlock, midBlock, maxRetries, currentRetry + 1),
-          this.fetchEventsWithRetry(contract, eventName, midBlock + 1, toBlock, maxRetries, currentRetry + 1)
-        ]);
-        
-        // Combine results
-        return [...events1, ...events2];
-      } else {
-        // If it's not a range error or we've exhausted retries, rethrow
-        console.error(`[harvester] Error fetching events: ${error.message}`);
-        throw error;
-      }
-    }
-  }
+
 
   async fetchEventsFromBlockchain(
     contractName: ContractsNames,
@@ -230,8 +179,8 @@ export class HarvesterService {
         tasks.push(
           concurrency(async () => {
             try {
-              // Use the recursive retry method instead of direct contract call
-              const _events = await this.fetchEventsWithRetry(contract, eventName, startBlock, endBlock);
+              // Direct contract call instead of using the non-existent retry method
+              const _events = await contract.getPastEvents(eventName, { fromBlock: startBlock, toBlock: endBlock });
               if (_events.length > 0) {
                 _events.forEach((e) => events.push(e));
               }
