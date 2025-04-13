@@ -369,11 +369,14 @@ export function calculateFeeFromTokensTradedEvent(
     const relevantDelta = liquidity0Delta;
     
     // Calculate total trade amount in fee token units (source token)
-    const totalAmount = new Decimal(tokensTradedEvent.sourceAmount).div(denominatorSource);
+    const totalAmount = new Decimal(tokensTradedEvent.sourceAmount).div(denominatorSource);  // This is q (what trader sends)
     
     // Calculate total delta in fee token units
-    // If byTarget, fee comes from source
-    const totalDelta = totalAmount.sub(totalTradeFeeAmount);
+    // For byTargetAmount=true:
+    // totalAmount (q) = requiredSourceAmount (p) + fee
+    // So p = q - fee
+    // Our liquidity delta represents p (the actual amount affecting liquidity)
+    const totalDelta = totalAmount.sub(totalTradeFeeAmount);  // This gives us p
     
     // Calculate proportion using normalized values - both values are in fee token units
     const proportion = relevantDelta.abs().div(totalDelta);
@@ -412,12 +415,15 @@ export function calculateFeeFromTokensTradedEvent(
     const feeIsToken0 = feeToken.address === strategyUpdatedEvent.token0.address;
     const relevantDelta = feeIsToken0 ? liquidity0Delta : liquidity1Delta;
     
-    // Calculate total trade amount in fee token units (target token)
-    const totalAmount = new Decimal(tokensTradedEvent.targetAmount).div(denominatorTarget);
+    // Calculate amounts in fee token units (target token)
+    const normalizedTargetAmount = new Decimal(tokensTradedEvent.targetAmount).div(denominatorTarget);  // This is q (what trader receives)
+    const normalizedFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount).div(denominatorTarget);
     
     // Calculate total delta in fee token units
-    // If bySource, fee comes from target
-    const totalDelta = totalAmount.sub(totalTradeFeeAmount);
+    // For byTargetAmount=false:
+    // q = what trader receives (normalizedTargetAmount)
+    // p = q + fee (total amount that affected liquidity)
+    const totalDelta = normalizedTargetAmount.add(normalizedFeeAmount);  // This gives us p
     
     // Calculate proportion using normalized values - both values are in fee token units
     const proportion = relevantDelta.abs().div(totalDelta);
