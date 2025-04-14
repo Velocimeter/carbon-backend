@@ -150,6 +150,26 @@ export class PairService {
           THEN CAST(activity.fee AS numeric)
           ELSE 0 
         END)`, 'pair_token1_fees')
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'buy%' AND activity."quoteBuyTokenAddress" = token0.address
+          THEN NULLIF(activity."buyBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token0_bought')
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'sell%' AND activity."baseSellTokenAddress" = token0.address
+          THEN NULLIF(activity."sellBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token0_sold')
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'buy%' AND activity."quoteBuyTokenAddress" = token1.address
+          THEN NULLIF(activity."buyBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token1_bought')
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'sell%' AND activity."baseSellTokenAddress" = token1.address
+          THEN NULLIF(activity."sellBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token1_sold')
         .where('pair."exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
         .andWhere('pair."blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType });
 
@@ -192,7 +212,7 @@ export class PairService {
       const { raw, entities } = await queryBuilder.getRawAndEntities();
       const total = await queryBuilder.getCount();
 
-      // Transform the results with simplified metrics
+      // Transform the results with all metrics
       const transformedPairs = entities.map((pair, index) => {
         const rawData = raw[index];
         return {
@@ -201,7 +221,11 @@ export class PairService {
           uniqueTraders: Number(rawData.pair_uniqueTraders || 0),
           lastActivityTime: rawData.pair_lastActivityTime ? new Date(rawData.pair_lastActivityTime) : null,
           token0_fees: rawData.pair_token0_fees || '0',
-          token1_fees: rawData.pair_token1_fees || '0'
+          token1_fees: rawData.pair_token1_fees || '0',
+          token0_bought: rawData.pair_token0_bought || '0',
+          token0_sold: rawData.pair_token0_sold || '0',
+          token1_bought: rawData.pair_token1_bought || '0',
+          token1_sold: rawData.pair_token1_sold || '0'
         };
       });
 
