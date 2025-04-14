@@ -10,6 +10,8 @@ import { LastProcessedBlockService } from '../last-processed-block/last-processe
 import { PairCreatedEventService } from '../events/pair-created-event/pair-created-event.service';
 import * as _ from 'lodash';
 import { Deployment } from '../deployment/deployment.service';
+import { PairQueryDto } from './pair.dto';
+import { ActivityV2 } from '../activity/activity-v2.entity';
 
 interface PairDictionaryItem {
   [address: string]: Pair;
@@ -23,6 +25,7 @@ export interface PairsDictionary {
 export class PairService {
   constructor(
     @InjectRepository(Pair) private pair: Repository<Pair>,
+    @InjectRepository(ActivityV2) private activityRepository: Repository<ActivityV2>,
     private harvesterService: HarvesterService,
     private lastProcessedBlockService: LastProcessedBlockService,
     private pairCreatedEventService: PairCreatedEventService,
@@ -60,8 +63,8 @@ export class PairService {
           token1: tokens[e.token1],
           name: `${tokens[e.token0].symbol}_${tokens[e.token1].symbol}`,
           block: e.block,
-          blockchainType: deployment.blockchainType, // Include blockchainType
-          exchangeId: deployment.exchangeId, // Include exchangeId
+          blockchainType: deployment.blockchainType,
+          exchangeId: deployment.exchangeId,
         }),
       );
     });
@@ -74,7 +77,7 @@ export class PairService {
       addresses,
       symbolABI,
       'symbol',
-      deployment, // Use deployment
+      deployment,
     );
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
@@ -88,7 +91,7 @@ export class PairService {
       addresses,
       decimalsABI,
       'decimals',
-      deployment, // Use deployment
+      deployment,
     );
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
@@ -99,13 +102,115 @@ export class PairService {
 
   async all(deployment: Deployment): Promise<Pair[]> {
     return this.pair
-      .createQueryBuilder('pools')
-      .leftJoinAndSelect('pools.block', 'block')
-      .leftJoinAndSelect('pools.token0', 'token0')
-      .leftJoinAndSelect('pools.token1', 'token1')
-      .where('pools.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
-      .andWhere('pools.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+      .createQueryBuilder('pair')
+      .leftJoinAndSelect('pair.block', 'block')
+      .leftJoinAndSelect('pair.token0', 'token0')
+      .leftJoinAndSelect('pair.token1', 'token1')
+      .where('pair.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
+      .andWhere('pair.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
       .getMany();
+  }
+
+  async findWithFilters(deployment: Deployment, query: PairQueryDto): Promise<[Pair[], number]> {
+    console.log('Finding pairs with filters:', {
+      deployment,
+      query,
+      timestamp: new Date().toISOString()
+    });
+
+    try {
+      const queryBuilder = this.pair
+        .createQueryBuilder('pair')
+        .leftJoinAndSelect('pair.token0', 'token0')
+        .leftJoinAndSelect('pair.token1', 'token1')
+        .leftJoin(
+          ActivityV2,
+          'activity',
+          '(LOWER(activity.quoteBuyTokenAddress) = LOWER(token0.address) AND LOWER(activity.baseSellTokenAddress) = LOWER(token1.address)) OR ' +
+          '(LOWER(activity.quoteBuyTokenAddress) = LOWER(token1.address) AND LOWER(activity.baseSellTokenAddress) = LOWER(token0.address))'
+        )
+        .select([
+          'pair.id',
+          'pair.exchangeId',
+          'pair.blockchainType',
+          'pair.name',
+          'token0.id',
+          'token0.address',
+          'token0.symbol',
+          'token1.id',
+          'token1.address',
+          'token1.symbol'
+        ])
+        .addSelect('COUNT(DISTINCT activity.id)', 'pair_activityCount')
+        .addSelect('COUNT(DISTINCT activity.currentOwner)', 'pair_uniqueTraders')
+        .addSelect('MAX(activity.timestamp)', 'pair_lastActivityTime')
+        .addSelect('SUM(CASE WHEN activity.action = \'buy\' AND LOWER(activity.quoteBuyTokenAddress) = LOWER(token0.address) THEN CAST(activity.buyBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token0_bought')
+        .addSelect('SUM(CASE WHEN activity.action = \'sell\' AND LOWER(activity.baseSellTokenAddress) = LOWER(token0.address) THEN CAST(activity.sellBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token0_sold')
+        .addSelect('SUM(CASE WHEN LOWER(activity.feeToken) = LOWER(token0.address) THEN CAST(activity.fee AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token0_fees')
+        .addSelect('SUM(CASE WHEN activity.action = \'buy\' AND LOWER(activity.quoteBuyTokenAddress) = LOWER(token1.address) THEN CAST(activity.buyBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token1_bought')
+        .addSelect('SUM(CASE WHEN activity.action = \'sell\' AND LOWER(activity.baseSellTokenAddress) = LOWER(token1.address) THEN CAST(activity.sellBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token1_sold')
+        .addSelect('SUM(CASE WHEN LOWER(activity.feeToken) = LOWER(token1.address) THEN CAST(activity.fee AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token1_fees')
+        .where('pair.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
+        .andWhere('pair.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+        .groupBy('pair.id')
+        .addGroupBy('pair.exchangeId')
+        .addGroupBy('pair.blockchainType')
+        .addGroupBy('pair.name')
+        .addGroupBy('token0.id')
+        .addGroupBy('token0.address')
+        .addGroupBy('token0.symbol')
+        .addGroupBy('token1.id')
+        .addGroupBy('token1.address')
+        .addGroupBy('token1.symbol');
+
+      // Add time range filters if provided
+      if (query.start) {
+        queryBuilder.andWhere('activity.timestamp >= :start', { start: new Date(query.start * 1000) });
+      }
+      if (query.end) {
+        queryBuilder.andWhere('activity.timestamp <= :end', { end: new Date(query.end * 1000) });
+      }
+
+      // Add owner filter if provided
+      if (query.ownerId) {
+        queryBuilder.andWhere('(activity.creationWallet = :ownerId OR activity.currentOwner = :ownerId)', {
+          ownerId: query.ownerId,
+        });
+      }
+
+      // Add pagination
+      if (query.offset) {
+        queryBuilder.offset(query.offset);
+      }
+      if (query.limit) {
+        queryBuilder.limit(query.limit);
+      }
+
+      // Get both data and count
+      const [pairs, total] = await queryBuilder.getManyAndCount();
+
+      // Transform the raw results to include the aggregated fields
+      const transformedPairs = pairs.map(pair => {
+        const rawData = pair as any;
+        return {
+          ...pair,
+          pair_activityCount: Number(rawData.pair_activityCount || 0),
+          pair_uniqueTraders: Number(rawData.pair_uniqueTraders || 0),
+          pair_lastActivityTime: rawData.pair_lastActivityTime ? new Date(rawData.pair_lastActivityTime) : null,
+          pair_token0_bought: rawData.pair_token0_bought || '0',
+          pair_token0_sold: rawData.pair_token0_sold || '0',
+          pair_token0_fees: rawData.pair_token0_fees || '0',
+          pair_token1_bought: rawData.pair_token1_bought || '0',
+          pair_token1_sold: rawData.pair_token1_sold || '0',
+          pair_token1_fees: rawData.pair_token1_fees || '0'
+        };
+      });
+
+      return [transformedPairs, total];
+    } catch (error) {
+      console.error('Error in findWithFilters:', error);
+      throw error;
+    }
   }
 
   async allAsDictionary(deployment: Deployment): Promise<PairsDictionary> {

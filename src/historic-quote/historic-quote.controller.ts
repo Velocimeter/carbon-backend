@@ -5,7 +5,9 @@ import moment from 'moment';
 import { HistoricQuoteService } from './historic-quote.service';
 import { Deployment, DeploymentService, ExchangeId } from '../deployment/deployment.service';
 import { ApiExchangeIdParam, ExchangeIdParam } from '../exchange-id-param.decorator';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('history')
 @Controller({ version: '1', path: ':exchangeId?/history/prices' })
 export class HistoricQuoteController {
   constructor(private historicQuoteService: HistoricQuoteService, private deploymentService: DeploymentService) {}
