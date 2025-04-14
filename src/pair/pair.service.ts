@@ -126,42 +126,54 @@ export class PairService {
         .leftJoin(
           ActivityV2,
           'activity',
-          '(LOWER(activity.quoteBuyTokenAddress) = LOWER(token0.address) AND LOWER(activity.baseSellTokenAddress) = LOWER(token1.address)) OR ' +
-          '(LOWER(activity.quoteBuyTokenAddress) = LOWER(token1.address) AND LOWER(activity.baseSellTokenAddress) = LOWER(token0.address))'
+          '(LOWER(activity."quoteBuyTokenAddress") = LOWER(token0.address) AND LOWER(activity."baseSellTokenAddress") = LOWER(token1.address)) OR ' +
+          '(LOWER(activity."quoteBuyTokenAddress") = LOWER(token1.address) AND LOWER(activity."baseSellTokenAddress") = LOWER(token0.address))'
         )
         .select([
           'pair.id',
           'pair.exchangeId',
           'pair.blockchainType',
           'pair.name',
-          'token0.id',
-          'token0.address',
-          'token0.symbol',
-          'token1.id',
-          'token1.address',
-          'token1.symbol'
+          'token0',
+          'token1'
         ])
         .addSelect('COUNT(DISTINCT activity.id)', 'pair_activityCount')
-        .addSelect('COUNT(DISTINCT activity.currentOwner)', 'pair_uniqueTraders')
+        .addSelect('COUNT(DISTINCT activity."currentOwner")', 'pair_uniqueTraders')
         .addSelect('MAX(activity.timestamp)', 'pair_lastActivityTime')
-        .addSelect('SUM(CASE WHEN activity.action = \'buy\' AND LOWER(activity.quoteBuyTokenAddress) = LOWER(token0.address) THEN CAST(activity.buyBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token0_bought')
-        .addSelect('SUM(CASE WHEN activity.action = \'sell\' AND LOWER(activity.baseSellTokenAddress) = LOWER(token0.address) THEN CAST(activity.sellBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token0_sold')
-        .addSelect('SUM(CASE WHEN LOWER(activity.feeToken) = LOWER(token0.address) THEN CAST(activity.fee AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token0_fees')
-        .addSelect('SUM(CASE WHEN activity.action = \'buy\' AND LOWER(activity.quoteBuyTokenAddress) = LOWER(token1.address) THEN CAST(activity.buyBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token1_bought')
-        .addSelect('SUM(CASE WHEN activity.action = \'sell\' AND LOWER(activity.baseSellTokenAddress) = LOWER(token1.address) THEN CAST(activity.sellBudget AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token1_sold')
-        .addSelect('SUM(CASE WHEN LOWER(activity.feeToken) = LOWER(token1.address) THEN CAST(activity.fee AS DECIMAL(78,0)) ELSE 0 END)', 'pair_token1_fees')
-        .where('pair.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
-        .andWhere('pair.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
-        .groupBy('pair.id')
-        .addGroupBy('pair.exchangeId')
-        .addGroupBy('pair.blockchainType')
-        .addGroupBy('pair.name')
-        .addGroupBy('token0.id')
-        .addGroupBy('token0.address')
-        .addGroupBy('token0.symbol')
-        .addGroupBy('token1.id')
-        .addGroupBy('token1.address')
-        .addGroupBy('token1.symbol');
+        // Token0 metrics
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'buy%' AND LOWER(activity."quoteBuyTokenAddress") = LOWER(token0.address) 
+          THEN NULLIF(activity."buyBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token0_bought')
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'sell%' AND LOWER(activity."baseSellTokenAddress") = LOWER(token0.address) 
+          THEN NULLIF(activity."sellBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token0_sold')
+        .addSelect(`SUM(CASE 
+          WHEN LOWER(activity."feeToken") = LOWER(token0.address) 
+          THEN NULLIF(activity."fee", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token0_fees')
+        // Token1 metrics
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'buy%' AND LOWER(activity."quoteBuyTokenAddress") = LOWER(token1.address) 
+          THEN NULLIF(activity."buyBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token1_bought')
+        .addSelect(`SUM(CASE 
+          WHEN activity.action LIKE 'sell%' AND LOWER(activity."baseSellTokenAddress") = LOWER(token1.address) 
+          THEN NULLIF(activity."sellBudget", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token1_sold')
+        .addSelect(`SUM(CASE 
+          WHEN LOWER(activity."feeToken") = LOWER(token1.address) 
+          THEN NULLIF(activity."fee", '')::numeric 
+          ELSE 0 
+        END)`, 'pair_token1_fees')
+        .where('pair."exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
+        .andWhere('pair."blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType });
 
       // Add time range filters if provided
       if (query.start) {
@@ -173,10 +185,35 @@ export class PairService {
 
       // Add owner filter if provided
       if (query.ownerId) {
-        queryBuilder.andWhere('(activity.creationWallet = :ownerId OR activity.currentOwner = :ownerId)', {
+        queryBuilder.andWhere('(activity."creationWallet" = :ownerId OR activity."currentOwner" = :ownerId)', {
           ownerId: query.ownerId,
         });
       }
+
+      // Group by all non-aggregated columns
+      queryBuilder
+        .groupBy('pair.id')
+        .addGroupBy('pair."blockchainType"')
+        .addGroupBy('pair."exchangeId"')
+        .addGroupBy('pair.name')
+        .addGroupBy('token0.id')
+        .addGroupBy('token0.address')
+        .addGroupBy('token0.symbol')
+        .addGroupBy('token0."blockchainType"')
+        .addGroupBy('token0."exchangeId"')
+        .addGroupBy('token0.name')
+        .addGroupBy('token0.decimals')
+        .addGroupBy('token0."createdAt"')
+        .addGroupBy('token0."updatedAt"')
+        .addGroupBy('token1.id')
+        .addGroupBy('token1.address')
+        .addGroupBy('token1.symbol')
+        .addGroupBy('token1."blockchainType"')
+        .addGroupBy('token1."exchangeId"')
+        .addGroupBy('token1.name')
+        .addGroupBy('token1.decimals')
+        .addGroupBy('token1."createdAt"')
+        .addGroupBy('token1."updatedAt"');
 
       // Add pagination
       if (query.offset) {
@@ -186,6 +223,9 @@ export class PairService {
         queryBuilder.limit(query.limit);
       }
 
+      // Order by activity count by default
+      queryBuilder.orderBy('"pair_activityCount"', 'DESC');
+
       // Get both data and count
       const [pairs, total] = await queryBuilder.getManyAndCount();
 
@@ -194,15 +234,15 @@ export class PairService {
         const rawData = pair as any;
         return {
           ...pair,
-          pair_activityCount: Number(rawData.pair_activityCount || 0),
-          pair_uniqueTraders: Number(rawData.pair_uniqueTraders || 0),
-          pair_lastActivityTime: rawData.pair_lastActivityTime ? new Date(rawData.pair_lastActivityTime) : null,
-          pair_token0_bought: rawData.pair_token0_bought || '0',
-          pair_token0_sold: rawData.pair_token0_sold || '0',
-          pair_token0_fees: rawData.pair_token0_fees || '0',
-          pair_token1_bought: rawData.pair_token1_bought || '0',
-          pair_token1_sold: rawData.pair_token1_sold || '0',
-          pair_token1_fees: rawData.pair_token1_fees || '0'
+          activityCount: Number(rawData.pair_activityCount || 0),
+          uniqueTraders: Number(rawData.pair_uniqueTraders || 0),
+          lastActivityTime: rawData.pair_lastActivityTime ? new Date(rawData.pair_lastActivityTime) : null,
+          token0_bought: rawData.pair_token0_bought || '0',
+          token0_sold: rawData.pair_token0_sold || '0',
+          token0_fees: rawData.pair_token0_fees || '0',
+          token1_bought: rawData.pair_token1_bought || '0',
+          token1_sold: rawData.pair_token1_sold || '0',
+          token1_fees: rawData.pair_token1_fees || '0'
         };
       });
 
