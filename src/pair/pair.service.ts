@@ -126,8 +126,13 @@ export class PairService {
         .leftJoin(
           ActivityV2,
           'activity',
-          '(activity."quoteBuyTokenAddress" = token0.address AND activity."baseSellTokenAddress" = token1.address) OR ' +
-          '(activity."quoteBuyTokenAddress" = token1.address AND activity."baseSellTokenAddress" = token0.address)'
+          `(activity.token0Id = token0.id AND activity.token1Id = token1.id) OR 
+           (activity.token1Id = token0.id AND activity.token0Id = token1.id)
+           AND activity."blockchainType" = pair."blockchainType"
+           AND activity."exchangeId" = pair."exchangeId"
+           ${query.start ? `AND activity.timestamp >= :start` : ''}
+           ${query.end ? `AND activity.timestamp <= :end` : ''}
+           ${query.ownerId ? `AND (activity."creationWallet" = :ownerId OR activity."currentOwner" = :ownerId)` : ''}`
         )
         .select([
           'pair.id',
@@ -141,51 +146,59 @@ export class PairService {
         .addSelect('COUNT(DISTINCT activity."currentOwner")', 'pair_uniqueTraders')
         .addSelect('MAX(activity.timestamp)', 'pair_lastActivityTime')
         .addSelect(`SUM(CASE 
-          WHEN activity."feeToken" = token0.address AND activity.fee != ''
+          WHEN activity."feeToken" = token0.address AND activity.fee != '' AND activity.fee ~ '^[0-9\.]+$'
           THEN CAST(activity.fee AS numeric)
           ELSE 0 
         END)`, 'pair_token0_fees')
         .addSelect(`SUM(CASE 
-          WHEN activity."feeToken" = token1.address AND activity.fee != ''
+          WHEN activity."feeToken" = token1.address AND activity.fee != '' AND activity.fee ~ '^[0-9\.]+$'
           THEN CAST(activity.fee AS numeric)
           ELSE 0 
         END)`, 'pair_token1_fees')
         .addSelect(`SUM(CASE 
-          WHEN activity.action LIKE 'buy%' AND activity."quoteBuyTokenAddress" = token0.address
-          THEN NULLIF(activity."buyBudget", '')::numeric 
+          WHEN activity.action = 'buy_low'
+          AND activity.token0Id = token0.id 
+          AND activity.token1Id = token1.id
+          AND activity."strategyBought" ~ '^[0-9\.]+$'
+          THEN CAST(activity."strategyBought" AS numeric)
           ELSE 0 
         END)`, 'pair_token0_bought')
         .addSelect(`SUM(CASE 
-          WHEN activity.action LIKE 'sell%' AND activity."baseSellTokenAddress" = token0.address
-          THEN NULLIF(activity."sellBudget", '')::numeric 
+          WHEN activity.action = 'sell_high'
+          AND activity.token0Id = token0.id
+          AND activity.token1Id = token1.id
+          AND activity."strategySold" ~ '^[0-9\.]+$'
+          THEN CAST(activity."strategySold" AS numeric)
           ELSE 0 
         END)`, 'pair_token0_sold')
         .addSelect(`SUM(CASE 
-          WHEN activity.action LIKE 'buy%' AND activity."quoteBuyTokenAddress" = token1.address
-          THEN NULLIF(activity."buyBudget", '')::numeric 
+          WHEN activity.action = 'buy_low'
+          AND activity.token1Id = token0.id
+          AND activity.token0Id = token1.id
+          AND activity."strategyBought" ~ '^[0-9\.]+$'
+          THEN CAST(activity."strategyBought" AS numeric)
           ELSE 0 
         END)`, 'pair_token1_bought')
         .addSelect(`SUM(CASE 
-          WHEN activity.action LIKE 'sell%' AND activity."baseSellTokenAddress" = token1.address
-          THEN NULLIF(activity."sellBudget", '')::numeric 
+          WHEN activity.action = 'sell_high'
+          AND activity.token1Id = token0.id
+          AND activity.token0Id = token1.id
+          AND activity."strategySold" ~ '^[0-9\.]+$'
+          THEN CAST(activity."strategySold" AS numeric)
           ELSE 0 
         END)`, 'pair_token1_sold')
         .where('pair."exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
         .andWhere('pair."blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType });
 
-      // Add time range filters if provided
+      // Add parameters
       if (query.start) {
-        queryBuilder.andWhere('activity.timestamp >= :start', { start: new Date(query.start * 1000) });
+        queryBuilder.setParameter('start', new Date(query.start * 1000));
       }
       if (query.end) {
-        queryBuilder.andWhere('activity.timestamp <= :end', { end: new Date(query.end * 1000) });
+        queryBuilder.setParameter('end', new Date(query.end * 1000));
       }
-
-      // Add owner filter if provided
       if (query.ownerId) {
-        queryBuilder.andWhere('(activity."creationWallet" = :ownerId OR activity."currentOwner" = :ownerId)', {
-          ownerId: query.ownerId,
-        });
+        queryBuilder.setParameter('ownerId', query.ownerId);
       }
 
       // Group by essential columns only

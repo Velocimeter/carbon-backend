@@ -392,7 +392,7 @@ export function calculateFeeFromTokensTradedEvent(
     console.log(`- Strategy fee: ${strategyFee.toFixed(18)} ${feeToken.symbol}`);
     
     return {
-      fee: strategyFee.toString(),
+      fee: strategyFee.toFixed(18),
       feeToken: feeToken.address
     };
   } else {
@@ -438,7 +438,7 @@ export function calculateFeeFromTokensTradedEvent(
     console.log(`- Strategy fee: ${strategyFee.toFixed(18)} ${feeToken.symbol}`);
     console.log(`- ttttrade fee: ${totalTradeFeeAmount.toFixed(18)} ${feeToken.symbol}`);
     return {
-      fee: strategyFee.toString(),
+      fee: strategyFee.toFixed(18),
       feeToken: feeToken.address
     };
   }
