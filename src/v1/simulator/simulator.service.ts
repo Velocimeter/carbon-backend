@@ -119,7 +119,7 @@ export class SimulatorService {
     });
 
     pythonProcess.stderr.on('data', (data) => {
-      console.error(`Error from Python process: ${data.toString()}`);
+      
     });
 
     try {
@@ -128,7 +128,7 @@ export class SimulatorService {
         // Handle process exit
         pythonProcess.on('close', (code) => {
           if (code !== 0) {
-            console.error(`Python process exited with code ${code}`);
+            
             reject(new Error(`Python process exited with code ${code}`));
             return;
           }
@@ -146,7 +146,7 @@ export class SimulatorService {
 
       return { ...parsedOutput, prices: pricesRatios };
     } catch (err) {
-      console.error('Error in generateSimulation:', err.message);
+      
       throw err;
     }
   }

@@ -12,10 +12,10 @@ async function bootstrap() {
   // Configure CORS
   app.enableCors({
     origin: (origin, callback) => {
-      console.log('Incoming origin:', origin);  // Debug log
+        // Debug log
       if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
-          ['http://localhost:3000', 'http://localhost:3001', 
-           'http://localhost:3005', 'http://localhost:8000', 
+          ['http://localhost:3000', 'http://localhost:3009', 
+           'http://localhost:3008', 'http://localhost:8000', 
            'http://localhost:8001'].includes(origin)) {
         callback(null, true);
       } else {
@@ -45,7 +45,9 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(3000);
+  const port = 3003;
+  await app.listen(port);
+  
 }
 
 bootstrap();

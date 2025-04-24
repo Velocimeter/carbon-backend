@@ -92,7 +92,7 @@ export class CodexService {
         });
         return { ...bars.getBars, address: tokenAddress };
       } catch (error) {
-        console.error(`Error fetching data for ${tokenAddress}, retrying...`, error);
+        
         return fetchWithRetry(tokenAddress, batchFrom, batchTo);
       }
     };
@@ -124,7 +124,7 @@ export class CodexService {
 
       return quotesByAddress;
     } catch (error) {
-      console.error('Unexpected error:', error);
+      
       throw error;
     }
   }
@@ -147,7 +147,7 @@ export class CodexService {
       try {
         // Check if we're about to exceed the maximum offset
         if (offset + limit > MAX_OFFSET) {
-          console.warn(`Reached maximum offset limit of ${MAX_OFFSET}`);
+          
           break;
         }
 
@@ -168,16 +168,16 @@ export class CodexService {
         
         // Log the first batch of tokens with their volume
         if (offset === 0) {
-          console.log(`First ${limit} tokens by 24h volume:`);
+          
           fetched.forEach((token, index) => {
-            console.log(`${index + 1}. Address: ${token.token.address}, Volume24: ${token.volume24}, Symbol: ${token.token.symbol}`);
+            
           });
         }
 
         allTokens = [...allTokens, ...fetched];
         offset += limit;
       } catch (error) {
-        console.error('Error fetching tokens:', error);
+        
         throw error;
       }
     } while (fetched.length === limit);

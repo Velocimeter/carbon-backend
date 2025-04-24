@@ -81,7 +81,7 @@ export class UpdaterService {
     const isUpdating = await this.redis.client.get(`${CARBON_IS_UPDATING}:${deploymentKey}`);
     if (isUpdating === '1' && process.env.NODE_ENV === 'production') return;
 
-    console.log(`CARBON SERVICE - Started update cycle for ${deploymentKey}`);
+    
     let endBlock = -12;
     const t = Date.now();
 
@@ -127,18 +127,18 @@ export class UpdaterService {
       for (const service of services) {
         try {
           await service.fn();
-          console.log(`CARBON SERVICE - Finished ${service.name} for ${deployment.exchangeId}`);
+          
         } catch (error) {
-          console.log(`error in carbon updater for ${deploymentKey} in ${service.name}:`, error, Date.now() - t);
+          
           throw error;
         }
       }
 
-      console.log(`CARBON SERVICE - Finished update iteration for ${deploymentKey} in:`, Date.now() - t, 'ms');
+      
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     } catch (error) {
-      console.log(`error in carbon updater for ${deploymentKey}:`, error, Date.now() - t);
+      
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     }
@@ -160,7 +160,7 @@ export class UpdaterService {
     const isUpdatingAnalytics = await this.redis.client.get(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`);
     if (isUpdatingAnalytics === '1' && process.env.NODE_ENV === 'production') return;
 
-    console.log(`CARBON SERVICE - Started analytics update cycle for ${deploymentKey}`);
+    
     const t = Date.now();
 
     try {
@@ -170,20 +170,20 @@ export class UpdaterService {
 
       // ROI
       await this.roiService.update(deployment);
-      console.log(`CARBON SERVICE - Finished updating ROI for ${deployment.exchangeId}`);
+      
 
       // analytics
       await this.analyticsService.update(deployment);
 
       // DexScreener
       await this.dexScreenerService.update(deployment);
-      console.log(`CARBON SERVICE - Finished updating DexScreener for ${deployment.exchangeId}`);
+      
 
-      console.log(`CARBON SERVICE - Finished updating analytics for ${deploymentKey} in:`, Date.now() - t, 'ms');
+      
       this.isUpdatingAnalytics[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`, 0);
     } catch (error) {
-      console.log(`error in carbon analytics updater for ${deploymentKey}`, error, Date.now() - t);
+      
       this.isUpdatingAnalytics[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`, 0);
     }

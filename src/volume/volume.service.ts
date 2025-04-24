@@ -433,7 +433,7 @@ export class VolumeService {
       if (pair) {
         pairIds.push(pair.id);
       } else {
-        console.warn(`Pair not found for tokens: ${token0}, ${token1}`);
+        
       }
     }
     return pairIds;

@@ -343,16 +343,16 @@ export function calculateFeeFromTokensTradedEvent(
   const normalizedTargetAmount = new Decimal(tokensTradedEvent.targetAmount).div(denominatorTarget);
   
   // Log normalized amounts for debugging
-  console.log(`Normalized source amount: ${normalizedSourceAmount.toFixed(18)} ${tokensTradedEvent.sourceToken.symbol}`);
-  console.log(`Normalized target amount: ${normalizedTargetAmount.toFixed(18)} ${tokensTradedEvent.targetToken.symbol}`);
-  console.log(`Liquidity0Delta (source): ${liquidity0Delta.toFixed(18)}`);
-  console.log(`Liquidity1Delta (target): ${liquidity1Delta.toFixed(18)}`);
+  
+  
+  
+  
   
   const byTargetAmount = tokensTradedEvent.byTargetAmount;
-  console.log(`byTargetAmount: ${byTargetAmount}`);
+  
   
   if (byTargetAmount) {
-    console.log(`EXECUTING byTargetAmount=true BRANCH`);
+    
     // Case: byTargetAmount = true
     // - Trader transfers variable source amount
     // - Fee is taken from source amount
@@ -384,19 +384,19 @@ export function calculateFeeFromTokensTradedEvent(
     // Calculate this strategy's portion of the fee
     const strategyFee = totalTradeFeeAmount.mul(proportion);
     
-    console.log(`Fee calculation (byTargetAmount=true):`);
-    console.log(`- Total trade fee: ${totalTradeFeeAmount.toFixed(18)} ${feeToken.symbol}`);
-    console.log(`- Relevant delta: ${relevantDelta.toFixed(18)} ${feeToken.symbol}`);
-    console.log(`- Total delta: ${totalDelta.toFixed(18)} ${feeToken.symbol}`);
-    console.log(`- Proportion: ${proportion.toFixed(18)}`);
-    console.log(`- Strategy fee: ${strategyFee.toFixed(18)} ${feeToken.symbol}`);
+    
+    
+    
+    
+    
+    
     
     return {
       fee: strategyFee.toFixed(18),
       feeToken: feeToken.address
     };
   } else {
-    console.log(`EXECUTING byTargetAmount=false BRANCH`);
+    
     // Case: byTargetAmount = false
     // - Trader transfers fixed source amount
     // - Fee is taken from target amount
@@ -404,8 +404,8 @@ export function calculateFeeFromTokensTradedEvent(
     
     // Fee is in target token
     const feeToken = tokensTradedEvent.targetToken;
-    console.log(`Fee token (target): ${feeToken.symbol}`);
-    console.log(`Other token (source): ${tokensTradedEvent.sourceToken.symbol}`);
+    
+    
     const feeDenominator = denominatorTarget;
     
     // Normalize the fee amount using the appropriate denominator
@@ -431,12 +431,12 @@ export function calculateFeeFromTokensTradedEvent(
     // Calculate this strategy's portion of the fee
     const strategyFee = totalTradeFeeAmount.mul(proportion);
     
-    console.log(`Fee calculation (byTargetAmount=false):`);
-    console.log(`- Relevant delta: ${relevantDelta.toFixed(18)} ${feeToken.symbol}`);
-    console.log(`- Total delta: ${totalDelta.toFixed(18)} ${feeToken.symbol}`);
-    console.log(`- Proportion: ${proportion.toFixed(18)}`);
-    console.log(`- Strategy fee: ${strategyFee.toFixed(18)} ${feeToken.symbol}`);
-    console.log(`- ttttrade fee: ${totalTradeFeeAmount.toFixed(18)} ${feeToken.symbol}`);
+    
+    
+    
+    
+    
+    
     return {
       fee: strategyFee.toFixed(18),
       feeToken: feeToken.address

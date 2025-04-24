@@ -79,25 +79,25 @@ export class HistoricQuoteService implements OnModuleInit {
     
     if (seedCodexOnStartup) {
       const blockchainType = BlockchainType.Berachain; // Set the specific chain here
-      console.log(`Seeding Codex quotes for ${blockchainType}...`);
+      
       try {
         await this.seedCodex(blockchainType);
-        console.log(`Finished seeding Codex quotes for ${blockchainType}`);
+        
       } catch (error) {
-        console.error(`Error seeding Codex quotes for ${blockchainType}:`, error);
+        
       }
     }
   }
 
   async pollForUpdates(): Promise<void> {
     if (this.isPolling) return;
-    console.log('[HistoricQuoteService] Starting to poll for historic quotes...');
+    
     this.isPolling = true;
 
     try {
       // Process chains sequentially instead of in parallel to avoid rate limits
       await this.updateCoinMarketCapQuotes().catch(error => {
-        console.error('[HistoricQuoteService] Error while polling CoinMarketCap quotes:', error);
+        
       });
 
       // Process each chain one at a time
@@ -112,20 +112,20 @@ export class HistoricQuoteService implements OnModuleInit {
         try {
           await this.updateCodexQuotes(chain);
         } catch (error) {
-          console.error(`[HistoricQuoteService] Error while polling ${chain} Codex quotes:`, error);
+          
           // Continue with next chain even if one fails
         }
       }
     } catch (error) {
-      console.error('[HistoricQuoteService] Critical error while polling for historic quotes:', error);
+      
     } finally {
       this.isPolling = false;
-      console.log('[HistoricQuoteService] Finished polling historic quotes');
+      
     }
   }
 
   private async updateCoinMarketCapQuotes(): Promise<void> {
-    console.log('[HistoricQuoteService] Starting to poll CoinMarketCap quotes...');
+    
     const latest = await this.getLatest(BlockchainType.Ethereum);
     const quotes = await this.coinmarketcapService.getLatestQuotes();
     const newQuotes = [];
@@ -142,11 +142,11 @@ export class HistoricQuoteService implements OnModuleInit {
 
     const batches = _.chunk(newQuotes, 1000);
     await Promise.all(batches.map((batch) => this.repository.save(batch)));
-    console.log(`[HistoricQuoteService] Finished polling CoinMarketCap quotes, found ${newQuotes.length} new quotes`);
+    
   }
 
   private async updateCodexQuotes(blockchainType: BlockchainType): Promise<void> {
-    console.log(`[HistoricQuoteService] Starting to poll Codex quotes for ${blockchainType}...`);
+    
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const latest = await this.getLatest(blockchainType);
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
@@ -157,7 +157,7 @@ export class HistoricQuoteService implements OnModuleInit {
     
     for (let i = 0; i < addresses.length; i += batchSize) {
       const addressBatch = addresses.slice(i, i + batchSize);
-      console.log(`[HistoricQuoteService] Polling batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(addresses.length/batchSize)} for ${blockchainType}`);
+      
       
       const quotes = await this.codexService.getLatestPrices(deployment, addressBatch);
       
@@ -196,14 +196,14 @@ export class HistoricQuoteService implements OnModuleInit {
     // Save in batches of 50
     const saveBatches = _.chunk(newQuotes, 50);
     try {
-      console.log(`[HistoricQuoteService] Saving ${saveBatches.length} batches of quotes for ${blockchainType} (${newQuotes.length} total quotes)`);
+      
       for (let i = 0; i < saveBatches.length; i++) {
         const batch = saveBatches[i];
-        console.log(`[HistoricQuoteService] Saving batch ${i + 1}/${saveBatches.length} with ${batch.length} quotes for ${blockchainType}`);
+        
         await this.repository.save(batch);
       }
     } catch (error) {
-      console.error(`[HistoricQuoteService] Failed to save Codex quotes for ${blockchainType} to database:`, error);
+      
       throw error;
     }
   }
@@ -239,7 +239,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
         const batches = _.chunk(newQuotes, 1000);
         await Promise.all(batches.map((batch) => this.repository.save(batch)));
-        console.log(`History quote seeding, finished ${++i} of ${tokens.length}%`, new Date());
+        
       }
     }
   }
@@ -298,7 +298,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
       const batches = _.chunk(newQuotes, 50);
       await Promise.all(batches.map((batch) => this.repository.save(batch)));
-      console.log(`History quote seeding, finished ${++i} of ${addresses.length}`, new Date());
+      
     }
   }
 
@@ -341,7 +341,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
       return quotesByAddress;
     } catch (error) {
-      console.error(`Error fetching historical quotes for addresses between ${start} and ${end}:`, error);
+      
       throw new Error(`Error fetching historical quotes for addresses`);
     }
   }

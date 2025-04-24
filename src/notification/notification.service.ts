@@ -128,7 +128,7 @@ export class NotificationService {
           try {
             await client.createTask(request);
           } catch (error) {
-            console.error('Error creating task:', error);
+            
           }
         }),
       );

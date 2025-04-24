@@ -55,7 +55,7 @@ export class PairService {
     const pairs = [];
     events.forEach((e) => {
       if (!tokens[e.token1] || !tokens[e.token0]) {
-        console.log('Token not found', e.token1, e.token0);
+        
       }
       pairs.push(
         this.pair.create({
@@ -112,11 +112,7 @@ export class PairService {
   }
 
   async findWithFilters(deployment: Deployment, query: PairQueryDto): Promise<[Pair[], number]> {
-    console.log('Finding pairs with filters:', {
-      deployment,
-      query,
-      timestamp: new Date().toISOString()
-    });
+    
 
     try {
       const queryBuilder = this.pair
@@ -242,12 +238,12 @@ export class PairService {
         };
       });
 
-      console.log('Raw query results:', JSON.stringify(raw, null, 2));
-      console.log('Transformed pairs:', JSON.stringify(transformedPairs, null, 2));
+      
+      
 
       return [transformedPairs, total];
     } catch (error) {
-      console.error('Error in findWithFilters:', error);
+      
       throw error;
     }
   }

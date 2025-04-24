@@ -78,7 +78,7 @@ export class MarketRateController {
           break;
         }
       } catch (error) {
-        console.error(`Error fetching price from ${provider.name}:`, error);
+        
       }
       data = null;
     }

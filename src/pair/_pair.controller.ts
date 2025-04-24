@@ -227,7 +227,7 @@ export class PairController {}
 //         };
 //       }
 //     } catch (error) {
-//       console.log(error);
+//       
 //       return { error: `${error}` };
 //     }
 //   }

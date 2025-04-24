@@ -57,7 +57,7 @@ export class BlockService {
 
               await sleep(deployment.harvestSleep || 0);
             } catch (error) {
-              console.log('error detected:', error);
+              
             }
           }),
         ),
