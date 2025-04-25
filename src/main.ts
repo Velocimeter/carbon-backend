@@ -74,7 +74,7 @@ async function bootstrap() {
     SwaggerModule.setup('api', app, document);
 
     // Start the server with enhanced logging
-    const port = process.env.PORT || 3003; // Use PORT env variable if available
+    const port = process.env.PORT || 3000; // Use PORT env variable if available
     logger.log(`Attempting to start application on port ${port}...`);
     try {
       await app.listen(port);
