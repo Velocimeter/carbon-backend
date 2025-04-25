@@ -158,7 +158,12 @@ export class DeploymentService {
           BancorArbitrage: {
             address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
           },
-          
+          ReferralStorage: {
+            address: '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29',
+          },
+          ReferralReader: {
+            address: '0x264978bE88bd4b209Cb18DBDe66eE43472559463',
+          },
         },
         notifications: {
           explorerUrl: this.configService.get('BASE_EXPLORER_URL'),
@@ -200,6 +205,12 @@ export class DeploymentService {
           },
           CarbonVortex: {
             address: '0x5715203B16F15d7349Cb1E3537365E9664EAf933',
+          },
+          ReferralStorage: {
+            address: '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29',
+          },
+          ReferralReader: {
+            address: '0x264978bE88bd4b209Cb18DBDe66eE43472559463',
           },
         },
         notifications: {
@@ -252,7 +263,7 @@ export class DeploymentService {
         harvestEventsBatchSize: 5000,
         harvestConcurrency: 5,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
-        startBlock: 1375430,
+        startBlock: 2792059,
         gasToken: {
           name: 'Berachain',
           symbol: 'BERA',
@@ -268,6 +279,57 @@ export class DeploymentService {
           },
           CarbonVortex: {
             address: '0x089c1A38c7616DB8d5f5beb5F311FD3f130E4463',  // updated other one was incorrect
+          },
+          ReferralStorage: {
+            address: '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29',
+          },
+          ReferralReader: {
+            address: '0x264978bE88bd4b209Cb18DBDe66eE43472559463',
+          },
+        },
+      },
+      {
+        exchangeId: ExchangeId.OGFantom,
+        blockchainType: BlockchainType.Fantom,
+        rpcEndpoint: this.configService.get('FANTOM_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 10,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 1375430,
+        gasToken: {
+          name: 'Fantom',
+          symbol: 'FTM',
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        },
+        nativeTokenAlias: '0x0000000000000000000000000000000000000000',
+        contracts: {
+          CarbonController: {
+            address: this.configService.get('FANTOM_CARBON_CONTROLLER_ADDRESS', '0x0000000000000000000000000000000000000000'),
+          },
+          CarbonVoucher: {
+            address: this.configService.get('FANTOM_CARBON_VOUCHER_ADDRESS', '0x0000000000000000000000000000000000000000'),
+          },
+          BancorArbitrage: {
+            address: this.configService.get('FANTOM_BANCOR_ARBITRAGE_ADDRESS', '0x0000000000000000000000000000000000000000'),
+          },
+          ReferralStorage: {
+            address: this.configService.get('FANTOM_REFERRAL_STORAGE_ADDRESS', '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29'),
+          },
+          ReferralReader: {
+            address: this.configService.get('FANTOM_REFERRAL_READER_ADDRESS', '0x264978bE88bd4b209Cb18DBDe66eE43472559463'),
+          },
+        },
+        notifications: {
+          explorerUrl: this.configService.get('FANTOM_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('FANTOM_CARBON_WALLET_URL'),
+          title: 'Fantom',
+          telegram: {
+            botToken: this.configService.get('FANTOM_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              carbonThreadId: this.configService.get('FANTOM_CARBON_THREAD_ID'),
+              fastlaneId: this.configService.get('FANTOM_FASTLANE_THREAD_ID'),
+              vortexId: this.configService.get('FANTOM_VORTEX_THREAD_ID'),
+            },
           },
         },
       },

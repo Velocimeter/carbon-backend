@@ -6,6 +6,10 @@ if (process.env.NODE_ENV !== 'production') {
   dotenv.config();
 }
 
+// Debug connection info
+console.log('DATABASE_URL:', process.env.DATABASE_URL);
+console.log('DATABASE_SSL_ENABLED:', process.env.DATABASE_SSL_ENABLED);
+
 const ssl =
   process.env.DATABASE_SSL_ENABLED === '1'
     ? {
@@ -23,6 +27,8 @@ const ssl =
         honorCipherOrder: true,
       }
     : null;
+
+console.log('Using SSL configuration:', ssl ? 'enabled' : 'disabled');
 
 export default new DataSource({
   type: 'postgres',

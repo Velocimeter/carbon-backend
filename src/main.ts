@@ -5,6 +5,11 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggingMiddleware } from './logging.middleware';
 
 async function bootstrap() {
+  // Log the Redis URL for debugging
+  console.log('⚠️ Environment variable check:');
+  console.log('REDIS_URL:', process.env.REDIS_URL);
+  console.log('NODE_ENV:', process.env.NODE_ENV);
+  
   const app = await NestFactory.create(AppModule, {
     snapshot: true
   });
@@ -47,7 +52,7 @@ async function bootstrap() {
 
   const port = 3003;
   await app.listen(port);
-  
+  console.log(`Application is running on: http://localhost:${port}`);
 }
 
 bootstrap();

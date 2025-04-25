@@ -22,6 +22,8 @@ import { BlockchainType, Deployment } from '../deployment/deployment.service';
 import { ConfigService } from '@nestjs/config';
 import { sleep } from '../utilities';
 import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
+import { ReferralReader } from '../abis/ReferralReader.abi';
+import { ReferralStorage } from '../abis/ReferralStorage.abi';
 
 
 
@@ -40,6 +42,8 @@ export enum ContractsNames {
   CarbonVoucher = 'CarbonVoucher',
   BancorArbitrage = 'BancorArbitrage',
   LiquidityProtectionStore = 'LiquidityProtectionStore',
+  ReferralReader = 'ReferralReader',
+  ReferralStorage = 'ReferralStorage',
 }
 
 const Contracts = {
@@ -50,6 +54,8 @@ const Contracts = {
   [ContractsNames.CarbonVoucher]: CarbonVoucher,
   [ContractsNames.BancorArbitrage]: BancorArbitrage,
   [ContractsNames.LiquidityProtectionStore]: LiquidityProtectionStore,
+  [ContractsNames.ReferralReader]: ReferralReader,
+  [ContractsNames.ReferralStorage]: ReferralStorage,
 };
 
 export interface ConstantField {
