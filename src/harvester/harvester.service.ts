@@ -220,6 +220,7 @@ export class HarvesterService {
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-${args.entity}`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
     const result = [];
+    let anyEventsSaved = false;
 
     if (args.skipPreClearing !== true) {
       await this.preClear(args.repository, lastProcessedBlock, deployment);
@@ -359,14 +360,23 @@ export class HarvesterService {
           }),
         );
 
-        const batches = _.chunk(newEvents, 1000);
-        await Promise.all(batches.map((batch) => args.repository.save(batch)));
-
-        result.push(newEvents);
+        try {
+          const batches = _.chunk(newEvents, 1000);
+          await Promise.all(batches.map((batch) => args.repository.save(batch)));
+          anyEventsSaved = true;
+          result.push(newEvents);
+        } catch (error) {
+          console.error(`Error saving events for ${args.entity} in range ${rangeStart}-${rangeEnd}: ${error.message}`);
+          throw error; // Re-throw to handle the error at a higher level
+        }
       }
 
+      // Only update the last processed block if we've successfully saved events to the database
+      // or if there were no events in this range (so we can skip it next time)
       if (args.skipLastProcessedBlockUpdate !== true) {
-        await this.lastProcessedBlockService.update(key, rangeEnd);
+        if (anyEventsSaved || events.length === 0) {
+          await this.lastProcessedBlockService.update(key, rangeEnd);
+        }
       }
     }
 

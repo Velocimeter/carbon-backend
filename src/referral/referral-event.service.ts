@@ -51,8 +51,10 @@ export class ReferralEventService implements OnModuleInit {
     @InjectRepository(SetTraderReferralCodeEvent)
     private setTraderReferralCodeRepository: Repository<SetTraderReferralCodeEvent>,
   ) {
-    // Bind the decodeReferralCode method to the class instance
+    // Bind the methods to the class instance
     this.decodeReferralCode = this.decodeReferralCode.bind(this);
+    this.validateSetTierEvent = this.validateSetTierEvent.bind(this);
+    this.validateReferralCode = this.validateReferralCode.bind(this);
     
     // Default to 5 minutes if not specified
     this.intervalDuration = +this.configService.get('PROCESS_REFERRALS_INTERVAL') || 300000;
@@ -127,22 +129,51 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('referral-codes', deployment);
-    const result = await this.harvesterService.processEvents({
-      entity: 'referral-codes',
-      contractName: ContractsNames.ReferralStorage,
-      eventName: 'RegisterCode',
-      endBlock,
-      repository: this.referralCodesRepository,
-      stringFields: ['account'],
-      bigNumberFields: [],
-      booleanFields: [],
-      customFns: [this.decodeReferralCode],
-      tagTimestampFromBlock: true,
-      deployment,
-      skipPreClearing: true,
-      startAtBlock: startBlock,
-    });
-    return result;
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
+    
+    try {
+      const result = await this.harvesterService.processEvents({
+        entity: 'referral-codes',
+        contractName: ContractsNames.ReferralStorage,
+        eventName: 'RegisterCode',
+        endBlock,
+        repository: this.referralCodesRepository,
+        stringFields: ['account'],
+        bigNumberFields: [],
+        booleanFields: [],
+        customFns: [this.decodeReferralCode, this.validateReferralCode],
+        customData: { chainId },
+        tagTimestampFromBlock: true,
+        deployment,
+        skipPreClearing: true,
+        startAtBlock: startBlock,
+      });
+      return result;
+    } catch (error) {
+      this.logger.error(`Error processing RegisterCode events: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Additional validation for ReferralCode events to ensure chainId is set
+   */
+  async validateReferralCode(args: CustomFnArgs): Promise<any> {
+    const { event, customData } = args;
+    const eventAny = event as any;
+    
+    // Double-check that chainId is set
+    if (!eventAny.chainId && customData?.chainId) {
+      this.logger.log(`Setting chainId from customData: ${customData.chainId}`);
+      eventAny.chainId = customData.chainId;
+    }
+    
+    // Log if chainId is still missing
+    if (!eventAny.chainId) {
+      this.logger.error('chainId is still null after validation');
+    }
+    
+    return eventAny;
   }
 
   /**
@@ -153,6 +184,7 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('gov-set-code-owner-events', deployment);
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
     const result = await this.harvesterService.processEvents({
       entity: 'gov-set-code-owner-events',
       contractName: ContractsNames.ReferralStorage,
@@ -163,6 +195,7 @@ export class ReferralEventService implements OnModuleInit {
       bigNumberFields: [],
       booleanFields: [],
       customFns: [this.decodeReferralCode],
+      customData: { chainId },
       tagTimestampFromBlock: true,
       deployment,
       skipPreClearing: true,
@@ -179,6 +212,7 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('set-code-owner-events', deployment);
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
     const result = await this.harvesterService.processEvents({
       entity: 'set-code-owner-events',
       contractName: ContractsNames.ReferralStorage,
@@ -189,6 +223,7 @@ export class ReferralEventService implements OnModuleInit {
       bigNumberFields: [],
       booleanFields: [],
       customFns: [this.decodeReferralCode],
+      customData: { chainId },
       tagTimestampFromBlock: true,
       deployment,
       skipPreClearing: true,
@@ -205,6 +240,7 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('set-handler-events', deployment);
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
     const result = await this.harvesterService.processEvents({
       entity: 'set-handler-events',
       contractName: ContractsNames.ReferralStorage,
@@ -215,6 +251,7 @@ export class ReferralEventService implements OnModuleInit {
       bigNumberFields: [],
       booleanFields: ['isActive'],
       customFns: [this.decodeReferralCode],
+      customData: { chainId },
       tagTimestampFromBlock: true,
       deployment,
       skipPreClearing: true,
@@ -231,6 +268,7 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('set-referrer-discount-share-events', deployment);
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
     const result = await this.harvesterService.processEvents({
       entity: 'set-referrer-discount-share-events',
       contractName: ContractsNames.ReferralStorage,
@@ -241,6 +279,7 @@ export class ReferralEventService implements OnModuleInit {
       bigNumberFields: ['discountShare'],
       booleanFields: [],
       customFns: [this.decodeReferralCode],
+      customData: { chainId },
       tagTimestampFromBlock: true,
       deployment,
       skipPreClearing: true,
@@ -257,6 +296,7 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('set-referrer-tier-events', deployment);
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
     const result = await this.harvesterService.processEvents({
       entity: 'set-referrer-tier-events',
       contractName: ContractsNames.ReferralStorage,
@@ -267,6 +307,7 @@ export class ReferralEventService implements OnModuleInit {
       bigNumberFields: ['tierId'],
       booleanFields: [],
       customFns: [this.decodeReferralCode],
+      customData: { chainId },
       tagTimestampFromBlock: true,
       deployment,
       skipPreClearing: true,
@@ -283,21 +324,68 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('set-tier-events', deployment);
-    const result = await this.harvesterService.processEvents({
-      entity: 'set-tier-events',
-      contractName: ContractsNames.ReferralStorage,
-      eventName: 'SetTier',
-      endBlock,
-      repository: this.setTierRepository,
-      bigNumberFields: ['tierId', 'totalRebate', 'discountShare'],
-      booleanFields: [],
-      customFns: [this.decodeReferralCode],
-      tagTimestampFromBlock: true,
-      deployment,
-      skipPreClearing: true,
-      startAtBlock: startBlock,
-    });
-    return result;
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
+    
+    try {
+      const result = await this.harvesterService.processEvents({
+        entity: 'set-tier-events',
+        contractName: ContractsNames.ReferralStorage,
+        eventName: 'SetTier',
+        endBlock,
+        repository: this.setTierRepository,
+        bigNumberFields: ['tierId', 'totalRebate', 'discountShare'],
+        booleanFields: [],
+        customFns: [this.decodeReferralCode, this.validateSetTierEvent],
+        customData: { chainId },
+        tagTimestampFromBlock: true,
+        deployment,
+        skipPreClearing: true,
+        startAtBlock: startBlock,
+      });
+      return result;
+    } catch (error) {
+      this.logger.error(`Error processing SetTier events: ${error.message}`);
+      if (error.message.includes('violates not-null constraint')) {
+        this.logger.error('Set-tier events must have valid values for all required fields'); 
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Additional validation for SetTier events
+   */
+  async validateSetTierEvent(args: CustomFnArgs): Promise<any> {
+    const { event, rawEvent } = args;
+    
+    // Need to cast event to any since we're adding properties dynamically
+    const eventAny = event as any;
+    
+    // Ensure all required fields are present
+    if (!eventAny.blockNumber) {
+      eventAny.blockNumber = parseInt(rawEvent.blockNumber);
+    }
+    
+    if (!eventAny.transactionHash) {
+      eventAny.transactionHash = rawEvent.transactionHash;
+    }
+    
+    // Validate tier fields
+    if (rawEvent.returnValues) {
+      if (rawEvent.returnValues['_tierId'] !== undefined) {
+        eventAny.tierId = rawEvent.returnValues['_tierId'].toString();
+      }
+      
+      if (rawEvent.returnValues['_totalRebate'] !== undefined) {
+        eventAny.totalRebate = rawEvent.returnValues['_totalRebate'].toString();
+      }
+      
+      if (rawEvent.returnValues['_discountShare'] !== undefined) {
+        eventAny.discountShare = rawEvent.returnValues['_discountShare'].toString();
+      }
+    }
+    
+    return eventAny;
   }
 
   /**
@@ -308,23 +396,32 @@ export class ReferralEventService implements OnModuleInit {
     deployment: Deployment,
   ): Promise<any> {
     const startBlock = await this.getStartBlock('set-trader-referral-code-events', deployment);
-    const result = await this.harvesterService.processEvents({
-      entity: 'set-trader-referral-code-events',
-      contractName: ContractsNames.ReferralStorage,
-      eventName: 'SetTraderReferralCode',
-      endBlock,
-      repository: this.setTraderReferralCodeRepository,
-      stringFields: ['account'],
-      bigNumberFields: [],
-      booleanFields: [],
-      customFns: [this.decodeReferralCode],
-      customData: { deployment },
-      tagTimestampFromBlock: true,
-      deployment,
-      skipPreClearing: true,
-      startAtBlock: startBlock,
-    });
-    return result;
+    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
+    
+    try {
+      const result = await this.harvesterService.processEvents({
+        entity: 'set-trader-referral-code-events',
+        contractName: ContractsNames.ReferralStorage,
+        eventName: 'SetTraderReferralCode',
+        endBlock,
+        repository: this.setTraderReferralCodeRepository,
+        stringFields: ['account'],
+        bigNumberFields: [],
+        booleanFields: [],
+        customFns: [this.decodeReferralCode],
+        customData: { 
+          chainId: chainId, // explicit naming to make sure we use the right value
+        },
+        tagTimestampFromBlock: true,
+        deployment,
+        skipPreClearing: true,
+        startAtBlock: startBlock,
+      });
+      return result;
+    } catch (error) {
+      this.logger.error(`Error processing SetTraderReferralCode events: ${error.message}`);
+      throw error;
+    }
   }
 
   /**
@@ -351,33 +448,65 @@ export class ReferralEventService implements OnModuleInit {
    */
   async decodeReferralCode(args: CustomFnArgs): Promise<any> {
     const { event, rawEvent, customData } = args;
+    const eventAny = event as any;
     
-    // Get chain info from the deployment
-    const deployment = args.customData?.deployment;
-    if (deployment) {
-      // Set chain ID directly from the deployment
-      event['chainId'] = parseInt(deployment.chainId);
+    // Log raw event for debugging
+    if (!rawEvent.blockNumber || !rawEvent.transactionHash) {
+      this.logger.warn(`Missing required fields in rawEvent: ${JSON.stringify({
+        eventName: rawEvent.event,
+        blockNumber: rawEvent.blockNumber,
+        transactionHash: rawEvent.transactionHash,
+        hasTimestamp: !!eventAny['timestamp']
+      })}`);
     }
     
-    // Handle code for events
-    const code = rawEvent.returnValues['code'];
+    // IMPORTANT: Set chainId from customData 
+    if (customData?.chainId) {
+      eventAny['chainId'] = customData.chainId;
+      this.logger.debug(`Set chainId to ${customData.chainId} for ${rawEvent.event}`);
+    } else {
+      this.logger.warn(`No chainId in customData for ${rawEvent.event}!`);
+    }
     
     // Make sure required fields are populated
-    event['transactionHash'] = rawEvent.transactionHash;
-    event['blockNumber'] = parseInt(rawEvent.blockNumber);
+    if (rawEvent.blockNumber) {
+      eventAny['blockNumber'] = parseInt(rawEvent.blockNumber);
+    }
     
-    // Account is used as owner for RegisterCode events
+    if (rawEvent.transactionHash) {
+      eventAny['transactionHash'] = rawEvent.transactionHash;
+    }
+    
+    // Get the code from raw event
+    const code = rawEvent.returnValues['code'];
+    
+    // For RegisterCode events, map account to owner
     if (rawEvent.event === 'RegisterCode' && rawEvent.returnValues['account']) {
-      event['owner'] = rawEvent.returnValues['account'];
+      eventAny['owner'] = rawEvent.returnValues['account'];
     }
     
-    // Convert bytes32 code to string
+    // Decode the code
     if (code) {
-      event['codeDecoded'] = this.bytesToString(code);
-      event['code'] = code;
+      eventAny['codeDecoded'] = this.bytesToString(code);
+      eventAny['code'] = code;
     }
     
-    return event;
+    // Ensure timestamp is a number
+    if (eventAny['timestamp'] && typeof eventAny['timestamp'] !== 'number') {
+      // If it's a Date object or ISO string, convert to Unix timestamp (seconds)
+      try {
+        const date = new Date(eventAny['timestamp']);
+        if (!isNaN(date.getTime())) {
+          eventAny['timestamp'] = Math.floor(date.getTime() / 1000);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to convert timestamp: ${error.message}`);
+      }
+    } else if (!eventAny['timestamp']) {
+      this.logger.warn('Missing timestamp in event');
+    }
+    
+    return eventAny;
   }
 
   /**
