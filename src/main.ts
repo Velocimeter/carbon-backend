@@ -17,7 +17,7 @@ async function bootstrap() {
   // Configure CORS
   app.enableCors({
     origin: (origin, callback) => {
-        // Debug log
+      console.log(`CORS request from origin: ${origin}`);
       if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
           ['http://localhost:3000', 'http://localhost:3009', 
            'http://localhost:3008', 'http://localhost:8000', 
@@ -25,11 +25,15 @@ async function bootstrap() {
           /\.vercel\.app$/.test(origin)) {
         callback(null, true);
       } else {
+        console.log(`CORS rejected for origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
     credentials: true,
+    preflightContinue: false,
+    optionsSuccessStatus: 204
   });
 
   app.enableVersioning();
