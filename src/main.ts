@@ -21,7 +21,8 @@ async function bootstrap() {
       if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
           ['http://localhost:3000', 'http://localhost:3009', 
            'http://localhost:3008', 'http://localhost:8000', 
-           'http://localhost:8001'].includes(origin)) {
+           'http://localhost:8001', 'https://graphene-v2-berachain-git-referrals-cre8r.vercel.app'].includes(origin) ||
+          /\.vercel\.app$/.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
