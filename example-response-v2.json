@@ -1,0 +1,72 @@
+[
+  {
+    "code": "dunks411",
+    "owner": "0xb70b9b74d7c8e11bf6286b3cadb7961cd2b67cb3",
+    "traders": [
+      "0x069e85D4F1010DD961897dC8C095FBB5FF297434",
+      "0xb70b9b74d7C8E11bf6286b3cadb7961CD2B67cB3",
+      "0x37a18cfDD2cf39a4133366c104EEc4dA5BC12F39"
+    ],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "gg",
+    "owner": "0x069e85d4f1010dd961897dc8c095fbb5ff297434",
+    "traders": [
+      "0xb70b9b74d7C8E11bf6286b3cadb7961CD2B67cB3"
+    ],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "thecode",
+    "owner": "0xb70b9b74d7c8e11bf6286b3cadb7961cd2b67cb3",
+    "traders": [],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "somecontract",
+    "owner": "0xb70b9b74d7c8e11bf6286b3cadb7961cd2b67cb3",
+    "traders": [],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "getmooony",
+    "owner": "0xb70b9b74d7c8e11bf6286b3cadb7961cd2b67cb3",
+    "traders": [],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "jjjjjj",
+    "owner": "0x069e85d4f1010dd961897dc8c095fbb5ff297434",
+    "traders": [],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "hhhhhh",
+    "owner": "0xb70b9b74d7c8e11bf6286b3cadb7961cd2b67cb3",
+    "traders": [],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  },
+  {
+    "code": "fish",
+    "owner": "0xb70b9b74d7c8e11bf6286b3cadb7961cd2b67cb3",
+    "traders": [],
+    "tierId": "0",
+    "totalRebate": "0",
+    "discountShare": "0"
+  }
+] 
