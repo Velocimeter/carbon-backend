@@ -1,45 +1,60 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggingMiddleware } from './logging.middleware';
 
 async function bootstrap() {
-  // Log the Redis URL for debugging
-  console.log('⚠️ Environment variable check:');
-  console.log('REDIS_URL:', process.env.REDIS_URL);
-  console.log('NODE_ENV:', process.env.NODE_ENV);
+  // Create logger instance
+  const logger = new Logger('Bootstrap');
   
+  // Log environment variables
+  logger.log('⚠️ Environment variable check:');
+  logger.log(`REDIS_URL: ${process.env.REDIS_URL}`);
+  logger.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+  
+  // Create app with more verbose logging
   const app = await NestFactory.create(AppModule, {
-    snapshot: true
+    snapshot: true,
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
   
-  // Configure CORS
+  // Configure CORS with detailed logging
   app.enableCors({
     origin: (origin, callback) => {
-      console.log(`CORS request from origin: ${origin}`);
+      logger.log(`CORS request from origin: ${origin || 'No origin'}`);
       if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
           ['http://localhost:3000', 'http://localhost:3009', 
            'http://localhost:3008', 'http://localhost:8000', 
            'http://localhost:8001', 'https://graphene-v2-berachain-git-referrals-cre8r.vercel.app'].includes(origin) ||
           /\.vercel\.app$/.test(origin)) {
+        logger.log(`CORS allowed for origin: ${origin || 'No origin'}`);
         callback(null, true);
       } else {
-        console.log(`CORS rejected for origin: ${origin}`);
+        logger.warn(`CORS rejected for origin: ${origin}`);
         callback(new Error('Not allowed by CORS'));
       }
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+    exposedHeaders: 'Content-Length, Content-Type, Access-Control-Allow-Origin',
     credentials: true,
     preflightContinue: false,
     optionsSuccessStatus: 204
   });
 
+  // Log middleware registration
+  logger.log('Registering global middleware and pipes');
   app.enableVersioning();
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
+  app.use((req, res, next) => {
+    logger.debug(`Incoming request: ${req.method} ${req.url}`);
+    next();
+  });
   app.use(new LoggingMiddleware().use);
 
+  // Set up Swagger
+  logger.log('Configuring Swagger documentation');
   const config = new DocumentBuilder()
     .setTitle('Carbon API')
     .setDescription('The Carbon API description')
@@ -55,9 +70,18 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  const port = 3000;
-  await app.listen(port);
-  console.log(`Application is running on: http://localhost:${port}`);
+  // Start the server with enhanced logging
+  const port = 3003; // Changed to match your mentioned port
+  try {
+    await app.listen(port);
+    logger.log(`Application is running on: http://localhost:${port}`);
+    logger.log(`Swagger API docs available at: http://localhost:${port}/api`);
+  } catch (error) {
+    logger.error(`Failed to start application on port ${port}`);
+    logger.error(error);
+  }
 }
 
-bootstrap();
+bootstrap().catch(err => {
+  console.error('Failed to bootstrap application', err);
+});
