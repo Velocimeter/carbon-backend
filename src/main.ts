@@ -71,7 +71,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   // Start the server with enhanced logging
-  const port = 3003; // Changed to match your mentioned port
+  const port = 3000; 
   try {
     await app.listen(port);
     logger.log(`Application is running on: http://localhost:${port}`);
