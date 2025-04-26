@@ -54,4 +54,14 @@ export class ReferralController {
     this.logger.log(`Found ${ownerReferrals.codes.length} codes for owner: ${address}`);
     return ownerReferrals;
   }
+
+  // address for trader code
+  @Get('trader/:address')
+  @ApiOperation({ summary: 'Get trader code for a specific address' })
+  @ApiParam({ name: 'address', description: 'Trader address to query', type: String })
+  async getTraderCode(@Param('address') address: string) {
+    this.logger.log(`Getting trader code for address: ${address}`);
+    const traderCode = await this.referralService.getTraderCode(address);
+    return traderCode;
+  }
 }

@@ -236,4 +236,20 @@ export class ReferralService {
     }
     return DEFAULT_TIER; // Return default tier values when no tier is assigned
   }
+
+  async getTraderCode(address: string): Promise<string | null> {
+    this.logger.log(`Getting trader code for address: ${address}`);
+    
+    const latestCodeEvent = await this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
+      .where('LOWER(event.account) = LOWER(:address)', { address })
+      .orderBy('event.timestamp', 'DESC')
+      .getOne();
+
+    if (!latestCodeEvent) {
+      this.logger.log(`No referral code found for trader: ${address}`);
+      return null;
+    }
+
+    return latestCodeEvent.codeDecoded;
+  }
 }
