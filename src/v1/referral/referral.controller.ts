@@ -1,6 +1,6 @@
-import { Controller, Get, Query, Logger } from '@nestjs/common';
+import { Controller, Get, Query, Logger, Param } from '@nestjs/common';
 import { ReferralService } from './referral.service';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
 
 @ApiTags('referrals')
 @Controller('v1/referrals')
@@ -24,5 +24,32 @@ export class ReferralController {
       isOwnerGrouped: result[0]?.codes !== undefined
     });
     return result;
+  }
+
+  @Get('owner/:address')
+  @ApiOperation({ summary: 'Get referral codes and traders for a specific owner address' })
+  @ApiParam({ name: 'address', description: 'Owner address to query', type: String })
+  @ApiQuery({ name: 'chainId', required: false, type: Number })
+  async getReferralsByOwner(
+    @Param('address') address: string,
+    @Query('chainId') chainId?: number
+  ) {
+    this.logger.log(`Getting referrals for owner: ${address}${chainId ? ` and chainId: ${chainId}` : ''}`);
+    const allReferrals = await this.referralService.getReferralRelationships(chainId);
+    const ownerReferrals = allReferrals.find(entry => entry.owner.toLowerCase() === address.toLowerCase());
+    
+    if (!ownerReferrals) {
+      this.logger.log(`No referrals found for owner: ${address}`);
+      return {
+        owner: address.toLowerCase(),
+        tierId: "0",
+        totalRebate: "0",
+        discountShare: "0",
+        codes: []
+      };
+    }
+
+    this.logger.log(`Found ${ownerReferrals.codes.length} codes for owner: ${address}`);
+    return ownerReferrals;
   }
 }
