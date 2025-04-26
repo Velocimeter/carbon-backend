@@ -237,19 +237,48 @@ export class ReferralService {
     return DEFAULT_TIER; // Return default tier values when no tier is assigned
   }
 
-  async getTraderCode(address: string): Promise<string | null> {
-    this.logger.log(`Getting trader code for address: ${address}`);
+  async getTraderCode(address: string, chainId?: number): Promise<{ 
+    code: string | null, 
+    owner?: string,
+    tier?: { 
+      tierId: string, 
+      totalRebate: string, 
+      discountShare: string 
+    } 
+  }> {
+    this.logger.log(`Getting trader code, owner and tier info for address: ${address}${chainId ? ` and chainId: ${chainId}` : ''}`);
     
-    const latestCodeEvent = await this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
+    const query = this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
+      .select('event.codeDecoded', 'code')
+      .addSelect('LOWER(referralCode.owner)', 'owner')
+      .leftJoin(
+        ReferralCode,
+        'referralCode',
+        'event.code = referralCode.code'
+      )
       .where('LOWER(event.account) = LOWER(:address)', { address })
-      .orderBy('event.timestamp', 'DESC')
-      .getOne();
+      .orderBy('event.timestamp', 'DESC');
+
+    if (chainId) {
+      query.andWhere('event.chainId = :chainId', { chainId });
+    }
+
+    const latestCodeEvent = await query.getRawOne();
 
     if (!latestCodeEvent) {
       this.logger.log(`No referral code found for trader: ${address}`);
-      return null;
+      return { code: null };
     }
 
-    return latestCodeEvent.codeDecoded;
+    // Get tier information for the code owner
+    const tiersMap = await this.getTierInformationForAffiliates(chainId);
+    const tierInfo = this.getTierDetailsForOwner(latestCodeEvent.owner, tiersMap);
+
+    this.logger.log(`Found referral code, owner and tier info for trader: ${address}`);
+    return {
+      code: latestCodeEvent.code,
+      owner: latestCodeEvent.owner,
+      tier: tierInfo
+    };
   }
 }

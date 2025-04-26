@@ -57,11 +57,15 @@ export class ReferralController {
 
   // address for trader code
   @Get('trader/:address')
-  @ApiOperation({ summary: 'Get trader code for a specific address' })
+  @ApiOperation({ summary: 'Get trader code, owner, and tier information for a specific address' })
   @ApiParam({ name: 'address', description: 'Trader address to query', type: String })
-  async getTraderCode(@Param('address') address: string) {
-    this.logger.log(`Getting trader code for address: ${address}`);
-    const traderCode = await this.referralService.getTraderCode(address);
-    return traderCode;
+  @ApiQuery({ name: 'chainId', required: false, type: Number })
+  async getTraderCode(
+    @Param('address') address: string,
+    @Query('chainId') chainId?: number
+  ) {
+    this.logger.log(`Getting trader code, owner and tier info for address: ${address}${chainId ? ` and chainId: ${chainId}` : ''}`);
+    const result = await this.referralService.getTraderCode(address, chainId);
+    return result;
   }
 }
