@@ -9,11 +9,15 @@ import { SetTierEvent } from '../../referral/entities/events/set-tier.entity';
 // Define interface for the new structured response
 export interface ReferralCodeEntry {
   code: string;
-  owner: string;
   traders: string[];
+}
+
+export interface ReferralOwnerEntry {
+  owner: string;
   tierId: string;
   totalRebate: string;
   discountShare: string;
+  codes: ReferralCodeEntry[];
 }
 
 // Default tier values
@@ -36,7 +40,7 @@ export class ReferralService {
     private setTierEventRepository: Repository<SetTierEvent>,
   ) {}
 
-  async getReferralRelationships(chainId?: number): Promise<ReferralCodeEntry[]> {
+  async getReferralRelationships(chainId?: number): Promise<ReferralOwnerEntry[]> {
     // First, get all relationships from the events
     const query = this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
       .select('event.account', 'trader')
@@ -71,57 +75,77 @@ export class ReferralService {
     // Get tier information for all referrers
     const tiersMap = await this.getTierInformationForAffiliates(chainId);
 
-    // Create a map to group by code + owner
-    const codeOwnerMap = new Map<string, {
-      code: string;
-      owner: string;
-      traders: Set<string>;
+    // Create a map to group by owner
+    const ownerMap = new Map<string, {
+      codes: Map<string, {
+        code: string;
+        traders: Set<string>;
+      }>;
       tierInfo: any;
     }>();
 
     // First, process all codes, even those without traders
     for (const code of allCodes) {
-      const key = `${code.codeDecoded}:${code.owner}`;
-      const tierInfo = this.getTierDetailsForOwner(code.owner, tiersMap);
+      const owner = code.owner.toLowerCase();
+      const tierInfo = this.getTierDetailsForOwner(owner, tiersMap);
       
-      if (!codeOwnerMap.has(key)) {
-        codeOwnerMap.set(key, {
-          code: code.codeDecoded,
-          owner: code.owner,
-          traders: new Set<string>(),
+      if (!ownerMap.has(owner)) {
+        ownerMap.set(owner, {
+          codes: new Map(),
           tierInfo
         });
       }
+      
+      ownerMap.get(owner).codes.set(code.codeDecoded, {
+        code: code.codeDecoded,
+        traders: new Set<string>()
+      });
     }
 
     // Then, add all trader relationships
     for (const rel of relationships) {
-      const key = `${rel.codeDecoded}:${rel.owner}`;
+      const owner = rel.owner.toLowerCase();
       
-      // If the code+owner combination wasn't added from allCodes, add it now
-      if (!codeOwnerMap.has(key)) {
-        const tierInfo = this.getTierDetailsForOwner(rel.owner, tiersMap);
-        codeOwnerMap.set(key, {
-          code: rel.codeDecoded,
-          owner: rel.owner,
-          traders: new Set<string>(),
+      // If the owner wasn't added from allCodes, add them now
+      if (!ownerMap.has(owner)) {
+        const tierInfo = this.getTierDetailsForOwner(owner, tiersMap);
+        ownerMap.set(owner, {
+          codes: new Map(),
           tierInfo
         });
       }
       
-      // Add the trader to this code+owner entry
+      // If this code wasn't added for this owner, add it now
+      if (!ownerMap.get(owner).codes.has(rel.codeDecoded)) {
+        ownerMap.get(owner).codes.set(rel.codeDecoded, {
+          code: rel.codeDecoded,
+          traders: new Set<string>()
+        });
+      }
+      
+      // Add the trader to this owner's code entry
       if (rel.trader) {
-        codeOwnerMap.get(key).traders.add(rel.trader);
+        ownerMap.get(owner).codes.get(rel.codeDecoded).traders.add(rel.trader);
       }
     }
 
     // Convert the map to the final array structure
-    const result: ReferralCodeEntry[] = Array.from(codeOwnerMap.values()).map(entry => ({
-      code: entry.code,
-      owner: entry.owner,
-      traders: Array.from(entry.traders),
-      ...entry.tierInfo
-    }));
+    const result: ReferralOwnerEntry[] = [];
+    for (const [owner, data] of ownerMap.entries()) {
+      const codes: ReferralCodeEntry[] = [];
+      for (const [code, codeData] of data.codes.entries()) {
+        codes.push({
+          code,
+          traders: Array.from(codeData.traders)
+        });
+      }
+      
+      result.push({
+        owner,
+        codes,
+        ...data.tierInfo
+      });
+    }
 
     return result;
   }

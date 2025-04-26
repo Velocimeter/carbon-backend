@@ -10,7 +10,6 @@ import { SetReferrerDiscountShareEvent } from './entities/events/set-referrer-di
 import { SetReferrerTierEvent } from './entities/events/set-referrer-tier.entity';
 import { SetTierEvent } from './entities/events/set-tier.entity';
 import { SetTraderReferralCodeEvent } from './entities/events/set-trader-referral-code.entity';
-import { ReferralHarvester } from './referral-harvester';
 import { TraderStats } from './entities/trader-stats.entity';
 import { ReferrerStats } from './entities/referrer-stats.entity';
 import { DeploymentModule } from '../deployment/deployment.module';
@@ -38,11 +37,9 @@ import { LastProcessedBlockModule } from '../last-processed-block/last-processed
   ],
   providers: [
     ReferralEventService,
-    ReferralHarvester
   ],
   exports: [
     ReferralEventService,
-    ReferralHarvester
   ],
 })
 export class ReferralModule {} 

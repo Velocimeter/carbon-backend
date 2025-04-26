@@ -2,7 +2,7 @@ import { Injectable, Inject, forwardRef, OnModuleInit, Logger } from '@nestjs/co
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames, CustomFnArgs } from '../harvester/harvester.service';
-import { Deployment, DeploymentService } from '../deployment/deployment.service';
+import { Deployment, DeploymentService, BlockchainType } from '../deployment/deployment.service';
 import { ReferralCode } from './entities/referral-code.entity';
 import { GovSetCodeOwnerEvent } from './entities/events/gov-set-code-owner.entity';
 import { SetCodeOwnerEvent } from './entities/events/set-code-owner.entity';
@@ -90,11 +90,25 @@ export class ReferralEventService implements OnModuleInit {
     this.logger.log('Starting referral events processing');
 
     try {
-      const deployments = this.deploymentService.getDeployments();
+      // Get only the Berachain deployment
+      let deployments = this.deploymentService.getDeployments();
+      
+      // Filter to only include Berachain
+      deployments = deployments.filter(deployment => deployment.blockchainType === BlockchainType.Berachain);
+      
+      if (deployments.length === 0) {
+        this.logger.warn('No Berachain deployment found. Skipping referral processing.');
+        this.isProcessing = false;
+        return;
+      }
+      
+      this.logger.log(`Processing referrals only for Berachain deployment (found ${deployments.length} deployments)`);
       
       // Process each deployment sequentially to avoid conflicts
       for (const deployment of deployments) {
         try {
+          this.logger.log(`Processing referrals for ${deployment.blockchainType} (exchangeId: ${deployment.exchangeId})`);
+          
           // Get the latest blockchain block
           const latestBlock = await this.harvesterService.latestBlock(deployment);
           
@@ -107,7 +121,7 @@ export class ReferralEventService implements OnModuleInit {
         }
       }
       
-      this.logger.log('Completed referral events processing');
+      this.logger.log('Completed referral events processing for Berachain');
     } catch (error) {
       this.logger.error(`Error processing referral events: ${error.message}`);
     } finally {
