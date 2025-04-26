@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ReferralCode } from '../../referral/entities/referral-code.entity';
@@ -29,6 +29,8 @@ const DEFAULT_TIER = {
 
 @Injectable()
 export class ReferralService {
+  private readonly logger = new Logger(ReferralService.name);
+
   constructor(
     @InjectRepository(ReferralCode)
     private referralCodesRepository: Repository<ReferralCode>,
@@ -41,6 +43,8 @@ export class ReferralService {
   ) {}
 
   async getReferralRelationships(chainId?: number): Promise<ReferralOwnerEntry[]> {
+    this.logger.log(`Getting referral relationships${chainId ? ` for chainId: ${chainId}` : ''}`);
+
     // First, get all relationships from the events
     const query = this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
       .select('event.account', 'trader')
@@ -53,13 +57,14 @@ export class ReferralService {
       )
       .orderBy('event.timestamp', 'DESC');
 
-    // Apply chainId filter if provided
     if (chainId) {
       query.andWhere('event.chainId = :chainId', { chainId });
     }
 
     // Execute query for relationships
     const relationships = await query.getRawMany();
+    this.logger.log(`Found ${relationships.length} trader relationships`);
+    this.logger.debug('First few relationships:', relationships.slice(0, 3));
 
     // Get all referral codes, including those without relationships
     const codesQuery = this.referralCodesRepository.createQueryBuilder('code')
@@ -71,9 +76,12 @@ export class ReferralService {
     }
 
     const allCodes = await codesQuery.getRawMany();
+    this.logger.log(`Found ${allCodes.length} total referral codes`);
+    this.logger.debug('First few codes:', allCodes.slice(0, 3));
 
     // Get tier information for all referrers
     const tiersMap = await this.getTierInformationForAffiliates(chainId);
+    this.logger.log(`Found tier information for ${tiersMap.size} referrers`);
 
     // Create a map to group by owner
     const ownerMap = new Map<string, {
@@ -106,7 +114,6 @@ export class ReferralService {
     for (const rel of relationships) {
       const owner = rel.owner.toLowerCase();
       
-      // If the owner wasn't added from allCodes, add them now
       if (!ownerMap.has(owner)) {
         const tierInfo = this.getTierDetailsForOwner(owner, tiersMap);
         ownerMap.set(owner, {
@@ -115,7 +122,6 @@ export class ReferralService {
         });
       }
       
-      // If this code wasn't added for this owner, add it now
       if (!ownerMap.get(owner).codes.has(rel.codeDecoded)) {
         ownerMap.get(owner).codes.set(rel.codeDecoded, {
           code: rel.codeDecoded,
@@ -123,11 +129,12 @@ export class ReferralService {
         });
       }
       
-      // Add the trader to this owner's code entry
       if (rel.trader) {
         ownerMap.get(owner).codes.get(rel.codeDecoded).traders.add(rel.trader);
       }
     }
+
+    this.logger.log(`Processed data for ${ownerMap.size} unique owners`);
 
     // Convert the map to the final array structure
     const result: ReferralOwnerEntry[] = [];
@@ -146,6 +153,9 @@ export class ReferralService {
         ...data.tierInfo
       });
     }
+
+    this.logger.log(`Returning ${result.length} owner entries with their codes and traders`);
+    this.logger.debug('Sample of final structure:', result.slice(0, 1));
 
     return result;
   }
