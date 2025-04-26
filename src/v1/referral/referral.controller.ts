@@ -1,9 +1,11 @@
 import { Controller, Get, Query, Logger, Param } from '@nestjs/common';
 import { ReferralService } from './referral.service';
 import { ApiTags, ApiOperation, ApiQuery, ApiParam } from '@nestjs/swagger';
+import { CacheTTL } from '@nestjs/cache-manager';
 
 @ApiTags('referrals')
 @Controller('v1/referrals')
+@CacheTTL(1 * 1000) // Cache all referral endpoints for 1 second
 export class ReferralController {
   private readonly logger = new Logger(ReferralController.name);
 
