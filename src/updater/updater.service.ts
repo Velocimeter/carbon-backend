@@ -24,6 +24,15 @@ import { VortexFundsWithdrawnEventService } from '../events/vortex-funds-withdra
 import { NotificationService } from '../notification/notification.service';
 import { ActivityV2Service } from '../activity/activity-v2.service';
 import { ProtectionRemovedEventService } from '../events/protection-removed-event/protection-removed-event.service';
+import { RegisterCodeEventService } from '../events/register-code-event/register-code-event.service';
+import { GovSetCodeOwnerEventService } from '../events/gov-set-code-owner-event/gov-set-code-owner-event.service';
+import { SetReferrerTierEventService } from '../events/set-referrer-tier-event/set-referrer-tier-event.service';
+import { SetTierEventService } from '../events/set-tier-event/set-tier-event.service';
+import { SetTraderReferralCodeEventService } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.service';
+import { SetHandlerEventService } from '../events/set-handler-event/set-handler-event.service';
+import { SetReferrerDiscountShareEventService } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.service';
+import { SetCodeOwnerEventService } from '../events/set-code-owner-event/set-code-owner-event.service';
+
 export const CARBON_IS_UPDATING = 'carbon:isUpdating';
 export const CARBON_IS_UPDATING_ANALYTICS = 'carbon:isUpdatingAnalytics';
 
@@ -56,10 +65,19 @@ export class UpdaterService {
     private notificationService: NotificationService,
     private protectionRemovedEventService: ProtectionRemovedEventService,
     private activityV2Service: ActivityV2Service,
+    private registerCodeEventService: RegisterCodeEventService,
+    private govSetCodeOwnerEventService: GovSetCodeOwnerEventService,
+    private setReferrerTierEventService: SetReferrerTierEventService,
+    private setTierEventService: SetTierEventService,
+    private setTraderReferralCodeEventService: SetTraderReferralCodeEventService,
+    private setHandlerEventService: SetHandlerEventService,
+    private setReferrerDiscountShareEventService: SetReferrerDiscountShareEventService,
+    private setCodeOwnerEventService: SetCodeOwnerEventService,
     @Inject('REDIS') private redis: any,
   ) {
     const shouldHarvest = this.configService.get('SHOULD_HARVEST');
-    if (shouldHarvest === '1') {
+    console.log('shouldHarvest', shouldHarvest);
+    if (shouldHarvest?.startsWith('1')) {
       const deployments = this.deploymentService.getDeployments();
       deployments.forEach((deployment) => {
         const updateInterval = 5000; // Customize the interval as needed
@@ -81,7 +99,6 @@ export class UpdaterService {
     const isUpdating = await this.redis.client.get(`${CARBON_IS_UPDATING}:${deploymentKey}`);
     if (isUpdating === '1' && process.env.NODE_ENV === 'production') return;
 
-    
     let endBlock = -12;
     const t = Date.now();
 
@@ -105,6 +122,14 @@ export class UpdaterService {
         { name: 'ArbitrageExecutedEventService', fn: async () => await this.arbitrageExecutedEventService.update(endBlock, deployment) },
         { name: 'VortexTradingResetEventService', fn: async () => await this.vortexTradingResetEventService.update(endBlock, deployment) },
         { name: 'ProtectionRemovedEventService', fn: async () => await this.protectionRemovedEventService.update(endBlock, deployment) },
+        { name: 'RegisterCodeEventService', fn: async () => await this.registerCodeEventService.update(endBlock, deployment) },
+        { name: 'GovSetCodeOwnerEventService', fn: async () => await this.govSetCodeOwnerEventService.update(endBlock, deployment) },
+        { name: 'SetReferrerTierEventService', fn: async () => await this.setReferrerTierEventService.update(endBlock, deployment) },
+        { name: 'SetTierEventService', fn: async () => await this.setTierEventService.update(endBlock, deployment) },
+        { name: 'SetTraderReferralCodeEventService', fn: async () => await this.setTraderReferralCodeEventService.update(endBlock, deployment) },
+        { name: 'SetHandlerEventService', fn: async () => await this.setHandlerEventService.update(endBlock, deployment) },
+        { name: 'SetReferrerDiscountShareEventService', fn: async () => await this.setReferrerDiscountShareEventService.update(endBlock, deployment) },
+        { name: 'SetCodeOwnerEventService', fn: async () => await this.setCodeOwnerEventService.update(endBlock, deployment) },
         { name: 'TokenService', fn: async () => {
           await this.tokenService.update(endBlock, deployment);
           tokens = await this.tokenService.allByAddress(deployment);
@@ -127,18 +152,14 @@ export class UpdaterService {
       for (const service of services) {
         try {
           await service.fn();
-          
         } catch (error) {
-          
           throw error;
         }
       }
 
-      
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     } catch (error) {
-      
       this.isUpdating[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING}:${deploymentKey}`, 0);
     }
@@ -160,7 +181,6 @@ export class UpdaterService {
     const isUpdatingAnalytics = await this.redis.client.get(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`);
     if (isUpdatingAnalytics === '1' && process.env.NODE_ENV === 'production') return;
 
-    
     const t = Date.now();
 
     try {
@@ -170,20 +190,16 @@ export class UpdaterService {
 
       // ROI
       await this.roiService.update(deployment);
-      
 
       // analytics
       await this.analyticsService.update(deployment);
 
       // DexScreener
       await this.dexScreenerService.update(deployment);
-      
 
-      
       this.isUpdatingAnalytics[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`, 0);
     } catch (error) {
-      
       this.isUpdatingAnalytics[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`, 0);
     }
