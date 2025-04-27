@@ -263,7 +263,7 @@ export class DeploymentService {
         harvestEventsBatchSize: 5000,
         harvestConcurrency: 5,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
-        startBlock: 2792059,
+        startBlock: 1377587,
         gasToken: {
           name: 'Berachain',
           symbol: 'BERA',
