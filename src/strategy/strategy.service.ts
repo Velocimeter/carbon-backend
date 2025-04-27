@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Strategy } from './strategy.entity';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
 import Decimal from 'decimal.js';
@@ -33,8 +33,6 @@ type EncodedOrder = {
 
 @Injectable()
 export class StrategyService {
-  private readonly logger = new Logger(StrategyService.name);
-
   constructor(
     @InjectRepository(Strategy) private strategyRepository: Repository<Strategy>,
     private lastProcessedBlockService: LastProcessedBlockService,
@@ -49,8 +47,6 @@ export class StrategyService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<void> {
-    this.logger.log(`Starting strategy update for ${deployment.blockchainType}-${deployment.exchangeId} to block ${endBlock}`);
-    
     // Process events to update
     await this.strategyCreatedEventService.update(endBlock, pairs, tokens, deployment);
     await this.strategyUpdatedEventService.update(endBlock, pairs, tokens, deployment);
@@ -61,21 +57,15 @@ export class StrategyService {
       `${deployment.blockchainType}-${deployment.exchangeId}-strategies`,
       deployment.startBlock,
     );
-    
-    this.logger.log(`Processing blocks from ${startBlock} to ${endBlock}`);
 
     // Process the events in ranges
     for (let block = startBlock; block <= endBlock; block += deployment.harvestEventsBatchSize * 10) {
       const rangeEnd = Math.min(block + deployment.harvestEventsBatchSize * 10 - 1, endBlock);
-      
-      this.logger.debug(`Processing block range ${block} to ${rangeEnd}`);
 
       // Fetch the events from the current block range
       const createdEvents = await this.strategyCreatedEventService.get(block, rangeEnd, deployment);
       const updatedEvents = await this.strategyUpdatedEventService.get(block, rangeEnd, deployment);
       const deletedEvents = await this.strategyDeletedEventService.get(block, rangeEnd, deployment);
-
-      this.logger.debug(`Found events in range ${block}-${rangeEnd}: created=${createdEvents.length}, updated=${updatedEvents.length}, deleted=${deletedEvents.length}`);
 
       // Process the events
       await this.createOrUpdateFromEvents(createdEvents, deployment);
@@ -88,8 +78,6 @@ export class StrategyService {
         rangeEnd,
       );
     }
-    
-    this.logger.log(`Completed strategy update for ${deployment.blockchainType}-${deployment.exchangeId} to block ${endBlock}`);
   }
 
   async createOrUpdateFromEvents(
@@ -97,8 +85,6 @@ export class StrategyService {
     deployment: Deployment,
     deletionEvent = false,
   ) {
-    this.logger.debug(`Processing ${events.length} events for ${deployment.blockchainType}-${deployment.exchangeId}`);
-    
     // Fetch existing strategies in the current block range
     const existingStrategies = await this.strategyRepository.find({
       where: {
@@ -106,8 +92,6 @@ export class StrategyService {
         exchangeId: deployment.exchangeId,
       },
     });
-
-    this.logger.debug(`Found ${existingStrategies.length} existing strategies`);
 
     const strategies = [];
     events.forEach((e) => {
@@ -117,7 +101,6 @@ export class StrategyService {
 
       let newStrategy;
       if (strategyIndex >= 0) {
-        this.logger.debug(`Updating existing strategy ${e.strategyId}`);
         // Update existing strategy
         newStrategy = existingStrategies[strategyIndex];
         newStrategy.token0 = e.token0;
@@ -134,7 +117,6 @@ export class StrategyService {
         newStrategy.marginalRate1 = order1.marginalRate;
         newStrategy.deleted = deletionEvent;
       } else {
-        this.logger.debug(`Creating new strategy ${e.strategyId}`);
         // Create new strategy
         newStrategy = this.strategyRepository.create({
           token0: e.token0,
@@ -163,21 +145,17 @@ export class StrategyService {
     for (let i = 0; i < strategies.length; i += BATCH_SIZE) {
       const batch = strategies.slice(i, i + BATCH_SIZE);
       try {
-        this.logger.debug(`Saving batch of ${batch.length} strategies`);
         await this.strategyRepository.save(batch);
       } catch (error) {
         if (error.message.includes('UQ_ca3ef6c54f8acf3f8acd7e14e32')) {
-          this.logger.warn(`Encountered duplicate strategies in batch, processing one by one`);
           // Handle unique constraint violation by processing one by one
           for (const strategy of batch) {
             try {
               await this.strategyRepository.save(strategy);
             } catch (innerError) {
               if (!innerError.message.includes('UQ_ca3ef6c54f8acf3f8acd7e14e32')) {
-                this.logger.error(`Error saving strategy: ${innerError.message}`, innerError.stack);
                 throw innerError;
               }
-              this.logger.debug(`Handling duplicate strategy ${strategy.strategyId}`);
               // If it's a duplicate, fetch and update the existing strategy
               const existing = await this.strategyRepository.findOne({
                 where: {
@@ -193,7 +171,6 @@ export class StrategyService {
             }
           }
         } else {
-          this.logger.error(`Error saving strategies batch: ${error.message}`, error.stack);
           throw error;
         }
       }

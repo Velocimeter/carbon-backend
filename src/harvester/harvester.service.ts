@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import Web3 from 'web3';
 import * as _ from 'lodash';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
@@ -134,13 +134,13 @@ export interface CustomFnArgs {
 
 @Injectable()
 export class HarvesterService {
-  private readonly logger = new Logger(HarvesterService.name);
-
   constructor(
     private lastProcessedBlockService: LastProcessedBlockService,
     private blockService: BlockService,
     private configService: ConfigService,
   ) {}
+
+
 
   async fetchEventsFromBlockchain(
     contractName: ContractsNames,
@@ -148,13 +148,11 @@ export class HarvesterService {
     fromBlock: number,
     toBlock: number,
     address?: string,
-    deployment?: Deployment,
+    deployment?: Deployment, // Accept deployment directly
   ): Promise<any[]> {
     if (fromBlock > toBlock) {
       return [];
     }
-
-    this.logger.debug(`Fetching ${eventName} events from ${fromBlock} to ${toBlock} for ${contractName}`);
 
     const events = [];
     const tasks = [];
@@ -187,17 +185,13 @@ export class HarvesterService {
         tasks.push(
           concurrency(async () => {
             try {
-              this.logger.debug(`Fetching events for range ${startBlock}-${endBlock}`);
+             
               const _events = await contract.getPastEvents(eventName, { fromBlock: startBlock, toBlock: endBlock });
               if (_events.length > 0) {
-                this.logger.debug(`Found ${_events.length} events in range ${startBlock}-${endBlock}`);
                 _events.forEach((e) => events.push(e));
               }
             } catch (error) {
-              this.logger.error(
-                `Error fetching ${eventName} events for ${contractName} in range ${startBlock}-${endBlock}: ${error.message}`,
-                error.stack
-              );
+              
             }
           }),
         );
@@ -205,7 +199,6 @@ export class HarvesterService {
     }
 
     await Promise.all(tasks);
-    this.logger.debug(`Total events fetched: ${events.length}`);
     return events;
   }
 
@@ -229,8 +222,6 @@ export class HarvesterService {
     const result = [];
     let anyEventsSaved = false;
 
-    this.logger.log(`Processing ${args.eventName} events for ${args.entity} from block ${lastProcessedBlock + 1}`);
-
     if (args.skipPreClearing !== true) {
       await this.preClear(args.repository, lastProcessedBlock, deployment);
     }
@@ -248,7 +239,7 @@ export class HarvesterService {
         args.endBlock,
       );
 
-      this.logger.debug(`Processing block range ${rangeStart}-${rangeEnd}`);
+      
 
       const events = await this.fetchEventsFromBlockchain(
         args.contractName,
@@ -260,7 +251,6 @@ export class HarvesterService {
       );
 
       if (events.length > 0) {
-        this.logger.debug(`Processing ${events.length} events from range ${rangeStart}-${rangeEnd}`);
         let blocksDictionary: BlocksDictionary;
 
         if (args.tagTimestampFromBlock) {
@@ -372,28 +362,24 @@ export class HarvesterService {
 
         try {
           const batches = _.chunk(newEvents, 1000);
-          this.logger.debug(`Saving ${batches.length} batches of events`);
           await Promise.all(batches.map((batch) => args.repository.save(batch)));
           anyEventsSaved = true;
           result.push(newEvents);
         } catch (error) {
-          this.logger.error(
-            `Error saving events for ${args.entity} in range ${rangeStart}-${rangeEnd}: ${error.message}`,
-            error.stack
-          );
-          throw error;
+          console.error(`Error saving events for ${args.entity} in range ${rangeStart}-${rangeEnd}: ${error.message}`);
+          throw error; // Re-throw to handle the error at a higher level
         }
       }
 
+      // Only update the last processed block if we've successfully saved events to the database
+      // or if there were no events in this range (so we can skip it next time)
       if (args.skipLastProcessedBlockUpdate !== true) {
         if (anyEventsSaved || events.length === 0) {
           await this.lastProcessedBlockService.update(key, rangeEnd);
-          this.logger.debug(`Updated last processed block to ${rangeEnd}`);
         }
       }
     }
 
-    this.logger.log(`Completed processing ${args.eventName} events for ${args.entity}`);
     return result;
   }
 
