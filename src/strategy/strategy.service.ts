@@ -144,36 +144,7 @@ export class StrategyService {
     const BATCH_SIZE = 1000;
     for (let i = 0; i < strategies.length; i += BATCH_SIZE) {
       const batch = strategies.slice(i, i + BATCH_SIZE);
-      try {
-        await this.strategyRepository.save(batch);
-      } catch (error) {
-        if (error.message.includes('UQ_ca3ef6c54f8acf3f8acd7e14e32')) {
-          // Handle unique constraint violation by processing one by one
-          for (const strategy of batch) {
-            try {
-              await this.strategyRepository.save(strategy);
-            } catch (innerError) {
-              if (!innerError.message.includes('UQ_ca3ef6c54f8acf3f8acd7e14e32')) {
-                throw innerError;
-              }
-              // If it's a duplicate, fetch and update the existing strategy
-              const existing = await this.strategyRepository.findOne({
-                where: {
-                  blockchainType: strategy.blockchainType,
-                  exchangeId: strategy.exchangeId,
-                  strategyId: strategy.strategyId,
-                },
-              });
-              if (existing) {
-                Object.assign(existing, strategy);
-                await this.strategyRepository.save(existing);
-              }
-            }
-          }
-        } else {
-          throw error;
-        }
-      }
+      await this.strategyRepository.save(batch);
     }
   }
 
