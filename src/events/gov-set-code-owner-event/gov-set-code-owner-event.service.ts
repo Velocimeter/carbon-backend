@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames, CustomFnArgs } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
-import { GovSetCodeOwnerEvent } from '../../referral/entities/events/gov-set-code-owner.entity';
+import { GovSetCodeOwnerEvent } from '../../referral/entities/depreciated_events/gov-set-code-owner.entity';
 
 @Injectable()
 export class GovSetCodeOwnerEventService {

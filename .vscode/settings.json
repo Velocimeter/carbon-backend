@@ -1,31 +1,12 @@
 {
-  "terminal.integrated.env.windows": {
-    "REDIS_URL": null,
-    "DATABASE_URL": null,
-    "BERACHAIN_RPC_ENDPOINT": null,
-    "COINGECKO_API_KEY": null,
-    "COINMARKETCAP_API_KEY": null,
-    "CODEX_API_KEY": null,
-    "DUNE_API_KEY": null,
-    "SHOULD_HARVEST": null,
-    "SHOULD_UPDATE_ANALYTICS": null,
-    "SHOULD_POLL_QUOTES": null,
-    "SHOULD_POLL_HISTORIC_QUOTES": null,
-    "SEND_NOTIFICATIONS": null,
-    "POLL_QUOTES_INTERVAL": null,
-    "POLL_HISTORIC_QUOTES_INTERVAL": null,
-    "SHOULD_PROCESS_REFERRALS": null,
-    "PROCESS_REFERRALS_INTERVAL": null,
-    "PROCESS_REFERRALS_ON_STARTUP": null,
-    "CARBON_LOCK_DURATION": null,
-    "IS_FORK": null,
-    "DB_SYNC": null,
-    "DATABASE_SSL_ENABLED": null
+  "cSpell.words": ["Multicall", "setex"],
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "debug.terminal.clearBeforeReusing": true,
+  "debug.javascript.terminalOptions": {
+    "skipFiles": [
+      "<node_internals>/**"
+    ]
   },
-  "launch": {
-    "env": {
-      "REDIS_URL": null,
-      "DATABASE_URL": null
-    }
-  }
-} 
+  "debug.javascript.autoAttachFilter": "disabled",
+  "debug.javascript.usePreview": false
+}

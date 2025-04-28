@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SetReferrerTierEventService } from './set-referrer-tier-event.service';
-import { ReferralCode } from '../../referral/entities/referral-code.entity';
+import { SetReferrerTierEvent } from './set-referrer-tier-event.entity';
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ReferralCode]),
+    TypeOrmModule.forFeature([SetReferrerTierEvent]),
     HarvesterModule,
   ],
   providers: [SetReferrerTierEventService],

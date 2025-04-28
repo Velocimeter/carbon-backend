@@ -32,6 +32,7 @@ import { SetTraderReferralCodeEventService } from '../events/set-trader-referral
 import { SetHandlerEventService } from '../events/set-handler-event/set-handler-event.service';
 import { SetReferrerDiscountShareEventService } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.service';
 import { SetCodeOwnerEventService } from '../events/set-code-owner-event/set-code-owner-event.service';
+import { ReferralV2Service } from '../referral/referral-v2.service';
 
 export const CARBON_IS_UPDATING = 'carbon:isUpdating';
 export const CARBON_IS_UPDATING_ANALYTICS = 'carbon:isUpdatingAnalytics';
@@ -73,6 +74,7 @@ export class UpdaterService {
     private setHandlerEventService: SetHandlerEventService,
     private setReferrerDiscountShareEventService: SetReferrerDiscountShareEventService,
     private setCodeOwnerEventService: SetCodeOwnerEventService,
+    private referralV2Service: ReferralV2Service,
     @Inject('REDIS') private redis: any,
   ) {
     const shouldHarvest = this.configService.get('SHOULD_HARVEST');
@@ -130,6 +132,7 @@ export class UpdaterService {
         { name: 'SetHandlerEventService', fn: async () => await this.setHandlerEventService.update(endBlock, deployment) },
         { name: 'SetReferrerDiscountShareEventService', fn: async () => await this.setReferrerDiscountShareEventService.update(endBlock, deployment) },
         { name: 'SetCodeOwnerEventService', fn: async () => await this.setCodeOwnerEventService.update(endBlock, deployment) },
+        { name: 'ReferralV2Service', fn: async () => await this.referralV2Service.update(endBlock, deployment) },
         { name: 'TokenService', fn: async () => {
           await this.tokenService.update(endBlock, deployment);
           tokens = await this.tokenService.allByAddress(deployment);

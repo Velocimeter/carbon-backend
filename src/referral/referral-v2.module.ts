@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { HarvesterModule } from '../harvester/harvester.module';
 import { LastProcessedBlockModule } from '../last-processed-block/last-processed-block.module';
 import { ReferralCode } from './entities/referral-code.entity';
+import { ReferralState } from './entities/referral-state.entity';
 import { ReferralV2Service } from './referral-v2.service';
 import { RegisterCodeEventModule } from '../events/register-code-event/register-code-event.module';
 import { GovSetCodeOwnerEventModule } from '../events/gov-set-code-owner-event/gov-set-code-owner-event.module';
@@ -15,7 +16,7 @@ import { SetTraderReferralCodeEventModule } from '../events/set-trader-referral-
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([ReferralCode]),
+    TypeOrmModule.forFeature([ReferralCode, ReferralState]),
     HarvesterModule,
     LastProcessedBlockModule,
     RegisterCodeEventModule,

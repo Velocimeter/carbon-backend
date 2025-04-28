@@ -77,8 +77,18 @@ export interface Deployment {
 @Injectable()
 export class DeploymentService {
   private deployments: Deployment[];
+  private activeDeploymentTypes: Set<BlockchainType> = new Set();
+
   constructor(private configService: ConfigService) {
     this.deployments = this.initializeDeployments();
+    // Initialize only specific deployments as active
+    this.setActiveDeployments([
+      // BlockchainType.Base,
+         BlockchainType.Berachain,
+      //   BlockchainType.Fantom,
+      // BlockchainType.Mantle,
+       BlockchainType.Sonic,
+    ]);
   }
 
   private initializeDeployments(): Deployment[] {
@@ -337,12 +347,19 @@ export class DeploymentService {
   }
 
   getDeployments(): Deployment[] {
-    const activeDeployments = this.configService.get('ACTIVE_DEPLOYMENTS');
-    if (!activeDeployments) {
-      return this.deployments;
-    }
-    const deploymentList = activeDeployments.split(',').map(d => d.trim());
-    return this.deployments.filter(d => deploymentList.includes(d.blockchainType));
+    return this.deployments.filter(d => this.activeDeploymentTypes.has(d.blockchainType));
+  }
+
+  setActiveDeployments(blockchainTypes: BlockchainType[]) {
+    this.activeDeploymentTypes = new Set(blockchainTypes);
+  }
+
+  enableDeployment(blockchainType: BlockchainType) {
+    this.activeDeploymentTypes.add(blockchainType);
+  }
+
+  disableDeployment(blockchainType: BlockchainType) {
+    this.activeDeploymentTypes.delete(blockchainType);
   }
 
   getDeploymentByExchangeId(exchangeId: ExchangeId): Deployment {
@@ -350,10 +367,16 @@ export class DeploymentService {
     if (!deployment) {
       throw new Error(`Deployment for exchangeId ${exchangeId} not found`);
     }
+    if (!this.activeDeploymentTypes.has(deployment.blockchainType)) {
+      throw new Error(`Deployment for exchangeId ${exchangeId} is not active`);
+    }
     return deployment;
   }
 
   getDeploymentByBlockchainType(blockchainType: BlockchainType): Deployment {
+    if (!this.activeDeploymentTypes.has(blockchainType)) {
+      throw new Error(`Deployment for blockchainType ${blockchainType} is not active`);
+    }
     const deployment = this.deployments.find((d) => d.blockchainType === blockchainType);
     if (!deployment) {
       throw new Error(`Deployment for blockchainType ${blockchainType} not found`);

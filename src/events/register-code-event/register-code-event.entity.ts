@@ -5,17 +5,17 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
-  Unique,
   ManyToOne,
-  JoinColumn,
+  Unique,
 } from 'typeorm';
 import { Block } from '../../block/block.entity';
 import { BlockchainType, ExchangeId } from '../../deployment/deployment.service';
 
-@Entity({ name: 'referral_codes' })
-@Unique(['code', 'chainId'])
-@Index(['code', 'chainId', 'owner'])
-export class ReferralCode {
+@Entity({ name: 'register_code_events' })
+@Unique(['transactionIndex', 'transactionHash', 'logIndex'])
+@Index(['code', 'blockchainType', 'exchangeId'])
+@Index(['referrer', 'blockchainType', 'exchangeId'])
+export class RegisterCodeEvent {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -27,6 +27,10 @@ export class ReferralCode {
   @Index()
   exchangeId: ExchangeId;
 
+  @Index()
+  @ManyToOne(() => Block, { eager: true })
+  block: Block;
+
   @Column({ type: 'varchar', length: 66 })
   @Index()
   code: string;
@@ -36,21 +40,20 @@ export class ReferralCode {
 
   @Column({ type: 'varchar', length: 42 })
   @Index()
-  owner: string;
+  referrer: string;
 
   @Column({ name: 'chain_id', type: 'int' })
   @Index()
   chainId: number;
 
-  @Column({ name: 'transaction_hash', type: 'varchar', length: 66 })
+  @Column()
+  transactionIndex: number;
+
+  @Column()
   transactionHash: string;
 
-  @Column({ name: 'block_number', type: 'float' })
-  blockNumber: number;
-
-  @ManyToOne(() => Block)
-  @JoinColumn({ name: 'block_id' })
-  block: Block;
+  @Column()
+  logIndex: number;
 
   @Column()
   @Index()
@@ -61,10 +64,4 @@ export class ReferralCode {
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @Column({ name: 'transaction_index', type: 'int', nullable: true })
-  transactionIndex: number;
-
-  @Column({ name: 'log_index', type: 'int', nullable: true })
-  logIndex: number;
 } 

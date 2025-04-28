@@ -2,9 +2,9 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ReferralCode } from '../../referral/entities/referral-code.entity';
-import { SetTraderReferralCodeEvent } from '../../referral/entities/events/set-trader-referral-code.entity';
-import { SetReferrerTierEvent } from '../../referral/entities/events/set-referrer-tier.entity';
-import { SetTierEvent } from '../../referral/entities/events/set-tier.entity';
+import { SetTraderReferralCodeEvent } from '../../referral/entities/depreciated_events/set-trader-referral-code.entity';
+import { SetReferrerTierEvent } from '../../referral/entities/depreciated_events/set-referrer-tier.entity';
+import { SetTierEvent } from '../../referral/entities/depreciated_events/set-tier.entity';
 
 // Define interface for the new structured response
 export interface ReferralCodeEntry {

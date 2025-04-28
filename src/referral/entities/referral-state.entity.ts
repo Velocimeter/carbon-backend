@@ -12,10 +12,11 @@ import {
 import { Block } from '../../block/block.entity';
 import { BlockchainType, ExchangeId } from '../../deployment/deployment.service';
 
-@Entity({ name: 'referral_codes' })
-@Unique(['code', 'chainId'])
-@Index(['code', 'chainId', 'owner'])
-export class ReferralCode {
+@Entity({ name: 'referral_states' })
+@Unique(['trader', 'chainId'])  // Each trader can only have one active code per chain
+@Index(['code', 'chainId'])     // For looking up all traders using a code
+@Index(['owner', 'chainId'])    // For looking up all codes/traders for an owner
+export class ReferralState {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -26,6 +27,10 @@ export class ReferralCode {
   @Column()
   @Index()
   exchangeId: ExchangeId;
+
+  @Column({ type: 'varchar', length: 42 })
+  @Index()
+  trader: string;
 
   @Column({ type: 'varchar', length: 66 })
   @Index()
@@ -38,33 +43,33 @@ export class ReferralCode {
   @Index()
   owner: string;
 
+  @Column({ type: 'varchar' })
+  tierId: string;
+
+  @Column({ type: 'varchar' })
+  totalRebate: string;
+
+  @Column({ type: 'varchar' })
+  discountShare: string;
+
   @Column({ name: 'chain_id', type: 'int' })
   @Index()
   chainId: number;
 
-  @Column({ name: 'transaction_hash', type: 'varchar', length: 66 })
-  transactionHash: string;
-
-  @Column({ name: 'block_number', type: 'float' })
-  blockNumber: number;
+  @Column()
+  @Index()
+  timestamp: Date;
 
   @ManyToOne(() => Block)
   @JoinColumn({ name: 'block_id' })
   block: Block;
 
-  @Column()
-  @Index()
-  timestamp: Date;
+  @Column({ name: 'last_processed_block', type: 'int' })
+  lastProcessedBlock: number;
 
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
-
-  @Column({ name: 'transaction_index', type: 'int', nullable: true })
-  transactionIndex: number;
-
-  @Column({ name: 'log_index', type: 'int', nullable: true })
-  logIndex: number;
 } 

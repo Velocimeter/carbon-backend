@@ -56,59 +56,21 @@ async function bootstrap() {
     });
     app.use(new LoggingMiddleware().use);
 
-    // Set up Swagger
-    logger.log('Configuring Swagger documentation');
     const config = new DocumentBuilder()
       .setTitle('Carbon API')
       .setDescription('The Carbon API description')
       .setVersion('1.0')
-      .addTag('activity', 'Activity endpoints')
-      .addTag('analytics', 'Analytics endpoints')
-      .addTag('cmc', 'CoinMarketCap endpoints')
-      .addTag('coingecko', 'CoinGecko endpoints')
-      .addTag('roi', 'ROI endpoints')
-      .addTag('simulator', 'Simulator endpoints')
-      .addBearerAuth()
       .build();
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document);
+    SwaggerModule.setup('', app, document);
 
-    // Start the server with enhanced logging
-    const port = process.env.PORT || 3000; // Use PORT env variable if available
-    logger.log(`Attempting to start application on port ${port}...`);
-    try {
-      await app.listen(port);
-      logger.log(`Application successfully started and is running on: http://localhost:${port}`);
-      logger.log(`Swagger API docs available at: http://localhost:${port}/api`);
-    } catch (error) {
-      logger.error(`Failed to start application on port ${port}`);
-      logger.error(`Error details: ${error.message}`);
-      logger.error(error.stack);
-      process.exit(1);
-    }
+    const port = process.env.PORT || 3000;
+    await app.listen(port);
+    console.log(`Application is running on: http://localhost:${port}`);
   } catch (error) {
-    logger.error(`Fatal error during application bootstrap`);
-    logger.error(`Error details: ${error.message}`);
-    logger.error(error.stack);
+    logger.error('Failed to start application:', error);
     process.exit(1);
   }
 }
 
-// Make sure we log any uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('UNCAUGHT EXCEPTION - APPLICATION CRASHED:');
-  console.error(error.message);
-  console.error(error.stack);
-  process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('UNHANDLED REJECTION - APPLICATION CRASHED:');
-  console.error(reason);
-  process.exit(1);
-});
-
-bootstrap().catch(err => {
-  console.error('Failed to bootstrap application', err);
-  process.exit(1);
-});
+bootstrap();

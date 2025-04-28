@@ -14,9 +14,9 @@ import { ReferralModule } from '../referral/referral.module';
 import { ReferralController } from './referral/referral.controller';
 import { ReferralService } from './referral/referral.service';
 import { ReferralCode } from '../referral/entities/referral-code.entity';
-import { SetTraderReferralCodeEvent } from '../referral/entities/events/set-trader-referral-code.entity';
-import { SetReferrerTierEvent } from '../referral/entities/events/set-referrer-tier.entity';
-import { SetTierEvent } from '../referral/entities/events/set-tier.entity';
+import { SetTraderReferralCodeEvent } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.entity';
+import { SetReferrerTierEvent } from '../events/set-referrer-tier-event/set-referrer-tier-event.entity';
+import { SetTierEvent } from '../events/set-tier-event/set-tier-event.entity';
 
 @Module({
   imports: [
