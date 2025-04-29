@@ -24,16 +24,40 @@ async function bootstrap() {
   
   try {
     logger.log('Creating NestJS application...');
-    const app = await NestFactory.create(AppModule, { 
-      cors: true,
+    const app = await NestFactory.create(AppModule, {
+      snapshot: true,
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
     
-    logger.log('Configuring application...');
+    logger.log('Setting up CORS...');
+    app.enableCors({
+      origin: (origin, callback) => {
+        if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
+            ['http://localhost:3000', 'http://localhost:3009', 
+             'http://localhost:3008', 'http://localhost:8000', 
+             'http://localhost:8001', 'https://graphene-v2-berachain-git-referrals-cre8r.vercel.app'].includes(origin) ||
+            /\.vercel\.app$/.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      allowedHeaders: 'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+      exposedHeaders: 'Content-Length, Content-Type, Access-Control-Allow-Origin',
+      credentials: true,
+      preflightContinue: false,
+      optionsSuccessStatus: 204
+    });
+    logger.log('CORS setup complete');
+
+    logger.log('Setting up middleware...');
     app.enableVersioning();
     app.useGlobalPipes(new ValidationPipe({ transform: true }));
     app.use(new LoggingMiddleware().use);
+    logger.log('Middleware setup complete');
 
+    logger.log('Setting up Swagger...');
     const config = new DocumentBuilder()
       .setTitle('Carbon API')
       .setDescription('The Carbon API description')
@@ -41,14 +65,30 @@ async function bootstrap() {
       .build();
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('', app, document);
+    logger.log('Swagger setup complete');
 
-    logger.log(`About to start server on port ${port}...`);
-    await app.listen(port);
-    logger.log(`Application is running on: http://localhost:${port}`);
+    logger.log('Attempting HTTP server listen...');
+    try {
+      await app.listen(port);
+      logger.log('HTTP server successfully started');
+      logger.log(`Application is running on: http://localhost:${port}`);
+    } catch (listenError) {
+      logger.error('Failed to start HTTP server:', listenError);
+      // Don't exit process here since other services might need to run
+      // Just log the error
+    }
   } catch (error) {
     logger.error('Failed to start application:', error);
     process.exit(1);
   }
 }
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 bootstrap();
