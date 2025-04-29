@@ -1,50 +1,23 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "Debug NestJS (ts-node)",
-            "skipFiles": [
-                "<node_internals>/**",
-                "${workspaceFolder}/node_modules/**/@nestjs/**",
-                "${workspaceFolder}/node_modules/typescript/**",
-                "${workspaceFolder}/node_modules/ts-node/**"
-            ],
-            "program": "${workspaceFolder}/src/main.ts",
-            "runtimeArgs": [
-                "-r",
-                "ts-node/register",
-                "-r",
-                "tsconfig-paths/register",
-                "-r",
-                "dotenv/config"
-            ],
-            "console": "integratedTerminal",
-            "outFiles": [
-                "${workspaceFolder}/dist/**/*.js"
-            ],
-            "envFile": "${workspaceFolder}/.env"
-        },
-        {
-            "type": "node",
-            "request": "launch",
-            "name": "Debug NestJS (compiled)",
-            "skipFiles": [
-                "<node_internals>/**"
-            ],
-            "program": "${workspaceFolder}/dist/main.js",
-            "console": "integratedTerminal",
-            "sourceMaps": true,
-            "envFile": "${workspaceFolder}/.env",
-            "preLaunchTask": "npm: build",
-            "env": {
-                "NODE_ENV": "production"
-            },
-            "runtimeExecutable": "node",
-            "windows": {
-                "runtimeExecutable": "node.exe"
-            }
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug NestJS",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:debug"],
+      "console": "integratedTerminal",
+      "restart": true,
+      "autoAttachChildProcesses": true
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Tests",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "test:debug"],
+      "console": "integratedTerminal"
+    }
+  ]
 }

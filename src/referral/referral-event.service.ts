@@ -3,14 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames, CustomFnArgs, ProcessEventsArgs } from '../harvester/harvester.service';
 import { Deployment } from '../deployment/deployment.service';
-import { ReferralCode } from './entities/referral-code.entity';
-import { GovSetCodeOwnerEvent } from './entities/depreciated_events/gov-set-code-owner.entity';
-import { SetCodeOwnerEvent } from './entities/depreciated_events/set-code-owner.entity';
-import { SetHandlerEvent } from './entities/depreciated_events/set-handler.entity';
-import { SetReferrerDiscountShareEvent } from './entities/depreciated_events/set-referrer-discount-share.entity';
-import { SetReferrerTierEvent } from './entities/depreciated_events/set-referrer-tier.entity';
-import { SetTierEvent } from './entities/depreciated_events/set-tier.entity';
-import { SetTraderReferralCodeEvent } from './entities/depreciated_events/set-trader-referral-code.entity';
+import { ReferralCode } from './referral-code.entity';
+import { GovSetCodeOwnerEvent } from '../events/gov-set-code-owner-event/gov-set-code-owner-event.entity';
+import { SetCodeOwnerEvent } from '../events/set-code-owner-event/set-code-owner-event.entity';
+import { SetHandlerEvent } from '../events/set-handler-event/set-handler-event.entity';
+import { SetReferrerDiscountShareEvent } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.entity';
+import { SetReferrerTierEvent } from '../events/set-referrer-tier-event/set-referrer-tier-event.entity';
+import { SetTierEvent } from '../events/set-tier-event/set-tier-event.entity';
+import { SetTraderReferralCodeEvent } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.entity';
 
 interface ReferralEvent {
   chainId?: number;

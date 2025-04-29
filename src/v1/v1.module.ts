@@ -13,10 +13,7 @@ import { StateModule } from './state/state.module';
 import { ReferralModule } from '../referral/referral.module';
 import { ReferralController } from './referral/referral.controller';
 import { ReferralService } from './referral/referral.service';
-import { ReferralCode } from '../referral/entities/referral-code.entity';
-import { SetTraderReferralCodeEvent } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.entity';
-import { SetReferrerTierEvent } from '../events/set-referrer-tier-event/set-referrer-tier-event.entity';
-import { SetTierEvent } from '../events/set-tier-event/set-tier-event.entity';
+import { ReferralState } from '../referral/referral-state.entity';
 
 @Module({
   imports: [
@@ -30,14 +27,10 @@ import { SetTierEvent } from '../events/set-tier-event/set-tier-event.entity';
     ActivityModule,
     StateModule,
     ReferralModule,
-    TypeOrmModule.forFeature([
-      ReferralCode, 
-      SetTraderReferralCodeEvent,
-      SetReferrerTierEvent,
-      SetTierEvent
-    ]),
+    TypeOrmModule.forFeature([ReferralState]),
   ],
   controllers: [V1Controller, ReferralController],
   providers: [ReferralService],
+  exports: [ReferralService],
 })
 export class V1Module {}

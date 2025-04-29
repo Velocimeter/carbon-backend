@@ -1,10 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ReferralCode } from '../../referral/entities/referral-code.entity';
-import { SetTraderReferralCodeEvent } from '../../referral/entities/depreciated_events/set-trader-referral-code.entity';
-import { SetReferrerTierEvent } from '../../referral/entities/depreciated_events/set-referrer-tier.entity';
-import { SetTierEvent } from '../../referral/entities/depreciated_events/set-tier.entity';
+import { ReferralState } from '../../referral/referral-state.entity';
 
 // Define interface for the new structured response
 export interface ReferralCodeEntry {
@@ -32,33 +29,22 @@ export class ReferralService {
   private readonly logger = new Logger(ReferralService.name);
 
   constructor(
-    @InjectRepository(ReferralCode)
-    private referralCodesRepository: Repository<ReferralCode>,
-    @InjectRepository(SetTraderReferralCodeEvent)
-    private setTraderReferralCodeEventRepository: Repository<SetTraderReferralCodeEvent>,
-    @InjectRepository(SetReferrerTierEvent)
-    private setReferrerTierEventRepository: Repository<SetReferrerTierEvent>,
-    @InjectRepository(SetTierEvent)
-    private setTierEventRepository: Repository<SetTierEvent>,
+    @InjectRepository(ReferralState)
+    private referralStateRepository: Repository<ReferralState>,
   ) {}
 
   async getReferralRelationships(chainId?: number): Promise<ReferralOwnerEntry[]> {
     this.logger.log(`Getting referral relationships${chainId ? ` for chainId: ${chainId}` : ''}`);
 
-    // First, get all relationships from the events
-    const query = this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
-      .select('event.account', 'trader')
-      .addSelect('event.codeDecoded', 'codeDecoded')
-      .addSelect('LOWER(referralCode.owner)', 'owner')
-      .innerJoin(
-        ReferralCode,
-        'referralCode',
-        'event.code = referralCode.code AND event.chainId = referralCode.chainId'
-      )
-      .orderBy('event.timestamp', 'DESC');
+    // First, get all relationships from the states
+    const query = this.referralStateRepository.createQueryBuilder('state')
+      .select('state.codeDecoded', 'codeDecoded')
+      .addSelect('LOWER(state.owner)', 'owner')
+      .addSelect('state.trader', 'trader')
+      .orderBy('state.timestamp', 'DESC');
 
     if (chainId) {
-      query.andWhere('event.chainId = :chainId', { chainId });
+      query.where('state.chainId = :chainId', { chainId });
     }
 
     // Execute query for relationships
@@ -67,12 +53,13 @@ export class ReferralService {
     this.logger.debug('First few relationships:', relationships.slice(0, 3));
 
     // Get all referral codes, including those without relationships
-    const codesQuery = this.referralCodesRepository.createQueryBuilder('code')
-      .select('code.codeDecoded', 'codeDecoded')
-      .addSelect('LOWER(code.owner)', 'owner');
+    const codesQuery = this.referralStateRepository.createQueryBuilder('state')
+      .select('state.codeDecoded', 'codeDecoded')
+      .addSelect('LOWER(state.owner)', 'owner')
+      .distinctOn(['state.codeDecoded']);
 
     if (chainId) {
-      codesQuery.where('code.chainId = :chainId', { chainId });
+      codesQuery.where('state.chainId = :chainId', { chainId });
     }
 
     const allCodes = await codesQuery.getRawMany();
@@ -163,27 +150,27 @@ export class ReferralService {
   // Helper method to get tier information for all affiliates
   private async getTierInformationForAffiliates(chainId?: number): Promise<Map<string, any>> {
     // Get the latest tier assignment for each referrer
-    const referrerTiersQuery = this.setReferrerTierEventRepository.createQueryBuilder('referrerTier')
-      .select('LOWER(referrerTier.referrer)', 'owner')
-      .addSelect('referrerTier.tierId', 'tierId')
-      .addSelect('referrerTier.timestamp', 'timestamp')
-      .orderBy('referrerTier.timestamp', 'DESC');
+    const referrerTiersQuery = this.referralStateRepository.createQueryBuilder('state')
+      .select('LOWER(state.owner)', 'owner')
+      .addSelect('state.tierId', 'tierId')
+      .addSelect('state.timestamp', 'timestamp')
+      .orderBy('state.timestamp', 'DESC');
     
     if (chainId) {
-      referrerTiersQuery.where('referrerTier.chainId = :chainId', { chainId });
+      referrerTiersQuery.where('state.chainId = :chainId', { chainId });
     }
     
     const referrerTiers = await referrerTiersQuery.getRawMany();
     
     // Get all tier details
-    const tierDetailsQuery = this.setTierEventRepository.createQueryBuilder('tier')
-      .select('tier.tierId', 'tierId')
-      .addSelect('tier.totalRebate', 'totalRebate')
-      .addSelect('tier.discountShare', 'discountShare')
-      .orderBy('tier.timestamp', 'DESC');
+    const tierDetailsQuery = this.referralStateRepository.createQueryBuilder('state')
+      .select('state.tierId', 'tierId')
+      .addSelect('state.totalRebate', 'totalRebate')
+      .addSelect('state.discountShare', 'discountShare')
+      .orderBy('state.timestamp', 'DESC');
     
     if (chainId) {
-      tierDetailsQuery.where('tier.chainId = :chainId', { chainId });
+      tierDetailsQuery.where('state.chainId = :chainId', { chainId });
     }
     
     const tierDetails = await tierDetailsQuery.getRawMany();
@@ -248,37 +235,35 @@ export class ReferralService {
   }> {
     this.logger.log(`Getting trader code, owner and tier info for address: ${address}${chainId ? ` and chainId: ${chainId}` : ''}`);
     
-    const query = this.setTraderReferralCodeEventRepository.createQueryBuilder('event')
-      .select('event.codeDecoded', 'code')
-      .addSelect('LOWER(referralCode.owner)', 'owner')
-      .leftJoin(
-        ReferralCode,
-        'referralCode',
-        'event.code = referralCode.code'
-      )
-      .where('LOWER(event.account) = LOWER(:address)', { address })
-      .orderBy('event.timestamp', 'DESC');
+    const query = this.referralStateRepository.createQueryBuilder('state')
+      .select('state.codeDecoded', 'code')
+      .addSelect('LOWER(state.owner)', 'owner')
+      .addSelect('state.tierId', 'tierId')
+      .addSelect('state.totalRebate', 'totalRebate')
+      .addSelect('state.discountShare', 'discountShare')
+      .where('LOWER(state.trader) = LOWER(:address)', { address })
+      .orderBy('state.timestamp', 'DESC');
 
     if (chainId) {
-      query.andWhere('event.chainId = :chainId', { chainId });
+      query.andWhere('state.chainId = :chainId', { chainId });
     }
 
-    const latestCodeEvent = await query.getRawOne();
+    const latestState = await query.getRawOne();
 
-    if (!latestCodeEvent) {
+    if (!latestState) {
       this.logger.log(`No referral code found for trader: ${address}`);
       return { code: null };
     }
 
-    // Get tier information for the code owner
-    const tiersMap = await this.getTierInformationForAffiliates(chainId);
-    const tierInfo = this.getTierDetailsForOwner(latestCodeEvent.owner, tiersMap);
-
     this.logger.log(`Found referral code, owner and tier info for trader: ${address}`);
     return {
-      code: latestCodeEvent.code,
-      owner: latestCodeEvent.owner,
-      tier: tierInfo
+      code: latestState.code,
+      owner: latestState.owner,
+      tier: {
+        tierId: latestState.tierId,
+        totalRebate: latestState.totalRebate,
+        discountShare: latestState.discountShare
+      }
     };
   }
 }

@@ -23,15 +23,10 @@ import { DeploymentModule } from './deployment/deployment.module';
 import { CodexService } from './codex/codex.service';
 import { CodexModule } from './codex/codex.module';
 import { SubdomainCacheInterceptor } from './cache.interceptor';
-import { ReferralModule } from './referral/referral.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ 
-      isGlobal: true,
-      envFilePath: '.env',
-      cache: true
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -111,7 +106,6 @@ import { ReferralModule } from './referral/referral.module';
     TvlModule,
     DeploymentModule,
     CodexModule,
-    ReferralModule,
   ],
 
   providers: [

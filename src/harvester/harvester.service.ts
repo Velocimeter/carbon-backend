@@ -12,6 +12,8 @@ import { CarbonPOL } from '../abis/CarbonPOL.abi';
 import { CarbonVortex } from '../abis/CarbonVortex.abi';
 import { CarbonVoucher } from '../abis/CarbonVoucher.abi';
 import { BancorArbitrage } from '../abis/BancorArbitrage.abi';
+import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
+import { ReferralStorage } from '../abis/ReferralStorage.abi';
 import moment from 'moment';
 import { MulticallAbiEthereum } from '../abis/multicall.abi';
 import { multicallAbiSei } from '../abis/multicall.abi';
@@ -21,15 +23,6 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { BlockchainType, Deployment } from '../deployment/deployment.service';
 import { ConfigService } from '@nestjs/config';
 import { sleep } from '../utilities';
-import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
-import { ReferralReader } from '../abis/ReferralReader.abi';
-import { ReferralStorage } from '../abis/ReferralStorage.abi';
-
-
-
-// Default maximum block range for RPC providers
-const DEFAULT_MAX_BLOCK_RANGE = 5000;
-
 export const VERSIONS = {
   // PoolMigrator: [{ terminatesAt: 14830503, version: 1 }, { version: 2 }],
 };
@@ -42,7 +35,6 @@ export enum ContractsNames {
   CarbonVoucher = 'CarbonVoucher',
   BancorArbitrage = 'BancorArbitrage',
   LiquidityProtectionStore = 'LiquidityProtectionStore',
-  ReferralReader = 'ReferralReader',
   ReferralStorage = 'ReferralStorage',
 }
 
@@ -54,7 +46,6 @@ const Contracts = {
   [ContractsNames.CarbonVoucher]: CarbonVoucher,
   [ContractsNames.BancorArbitrage]: BancorArbitrage,
   [ContractsNames.LiquidityProtectionStore]: LiquidityProtectionStore,
-  [ContractsNames.ReferralReader]: ReferralReader,
   [ContractsNames.ReferralStorage]: ReferralStorage,
 };
 
@@ -140,8 +131,6 @@ export class HarvesterService {
     private configService: ConfigService,
   ) {}
 
-
-
   async fetchEventsFromBlockchain(
     contractName: ContractsNames,
     eventName: string,
@@ -181,17 +170,14 @@ export class HarvesterService {
         startBlock += deployment.harvestEventsBatchSize
       ) {
         const endBlock = Math.min(startBlock + deployment.harvestEventsBatchSize - 1, range.rangeEnd, toBlock);
-        
         tasks.push(
           concurrency(async () => {
-            try {
-             
-              const _events = await contract.getPastEvents(eventName, { fromBlock: startBlock, toBlock: endBlock });
-              if (_events.length > 0) {
-                _events.forEach((e) => events.push(e));
-              }
-            } catch (error) {
-              
+            const _events = await contract.getPastEvents(eventName, {
+              fromBlock: startBlock,
+              toBlock: endBlock,
+            });
+            if (_events.length > 0) {
+              _events.forEach((e) => events.push(e));
             }
           }),
         );
@@ -220,7 +206,6 @@ export class HarvesterService {
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-${args.entity}`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
     const result = [];
-    let anyEventsSaved = false;
 
     if (args.skipPreClearing !== true) {
       await this.preClear(args.repository, lastProcessedBlock, deployment);
@@ -238,8 +223,6 @@ export class HarvesterService {
         rangeStart + deployment.harvestEventsBatchSize * deployment.harvestConcurrency,
         args.endBlock,
       );
-
-      
 
       const events = await this.fetchEventsFromBlockchain(
         args.contractName,
@@ -278,12 +261,6 @@ export class HarvesterService {
             }
 
             if (e.returnValues['token0'] && e.returnValues['token1'] && args.tokens) {
-              
-              
-              
-              
-              
-              
               newEvent['token0'] = args.tokens[e.returnValues['token0']];
               newEvent['token1'] = args.tokens[e.returnValues['token1']];
             }
@@ -360,23 +337,14 @@ export class HarvesterService {
           }),
         );
 
-        try {
-          const batches = _.chunk(newEvents, 1000);
-          await Promise.all(batches.map((batch) => args.repository.save(batch)));
-          anyEventsSaved = true;
-          result.push(newEvents);
-        } catch (error) {
-          console.error(`Error saving events for ${args.entity} in range ${rangeStart}-${rangeEnd}: ${error.message}`);
-          throw error; // Re-throw to handle the error at a higher level
-        }
+        const batches = _.chunk(newEvents, 1000);
+        await Promise.all(batches.map((batch) => args.repository.save(batch)));
+
+        result.push(newEvents);
       }
 
-      // Only update the last processed block if we've successfully saved events to the database
-      // or if there were no events in this range (so we can skip it next time)
       if (args.skipLastProcessedBlockUpdate !== true) {
-        if (anyEventsSaved || events.length === 0) {
-          await this.lastProcessedBlockService.update(key, rangeEnd);
-        }
+        await this.lastProcessedBlockService.update(key, rangeEnd);
       }
     }
 
@@ -431,46 +399,13 @@ export class HarvesterService {
   }
 
   async stringsWithMulticallV3(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<string[]> {
-    
     const data = await this.withMulticallSei(addresses, abi, fn, deployment);
-    return data.map((r, index) => {
-      if (!r.success) {
-        
-        return '';
-      }
-      try {
-        const result = hexToString(r.data).replace(/[^a-zA-Z0-9]/g, '');
-        if (!result) {
-          
-        }
-        return result;
-      } catch (error) {
-        
-        return '';
-      }
-    });
+    return data.map((r) => hexToString(r).replace(/[^a-zA-Z0-9]/g, ''));
   }
 
   async integersWithMulticallSei(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<number[]> {
-    
     const data = await this.withMulticallSei(addresses, abi, fn, deployment);
-    return data.map((r, index) => {
-      if (!r.success) {
-        
-        return 0;
-      }
-      try {
-        const result = parseInt(r.data);
-        if (isNaN(result)) {
-          
-          return 0;
-        }
-        return result;
-      } catch (error) {
-        
-        return 0;
-      }
-    });
+    return data.map((r) => parseInt(r));
   }
   async withMulticallEthereum(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<any> {
     const web3 = new Web3(deployment.rpcEndpoint);
@@ -494,82 +429,23 @@ export class HarvesterService {
   }
 
   async withMulticallSei(addresses: string[], abi: any, fn: string, deployment: Deployment): Promise<any> {
-    
     const web3 = new Web3(deployment.rpcEndpoint);
-    const maxRetries = 3;
-    const retryDelay = 1000; // 1 second
 
-    const multicall: any = new web3.eth.Contract(multicallAbiSei, deployment.multicallAddress);
+    const multicall: any = new web3.eth.Contract(multicallAbiSei, deployment.multicallAddress); // Use multicallAddress from deployment
     let data = [];
     const batches = _.chunk(addresses, 1000);
-
     for (const batch of batches) {
-      
       const calls = [];
-      let failedContracts = 0;
-      
       batch.forEach((address) => {
-        try {
-          const contract = new web3.eth.Contract([abi], address);
-          calls.push({ target: contract.options.address, callData: contract.methods[fn]().encodeABI() });
-        } catch (error) {
-          
-          failedContracts++;
-          // Push null to maintain array index alignment
-          calls.push(null);
-        }
+        const contract = new web3.eth.Contract([abi], address);
+        calls.push({ target: contract.options.address, callData: contract.methods[fn]().encodeABI() });
       });
 
-      if (failedContracts > 0) {
-        
-      }
-
-      // Filter out null calls
-      const validCalls = calls.filter(call => call !== null);
-
-      if (validCalls.length > 0) {
-        
-        let lastError;
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            const result = await multicall.methods.aggregate(validCalls).call();
-            
-            
-            // Map the results back to the original array positions
-            let resultIndex = 0;
-            const batchData = calls.map(call => {
-              if (call === null) {
-                return { success: false, data: '0x' };
-              }
-              return { 
-                success: true, 
-                data: result.returnData[resultIndex++] 
-              };
-            });
-            
-            data = data.concat(batchData);
-            break;
-          } catch (error) {
-            lastError = error;
-            
-            if (attempt < maxRetries) {
-              const delay = retryDelay * attempt;
-              
-              await new Promise(resolve => setTimeout(resolve, delay));
-            }
-          }
-        }
-        if (lastError && data.length === 0) {
-          const errorMsg = `[metadatatokens] Failed to fetch data after ${maxRetries} attempts for ${deployment.blockchainType}: ${lastError.message}`;
-          
-          throw new Error(errorMsg);
-        }
-      } else {
-        
+      if (calls.length > 0) {
+        const result = await multicall.methods.aggregate(calls).call();
+        data = data.concat(result.returnData);
       }
     }
-    
-    
     return data;
   }
 }

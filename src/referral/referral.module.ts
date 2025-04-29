@@ -1,45 +1,39 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
-import { ReferralEventService } from './referral-event.service';
-import { ReferralCode } from './entities/referral-code.entity';
-import { GovSetCodeOwnerEvent } from './entities/depreciated_events/gov-set-code-owner.entity';
-import { SetCodeOwnerEvent } from './entities/depreciated_events/set-code-owner.entity';
-import { SetHandlerEvent } from './entities/depreciated_events/set-handler.entity';
-import { SetReferrerDiscountShareEvent } from './entities/depreciated_events/set-referrer-discount-share.entity';
-import { SetReferrerTierEvent } from './entities/depreciated_events/set-referrer-tier.entity';
-import { SetTierEvent } from './entities/depreciated_events/set-tier.entity';
-import { SetTraderReferralCodeEvent } from './entities/depreciated_events/set-trader-referral-code.entity';
-import { TraderStats } from './entities/trader-stats.entity';
-import { ReferrerStats } from './entities/referrer-stats.entity';
+import { ReferralCode } from './referral-code.entity';
+import { ReferralState } from './referral-state.entity';
 import { DeploymentModule } from '../deployment/deployment.module';
 import { HarvesterModule } from '../harvester/harvester.module';
 import { LastProcessedBlockModule } from '../last-processed-block/last-processed-block.module';
+import { RegisterCodeEventModule } from '../events/register-code-event/register-code-event.module';
+import { GovSetCodeOwnerEventModule } from '../events/gov-set-code-owner-event/gov-set-code-owner-event.module';
+import { SetCodeOwnerEventModule } from '../events/set-code-owner-event/set-code-owner-event.module';
+import { SetHandlerEventModule } from '../events/set-handler-event/set-handler-event.module';
+import { SetReferrerDiscountShareEventModule } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.module';
+import { SetReferrerTierEventModule } from '../events/set-referrer-tier-event/set-referrer-tier-event.module';
+import { SetTierEventModule } from '../events/set-tier-event/set-tier-event.module';
+import { SetTraderReferralCodeEventModule } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.module';
+import { ReferralV2Service } from './referral-v2.service';
 
 @Module({
   imports: [
-    ConfigModule,
-    DeploymentModule,
-    forwardRef(() => HarvesterModule),
-    LastProcessedBlockModule,
     TypeOrmModule.forFeature([
       ReferralCode,
-      GovSetCodeOwnerEvent,
-      SetCodeOwnerEvent,
-      SetHandlerEvent,
-      SetReferrerDiscountShareEvent,
-      SetReferrerTierEvent,
-      SetTierEvent,
-      SetTraderReferralCodeEvent,
-      TraderStats,
-      ReferrerStats,
+      ReferralState
     ]),
+    DeploymentModule,
+    HarvesterModule,
+    LastProcessedBlockModule,
+    RegisterCodeEventModule,
+    GovSetCodeOwnerEventModule,
+    SetCodeOwnerEventModule,
+    SetHandlerEventModule,
+    SetReferrerDiscountShareEventModule,
+    SetReferrerTierEventModule,
+    SetTierEventModule,
+    SetTraderReferralCodeEventModule
   ],
-  providers: [
-    ReferralEventService,
-  ],
-  exports: [
-    ReferralEventService,
-  ],
+  providers: [ReferralV2Service],
+  exports: [ReferralV2Service]
 })
 export class ReferralModule {} 

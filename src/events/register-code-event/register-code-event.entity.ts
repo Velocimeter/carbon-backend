@@ -14,7 +14,7 @@ import { BlockchainType, ExchangeId } from '../../deployment/deployment.service'
 @Entity({ name: 'register_code_events' })
 @Unique(['transactionIndex', 'transactionHash', 'logIndex'])
 @Index(['code', 'blockchainType', 'exchangeId'])
-@Index(['referrer', 'blockchainType', 'exchangeId'])
+@Index(['account', 'blockchainType', 'exchangeId'])
 export class RegisterCodeEvent {
   @PrimaryGeneratedColumn()
   id: number;
@@ -40,7 +40,7 @@ export class RegisterCodeEvent {
 
   @Column({ type: 'varchar', length: 42 })
   @Index()
-  referrer: string;
+  account: string;
 
   @Column({ name: 'chain_id', type: 'int' })
   @Index()

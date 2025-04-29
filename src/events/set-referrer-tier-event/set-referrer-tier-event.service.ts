@@ -4,30 +4,41 @@ import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 import { SetReferrerTierEvent } from './set-referrer-tier-event.entity';
+import { NETWORK_IDS } from '../../codex/codex.service';
 
 @Injectable()
 export class SetReferrerTierEventService {
   constructor(
     @InjectRepository(SetReferrerTierEvent)
-    private readonly setReferrerTierEventRepository: Repository<SetReferrerTierEvent>,
-    private readonly harvesterService: HarvesterService,
+    private repository: Repository<SetReferrerTierEvent>,
+    private harvesterService: HarvesterService,
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
+    if (!deployment.contracts[ContractsNames.ReferralStorage]) {
+      return;
+    }
+
+    const chainId = NETWORK_IDS[deployment.blockchainType];
+    if (!chainId) {
+      return;
+    }
+
     await this.harvesterService.processEvents({
-      entity: 'referral-set-referrer-tier',
+      entity: 'set-referrer-tier-events',
       contractName: ContractsNames.ReferralStorage,
       eventName: 'SetReferrerTier',
       endBlock,
-      repository: this.setReferrerTierEventRepository,
+      repository: this.repository,
       stringFields: ['referrer', 'tierId'],
-      bigNumberFields: [],
+      constants: [{ key: 'chainId', value: chainId }],
+      tagTimestampFromBlock: true,
       deployment,
     });
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<SetReferrerTierEvent[]> {
-    return this.setReferrerTierEventRepository
+    return this.repository
       .createQueryBuilder('setReferrerTierEvents')
       .leftJoinAndSelect('setReferrerTierEvents.block', 'block')
       .where('block.id >= :startBlock', { startBlock })

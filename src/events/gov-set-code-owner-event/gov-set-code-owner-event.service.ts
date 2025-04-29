@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames, CustomFnArgs } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
-import { GovSetCodeOwnerEvent } from '../../referral/entities/depreciated_events/gov-set-code-owner.entity';
+import { GovSetCodeOwnerEvent } from './gov-set-code-owner-event.entity';
+import { NETWORK_IDS } from '../../codex/codex.service';
 
 @Injectable()
 export class GovSetCodeOwnerEventService {
@@ -21,7 +22,7 @@ export class GovSetCodeOwnerEventService {
       return;
     }
 
-    const chainId = this.getChainIdForBlockchain(deployment.blockchainType);
+    const chainId = NETWORK_IDS[deployment.blockchainType];
     
     try {
       await this.harvesterService.processEvents({
@@ -32,30 +33,13 @@ export class GovSetCodeOwnerEventService {
         repository: this.govSetCodeOwnerRepository,
         stringFields: ['newAccount'],
         customFns: [this.decodeReferralCode],
-        customData: { chainId },
+        constants: [{ key: 'chainId', value: chainId }],
         tagTimestampFromBlock: true,
         deployment,
       });
     } catch (error) {
       this.logger.error(`Error processing GovSetCodeOwner events: ${error.message}`);
       throw error;
-    }
-  }
-
-  private getChainIdForBlockchain(blockchainType: string): number {
-    switch (blockchainType) {
-      case 'berachain':
-        return 80085;
-      case 'ethereum':
-        return 1;
-      case 'arbitrum':
-        return 42161;
-      case 'optimism':
-        return 10;
-      case 'base':
-        return 8453;
-      default:
-        return 1;
     }
   }
 

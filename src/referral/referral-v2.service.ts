@@ -1,18 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Brackets } from 'typeorm';
+import { Repository } from 'typeorm';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
-import { ReferralCode } from './entities/referral-code.entity';
-import { ReferralState } from './entities/referral-state.entity';
-import { BlockchainType, Deployment } from '../deployment/deployment.service';
+import { ReferralState } from './referral-state.entity';
+import { Deployment } from '../deployment/deployment.service';
 import { RegisterCodeEventService } from '../events/register-code-event/register-code-event.service';
-import { GovSetCodeOwnerEventService } from '../events/gov-set-code-owner-event/gov-set-code-owner-event.service';
-import { SetCodeOwnerEventService } from '../events/set-code-owner-event/set-code-owner-event.service';
-import { SetHandlerEventService } from '../events/set-handler-event/set-handler-event.service';
-import { SetReferrerDiscountShareEventService } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.service';
+import { SetTraderReferralCodeEventService } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.service';
 import { SetReferrerTierEventService } from '../events/set-referrer-tier-event/set-referrer-tier-event.service';
 import { SetTierEventService } from '../events/set-tier-event/set-tier-event.service';
-import { SetTraderReferralCodeEventService } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.service';
+import { SetReferrerDiscountShareEventService } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.service';
 
 // Default tier values
 const DEFAULT_TIER = {
@@ -29,6 +25,7 @@ interface CodeState {
   totalRebate: string;
   discountShare: string;
   lastProcessedBlock: number;
+  blockId: number;
 }
 
 @Injectable()
@@ -38,32 +35,38 @@ export class ReferralV2Service {
   private readonly SAVE_BATCH_SIZE = 1000; // Number of referrals to save at once
 
   constructor(
-    @InjectRepository(ReferralCode)
-    private readonly referralCodeRepository: Repository<ReferralCode>,
     @InjectRepository(ReferralState)
     private readonly referralStateRepository: Repository<ReferralState>,
     private readonly lastProcessedBlockService: LastProcessedBlockService,
     private readonly registerCodeEventService: RegisterCodeEventService,
-    private readonly govSetCodeOwnerEventService: GovSetCodeOwnerEventService,
-    private readonly setCodeOwnerEventService: SetCodeOwnerEventService,
-    private readonly setHandlerEventService: SetHandlerEventService,
-    private readonly setReferrerDiscountShareEventService: SetReferrerDiscountShareEventService,
+    private readonly setTraderReferralCodeEventService: SetTraderReferralCodeEventService,
     private readonly setReferrerTierEventService: SetReferrerTierEventService,
     private readonly setTierEventService: SetTierEventService,
-    private readonly setTraderReferralCodeEventService: SetTraderReferralCodeEventService,
+    private readonly setReferrerDiscountShareEventService: SetReferrerDiscountShareEventService,
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
+    // First, process all events through their respective services
+    await Promise.all([
+      this.registerCodeEventService.update(endBlock, deployment),
+      this.setTraderReferralCodeEventService.update(endBlock, deployment),
+      this.setReferrerTierEventService.update(endBlock, deployment),
+      this.setTierEventService.update(endBlock, deployment),
+      this.setReferrerDiscountShareEventService.update(endBlock, deployment),
+    ]);
+
+    // Then handle state updates
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-referrals-v2`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
     
     // Clean up existing states for this batch range
     await this.referralStateRepository
-      .createQueryBuilder()
+      .createQueryBuilder('state')
       .delete()
-      .where('"lastProcessedBlock" >= :lastProcessedBlock', { lastProcessedBlock })
-      .andWhere('"blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType })
-      .andWhere('"exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
+      .from(ReferralState)
+      .where('last_processed_block >= :lastProcessedBlock', { lastProcessedBlock })
+      .andWhere('blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+      .andWhere('exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
       .execute();
 
     // Initialize state map of codes and their current tier info
@@ -74,7 +77,7 @@ export class ReferralV2Service {
     for (let batchStart = lastProcessedBlock; batchStart < endBlock; batchStart += this.BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + this.BATCH_SIZE - 1, endBlock);
 
-      // Fetch all relevant events in parallel
+      // Fetch all relevant events in parallel using event services
       const [
         registerCodeEvents,
         setTraderReferralCodeEvents,
@@ -104,11 +107,12 @@ export class ReferralV2Service {
             // When a code is registered, just track it in codeStates
             codeStates.set(event.code, {
               code: event.code,
-              owner: event.referrer,
+              owner: event.account,
               tierId: DEFAULT_TIER.tierId,
               totalRebate: DEFAULT_TIER.totalRebate,
               discountShare: DEFAULT_TIER.discountShare,
-              lastProcessedBlock: event.block.id
+              lastProcessedBlock: event.block.id,
+              blockId: event.block.id
             });
             break;
           }
@@ -126,6 +130,7 @@ export class ReferralV2Service {
               state.chainId = event.chainId;
               state.timestamp = event.timestamp;
               state.lastProcessedBlock = event.block.id;
+              state.blockId = event.block.id;
               state.tierId = codeState.tierId;
               state.totalRebate = codeState.totalRebate;
               state.discountShare = codeState.discountShare;
@@ -140,12 +145,14 @@ export class ReferralV2Service {
               if (state.owner.toLowerCase() === event.referrer.toLowerCase()) {
                 state.tierId = event.tierId;
                 state.lastProcessedBlock = event.block.id;
+                state.blockId = event.block.id;
                 
                 // Update all traders using this referrer's codes
                 const updatedStates = states.filter(s => s.code === code);
                 for (const traderState of updatedStates) {
                   traderState.tierId = event.tierId;
                   traderState.lastProcessedBlock = event.block.id;
+                  traderState.blockId = event.block.id;
                 }
               }
             }
@@ -158,6 +165,7 @@ export class ReferralV2Service {
                 state.totalRebate = event.totalRebate;
                 state.discountShare = event.discountShare;
                 state.lastProcessedBlock = event.block.id;
+                state.blockId = event.block.id;
                 
                 // Update all traders using codes with this tier
                 const updatedStates = states.filter(s => s.code === code);
@@ -165,6 +173,7 @@ export class ReferralV2Service {
                   traderState.totalRebate = event.totalRebate;
                   traderState.discountShare = event.discountShare;
                   traderState.lastProcessedBlock = event.block.id;
+                  traderState.blockId = event.block.id;
                 }
               }
             }
@@ -206,11 +215,11 @@ export class ReferralV2Service {
     const lastStates = await this.referralStateRepository
       .createQueryBuilder('state')
       .distinctOn(['state.code'])
-      .where('state."lastProcessedBlock" <= :lastProcessedBlock', { lastProcessedBlock })
-      .andWhere('state."blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType })
-      .andWhere('state."exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
+      .where('state.last_processed_block >= :lastProcessedBlock', { lastProcessedBlock })
+      .andWhere('state.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+      .andWhere('state.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
       .orderBy('state.code')
-      .addOrderBy('state."lastProcessedBlock"', 'DESC')
+      .addOrderBy('state.last_processed_block', 'DESC')
       .getMany();
 
     // Initialize the state map
@@ -221,7 +230,8 @@ export class ReferralV2Service {
         tierId: state.tierId,
         totalRebate: state.totalRebate,
         discountShare: state.discountShare,
-        lastProcessedBlock: state.lastProcessedBlock
+        lastProcessedBlock: state.lastProcessedBlock,
+        blockId: state.blockId
       });
     }
   }
@@ -231,7 +241,7 @@ export class ReferralV2Service {
       .where('LOWER(state.trader) = LOWER(:trader)', { trader });
     
     if (chainId) {
-      queryBuilder.andWhere('state.chainId = :chainId', { chainId });
+      queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
     
     return queryBuilder.getOne();
@@ -242,7 +252,7 @@ export class ReferralV2Service {
       .where('state.code = :code', { code });
     
     if (chainId) {
-      queryBuilder.andWhere('state.chainId = :chainId', { chainId });
+      queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
     
     return queryBuilder.getMany();
@@ -253,7 +263,7 @@ export class ReferralV2Service {
       .where('LOWER(state.owner) = LOWER(:owner)', { owner });
     
     if (chainId) {
-      queryBuilder.andWhere('state.chainId = :chainId', { chainId });
+      queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
     
     return queryBuilder.getMany();
@@ -275,7 +285,7 @@ export class ReferralV2Service {
       .select([
         'state.trader',
         'state.code',
-        'state.codeDecoded',
+        'state.code_decoded',
         'state.tierId',
         'state.totalRebate',
         'state.discountShare',
@@ -285,7 +295,7 @@ export class ReferralV2Service {
       .orderBy('state.timestamp', 'DESC');
     
     if (chainId) {
-      queryBuilder.andWhere('state.chainId = :chainId', { chainId });
+      queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
 
     const traders = await queryBuilder.getMany();
@@ -302,16 +312,5 @@ export class ReferralV2Service {
         timestamp: t.timestamp
       }))
     };
-  }
-
-  private getChainIdForBlockchain(blockchainType: BlockchainType): number {
-    switch (blockchainType) {
-      case BlockchainType.Ethereum:
-        return 1;
-      case BlockchainType.Base:
-        return 8453;
-      default:
-        throw new Error(`Unsupported blockchain type: ${blockchainType}`);
-    }
   }
 } 
