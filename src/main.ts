@@ -72,10 +72,9 @@ async function bootstrap() {
       await app.listen(port);
       logger.log('HTTP server successfully started');
       logger.log(`Application is running on: http://localhost:${port}`);
-    } catch (listenError) {
-      logger.error('Failed to start HTTP server:', listenError);
-      // Don't exit process here since other services might need to run
-      // Just log the error
+    } catch (error) {
+      logger.error('Failed to start HTTP server:', error);
+      process.exit(1);
     }
   } catch (error) {
     logger.error('Failed to start application:', error);
@@ -85,10 +84,12 @@ async function bootstrap() {
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
 });
 
 bootstrap();
