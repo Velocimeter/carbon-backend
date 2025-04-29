@@ -3,7 +3,7 @@ import * as dotenv from 'dotenv';
 
 // Only load .env in development
 if (process.env.NODE_ENV !== 'production') {
-  dotenv.config();
+  dotenv.config({ override: true });
 }
 
 // Debug connection info

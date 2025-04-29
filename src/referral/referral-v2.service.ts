@@ -55,7 +55,189 @@ export class ReferralV2Service {
       this.setReferrerDiscountShareEventService.update(endBlock, deployment),
     ]);
 
-    // Get all events
+    // Get the key for last processed block
+    const key = `${deployment.blockchainType}-${deployment.exchangeId}-referral_states`;
+    const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
+
+    // Check if we have any existing states
+    const existingStatesCount = await this.referralStateRepository.count({
+      where: {
+        blockchainType: deployment.blockchainType,
+        exchangeId: deployment.exchangeId
+      }
+    });
+
+    this.logger.log(`Last processed block: ${lastProcessedBlock}, existing states: ${existingStatesCount}`);
+
+    // If no states exist, do a full rebuild from scratch
+    if (existingStatesCount === 0) {
+      this.logger.log('No existing states found, doing full rebuild');
+      await this.rebuildAllStates(endBlock, deployment);
+      return;
+    }
+
+    // Otherwise, just process new events since last run
+    this.logger.log(`Processing new events from block ${lastProcessedBlock} to ${endBlock}`);
+    
+    // Get new events since last processed block
+    const [
+      registerCodeEvents,    // Get all register events as we need them for lookups
+      newTraderCodeEvents,   // But only new trader code events
+      setReferrerTierEvents, // Get all tier events as they affect all traders using that referrer's code
+      setTierEvents,         // Get all tier events as they affect all traders
+    ] = await Promise.all([
+      this.registerCodeEventService.get(0, endBlock, deployment),
+      this.setTraderReferralCodeEventService.get(lastProcessedBlock + 1, endBlock, deployment),
+      this.setReferrerTierEventService.get(0, endBlock, deployment),
+      this.setTierEventService.get(0, endBlock, deployment),
+    ]);
+
+    this.logger.log(`Found new events:
+      Register Code Events (all): ${registerCodeEvents.length}
+      New Trader Code Events: ${newTraderCodeEvents.length}
+      Referrer Tier Events (all): ${setReferrerTierEvents.length}
+      Tier Events (all): ${setTierEvents.length}
+    `);
+
+    // Process new trader code events
+    const latestStateByTrader = new Map<string, ReferralState>();
+
+    for (const event of newTraderCodeEvents) {
+      // Find who owns this code
+      const registerEvent = registerCodeEvents
+        .filter(e => e.code === event.code)
+        .sort((a, b) => b.block.id - a.block.id)[0];
+
+      if (!registerEvent) {
+        this.logger.warn(`No register event found for code ${event.code}`);
+        continue;
+      }
+
+      // Find referrer's tier
+      const referrerTierEvent = setReferrerTierEvents
+        .filter(e => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
+        .sort((a, b) => b.block.id - a.block.id)[0];
+
+      const tierId = referrerTierEvent?.tierId || DEFAULT_TIER.tierId;
+
+      // Find tier details
+      const tierEvent = setTierEvents
+        .filter(e => e.tierId === tierId)
+        .sort((a, b) => b.block.id - a.block.id)[0];
+
+      // Create state
+      const state = new ReferralState();
+      state.blockchainType = deployment.blockchainType;
+      state.exchangeId = deployment.exchangeId;
+      state.trader = event.account;
+      state.code = event.code;
+      state.codeDecoded = event.codeDecoded;
+      state.owner = registerEvent.account;
+      state.chainId = event.chainId;
+      state.timestamp = event.timestamp;
+      state.lastProcessedBlock = event.block.id;
+      state.blockId = event.block.id;
+      state.tierId = tierId;
+      state.totalRebate = tierEvent?.totalRebate || DEFAULT_TIER.totalRebate;
+      state.discountShare = tierEvent?.discountShare || DEFAULT_TIER.discountShare;
+
+      // Only keep the latest state for each trader
+      const existingState = latestStateByTrader.get(state.trader.toLowerCase());
+      if (!existingState || existingState.blockId < state.blockId) {
+        latestStateByTrader.set(state.trader.toLowerCase(), state);
+      }
+    }
+
+    // Also update states for any traders whose referrer's tier changed
+    if (setReferrerTierEvents.length > 0 || setTierEvents.length > 0) {
+      // Get all existing states that might need updating
+      const existingStates = await this.referralStateRepository.find({
+        where: {
+          blockchainType: deployment.blockchainType,
+          exchangeId: deployment.exchangeId
+        }
+      });
+
+      for (const state of existingStates) {
+        // Find the register event for this code to get the owner
+        const registerEvent = registerCodeEvents
+          .filter(e => e.code === state.code)
+          .sort((a, b) => b.block.id - a.block.id)[0];
+
+        if (!registerEvent) continue;
+
+        // Check if the referrer's tier changed
+        const referrerTierEvent = setReferrerTierEvents
+          .filter(e => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
+          .sort((a, b) => b.block.id - a.block.id)[0];
+
+        if (!referrerTierEvent && !setTierEvents.length) continue;
+
+        const tierId = referrerTierEvent?.tierId || state.tierId;
+
+        // Find tier details
+        const tierEvent = setTierEvents
+          .filter(e => e.tierId === tierId)
+          .sort((a, b) => b.block.id - a.block.id)[0];
+
+        if (!tierEvent) continue;
+
+        // Update tier info if changed
+        if (tierEvent.totalRebate !== state.totalRebate || 
+            tierEvent.discountShare !== state.discountShare ||
+            tierId !== state.tierId) {
+          state.tierId = tierId;
+          state.totalRebate = tierEvent.totalRebate;
+          state.discountShare = tierEvent.discountShare;
+          state.lastProcessedBlock = Math.max(
+            referrerTierEvent?.block?.id || 0,
+            tierEvent.block.id
+          );
+          latestStateByTrader.set(state.trader.toLowerCase(), state);
+        }
+      }
+    }
+
+    const statesToUpdate = Array.from(latestStateByTrader.values());
+    this.logger.log(`Updating ${statesToUpdate.length} states`);
+
+    // Save states in batches using upsert
+    for (let i = 0; i < statesToUpdate.length; i += this.SAVE_BATCH_SIZE) {
+      const batch = statesToUpdate.slice(i, i + this.SAVE_BATCH_SIZE);
+      try {
+        await this.referralStateRepository
+          .createQueryBuilder()
+          .insert()
+          .into(ReferralState)
+          .values(batch)
+          .orUpdate([
+            "code",
+            "code_decoded", 
+            "owner",
+            "tierId",
+            "totalRebate",
+            "discountShare",
+            "last_processed_block",
+            "block_id",
+            "timestamp",
+            "blockchainType",
+            "exchangeId"
+          ], ["trader", "chain_id"])
+          .execute();
+
+        this.logger.log(`Saved batch of ${batch.length} states`);
+      } catch (error) {
+        this.logger.error(`Failed to save batch: ${error.message}`);
+        throw error;
+      }
+    }
+
+    // Update last processed block
+    await this.lastProcessedBlockService.update(key, endBlock);
+  }
+
+  private async rebuildAllStates(endBlock: number, deployment: Deployment): Promise<void> {
+    // Get all historical events
     const [
       registerCodeEvents,
       setTraderReferralCodeEvents,
@@ -68,15 +250,13 @@ export class ReferralV2Service {
       this.setTierEventService.get(0, endBlock, deployment),
     ]);
 
-    this.logger.log(`Found events:
+    this.logger.log(`Found events for rebuild:
       Register Code Events: ${registerCodeEvents.length}
       Trader Code Events: ${setTraderReferralCodeEvents.length}
       Referrer Tier Events: ${setReferrerTierEvents.length}
       Tier Events: ${setTierEvents.length}
     `);
 
-    // Build states from trader code events
-    const states: ReferralState[] = [];
     const latestStateByTrader = new Map<string, ReferralState>();
 
     for (const event of setTraderReferralCodeEvents) {
@@ -125,15 +305,13 @@ export class ReferralV2Service {
       }
     }
 
-    // Convert map to array of states
-    const deduplicatedStates = Array.from(latestStateByTrader.values());
-    this.logger.log(`Created ${deduplicatedStates.length} states to save after deduplication`);
+    const states = Array.from(latestStateByTrader.values());
+    this.logger.log(`Created ${states.length} states to save for rebuild`);
 
     // Save states in batches using upsert
-    for (let i = 0; i < deduplicatedStates.length; i += this.SAVE_BATCH_SIZE) {
-      const batch = deduplicatedStates.slice(i, i + this.SAVE_BATCH_SIZE);
+    for (let i = 0; i < states.length; i += this.SAVE_BATCH_SIZE) {
+      const batch = states.slice(i, i + this.SAVE_BATCH_SIZE);
       try {
-        // Use upsert to handle duplicates
         await this.referralStateRepository
           .createQueryBuilder()
           .insert()

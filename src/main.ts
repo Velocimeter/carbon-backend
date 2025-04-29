@@ -4,6 +4,12 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { LoggingMiddleware } from './logging.middleware';
 
+if (process.env.NODE_ENV !== 'production') {
+  // Only override in non-production environments
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('dotenv').config({ override: true });
+}
+
 async function bootstrap() {
   // Create logger instance
   const logger = new Logger('Bootstrap');
@@ -12,6 +18,7 @@ async function bootstrap() {
   logger.log('⚠️ Environment variable check:');
   logger.log(`REDIS_URL: ${process.env.REDIS_URL}`);
   logger.log(`NODE_ENV: ${process.env.NODE_ENV}`);
+  logger.log(`DATABASE_URL: ${process.env.DATABASE_URL}`);
   
   try {
     logger.log('Creating NestJS application...');
@@ -66,7 +73,7 @@ async function bootstrap() {
 
     const port = process.env.PORT || 3000;
     await app.listen(port);
-    console.log(`Application is running on: http://localhost:${port}`);
+    logger.log(`Application is running on: http://localhost:${port}`);
   } catch (error) {
     logger.error('Failed to start application:', error);
     process.exit(1);
