@@ -83,10 +83,10 @@ export class DeploymentService {
     this.deployments = this.initializeDeployments();
     // Initialize only specific deployments as active
     this.setActiveDeployments([
-      // BlockchainType.Base,
+       BlockchainType.Base,
          BlockchainType.Berachain,
       //   BlockchainType.Fantom,
-      // BlockchainType.Mantle,
+       BlockchainType.Mantle,
        BlockchainType.Sonic,
     ]);
   }
