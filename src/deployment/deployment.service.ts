@@ -88,6 +88,7 @@ export class DeploymentService {
       //   BlockchainType.Fantom,
        BlockchainType.Mantle,
        BlockchainType.Sonic,
+       BlockchainType.Iota,
     ]);
   }
 
