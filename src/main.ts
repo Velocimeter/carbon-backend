@@ -7,10 +7,10 @@ import { LoggingInterceptor } from './logging.interceptor';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { 
     cors: {
-      origin: true, // You can specify specific origins instead of true
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      allowedHeaders: ['Content-Type', 'Accept', 'Authorization'],
-      credentials: true,
+      origin: '*',
+      methods: '*',
+      allowedHeaders: '*',
+      credentials: false
     },
     logger: ['error', 'warn', 'log', 'debug', 'verbose'], // Enable all log levels
   });
@@ -34,7 +34,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('', app, document);
 
-  await app.listen(3000, '0.0.0.0'); // Restore listening on all interfaces
+  await app.listen(3000, '0.0.0.0'); // Listening on all interfaces
 }
 
 bootstrap();
