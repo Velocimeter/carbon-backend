@@ -8,5 +8,6 @@
     ]
   },
   "debug.javascript.autoAttachFilter": "disabled",
-  "debug.javascript.usePreview": false
+  "debug.javascript.usePreview": false,
+  "window.menuBarVisibility": "classic"
 }

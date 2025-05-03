@@ -140,3 +140,4 @@ src/.DS_Store
 erd.mmd
 erd.svg
 *.mau
+.vscode/settings.json

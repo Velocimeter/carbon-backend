@@ -33,18 +33,19 @@ export class ReferralService {
     private referralStateRepository: Repository<ReferralState>,
   ) {}
 
-  async getReferralRelationships(chainId?: number): Promise<ReferralOwnerEntry[]> {
-    this.logger.log(`Getting referral relationships${chainId ? ` for chainId: ${chainId}` : ''}`);
+  async getReferralRelationships(blockchainType: string, chainId?: number): Promise<ReferralOwnerEntry[]> {
+    this.logger.log(`Getting referral relationships for ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`);
 
     // First, get all relationships from the states
     const query = this.referralStateRepository.createQueryBuilder('state')
       .select('state.codeDecoded', 'codeDecoded')
       .addSelect('LOWER(state.owner)', 'owner')
       .addSelect('state.trader', 'trader')
-      .orderBy('state.timestamp', 'DESC');
+      .orderBy('state.timestamp', 'DESC')
+      .where('state.blockchainType = :blockchainType', { blockchainType });
 
     if (chainId) {
-      query.where('state.chainId = :chainId', { chainId });
+      query.andWhere('state.chainId = :chainId', { chainId });
     }
 
     // Execute query for relationships
@@ -56,10 +57,11 @@ export class ReferralService {
     const codesQuery = this.referralStateRepository.createQueryBuilder('state')
       .select('state.codeDecoded', 'codeDecoded')
       .addSelect('LOWER(state.owner)', 'owner')
-      .distinctOn(['state.codeDecoded']);
+      .distinctOn(['state.codeDecoded'])
+      .where('state.blockchainType = :blockchainType', { blockchainType });
 
     if (chainId) {
-      codesQuery.where('state.chainId = :chainId', { chainId });
+      codesQuery.andWhere('state.chainId = :chainId', { chainId });
     }
 
     const allCodes = await codesQuery.getRawMany();
@@ -67,7 +69,7 @@ export class ReferralService {
     this.logger.debug('First few codes:', allCodes.slice(0, 3));
 
     // Get tier information for all referrers
-    const tiersMap = await this.getTierInformationForAffiliates(chainId);
+    const tiersMap = await this.getTierInformationForAffiliates(blockchainType, chainId);
     this.logger.log(`Found tier information for ${tiersMap.size} referrers`);
 
     // Create a map to group by owner
@@ -148,16 +150,17 @@ export class ReferralService {
   }
 
   // Helper method to get tier information for all affiliates
-  private async getTierInformationForAffiliates(chainId?: number): Promise<Map<string, any>> {
+  private async getTierInformationForAffiliates(blockchainType: string, chainId?: number): Promise<Map<string, any>> {
     // Get the latest tier assignment for each referrer
     const referrerTiersQuery = this.referralStateRepository.createQueryBuilder('state')
       .select('LOWER(state.owner)', 'owner')
       .addSelect('state.tierId', 'tierId')
       .addSelect('state.timestamp', 'timestamp')
-      .orderBy('state.timestamp', 'DESC');
+      .orderBy('state.timestamp', 'DESC')
+      .where('state.blockchainType = :blockchainType', { blockchainType });
     
     if (chainId) {
-      referrerTiersQuery.where('state.chainId = :chainId', { chainId });
+      referrerTiersQuery.andWhere('state.chainId = :chainId', { chainId });
     }
     
     const referrerTiers = await referrerTiersQuery.getRawMany();
@@ -167,10 +170,11 @@ export class ReferralService {
       .select('state.tierId', 'tierId')
       .addSelect('state.totalRebate', 'totalRebate')
       .addSelect('state.discountShare', 'discountShare')
-      .orderBy('state.timestamp', 'DESC');
+      .orderBy('state.timestamp', 'DESC')
+      .where('state.blockchainType = :blockchainType', { blockchainType });
     
     if (chainId) {
-      tierDetailsQuery.where('state.chainId = :chainId', { chainId });
+      tierDetailsQuery.andWhere('state.chainId = :chainId', { chainId });
     }
     
     const tierDetails = await tierDetailsQuery.getRawMany();
@@ -224,7 +228,7 @@ export class ReferralService {
     return DEFAULT_TIER; // Return default tier values when no tier is assigned
   }
 
-  async getTraderCode(address: string, chainId?: number): Promise<{ 
+  async getTraderCode(blockchainType: string, address: string, chainId?: number): Promise<{ 
     code: string | null, 
     owner?: string,
     tier?: { 
@@ -233,7 +237,7 @@ export class ReferralService {
       discountShare: string 
     } 
   }> {
-    this.logger.log(`Getting trader code, owner and tier info for address: ${address}${chainId ? ` and chainId: ${chainId}` : ''}`);
+    this.logger.log(`Getting trader code, owner and tier info for address: ${address} on ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`);
     
     const query = this.referralStateRepository.createQueryBuilder('state')
       .select('state.codeDecoded', 'code')
@@ -242,27 +246,28 @@ export class ReferralService {
       .addSelect('state.totalRebate', 'totalRebate')
       .addSelect('state.discountShare', 'discountShare')
       .where('LOWER(state.trader) = LOWER(:address)', { address })
+      .andWhere('state.blockchainType = :blockchainType', { blockchainType })
       .orderBy('state.timestamp', 'DESC');
 
     if (chainId) {
       query.andWhere('state.chainId = :chainId', { chainId });
     }
 
-    const latestState = await query.getRawOne();
-
-    if (!latestState) {
-      this.logger.log(`No referral code found for trader: ${address}`);
+    const result = await query.getRawOne();
+    
+    if (!result) {
+      this.logger.log(`No code found for trader: ${address}`);
       return { code: null };
     }
 
-    this.logger.log(`Found referral code, owner and tier info for trader: ${address}`);
+    this.logger.log(`Found code for trader: ${address}`);
     return {
-      code: latestState.code,
-      owner: latestState.owner,
+      code: result.code,
+      owner: result.owner,
       tier: {
-        tierId: latestState.tierId,
-        totalRebate: latestState.totalRebate,
-        discountShare: latestState.discountShare
+        tierId: result.tierId,
+        totalRebate: result.totalRebate,
+        discountShare: result.discountShare
       }
     };
   }
