@@ -45,12 +45,25 @@ async function bootstrap() {
     logger.log('Swagger documentation setup complete');
 
     logger.log('Attempting to start server on port 3000...');
-    await app.listen(3000, '0.0.0.0');
-    logger.log('Server successfully started and listening on port 3000');
-    
-    // Log the URL the app is running at
-    const url = await app.getUrl();
-    logger.log(`Application is running on: ${url}`);
+    try {
+      await app.listen(3000, '0.0.0.0');
+      logger.log('Server successfully started and listening on port 3000');
+      
+      // Log the URL the app is running at
+      const url = await app.getUrl();
+      logger.log(`Application is running on: ${url}`);
+    } catch (serverError) {
+      logger.error('Failed to start server:', serverError);
+      logger.error('Server start error details:', {
+        code: serverError.code,
+        errno: serverError.errno,
+        syscall: serverError.syscall,
+        address: serverError.address,
+        port: serverError.port
+      });
+      logger.error('Server start error stack:', serverError.stack);
+      throw serverError; // Re-throw to be caught by outer try-catch
+    }
     
   } catch (error) {
     logger.error('Failed to start application:', error);
