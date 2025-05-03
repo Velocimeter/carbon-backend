@@ -46,7 +46,11 @@ async function bootstrap() {
 
     logger.log('Attempting to start server on port 3000...');
     try {
-      await app.listen(3000, '0.0.0.0');
+      logger.warn('[Debug] About to call app.listen()...');
+      await app.listen(3000, '0.0.0.0').catch(e => {
+        logger.error('[Debug] app.listen() rejected with:', e);
+        throw e;
+      });
       logger.log('Server successfully started and listening on port 3000');
       
       // Log the URL the app is running at
