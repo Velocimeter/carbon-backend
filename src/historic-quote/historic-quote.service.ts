@@ -90,7 +90,7 @@ export class HistoricQuoteService implements OnModuleInit {
     const seedCodexOnStartup = this.configService.get('SEED_CODEX_ON_STARTUP') === '1';
 
     if (seedCodexOnStartup) {
-      const blockchainType = BlockchainType.Sonic; // Set the specific chain here
+      const blockchainType = BlockchainType.Base; // Set the specific chain here
 
       try {
         await this.seedCodex(blockchainType);
