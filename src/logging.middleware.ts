@@ -8,6 +8,7 @@ export class LoggingMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
     const startTime = Date.now();
     const { method, originalUrl, query, headers } = req;
+    const logger = this.logger;  // Store reference to logger
 
     // Check for CORS preflight
     const isPreFlight = method === 'OPTIONS';
@@ -37,7 +38,7 @@ export class LoggingMiddleware implements NestMiddleware {
 
     // Override end to log response metadata only
     const originalEnd = res.end;
-    res.end = function (chunk: any, ...args: any[]) {
+    res.end = (...args: any[]) => {
       const responseTime = Date.now() - startTime;
 
       try {
@@ -55,15 +56,15 @@ export class LoggingMiddleware implements NestMiddleware {
         };
 
         if (res.statusCode >= 400) {
-          this.logger.error(logData);
+          logger.error(logData);
         } else {
-          this.logger.log(logData);
+          logger.log(logData);
         }
       } catch (error) {
-        this.logger.error('Error logging response:', error);
+        logger.error('Error logging response:', error);
       }
 
-      return originalEnd.apply(res, [chunk, ...args]);
+      return originalEnd.apply(res, args);
     };
 
     next();
