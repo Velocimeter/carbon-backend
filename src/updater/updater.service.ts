@@ -1,6 +1,6 @@
 import { Interval } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import * as _ from 'lodash';
 import { HarvesterService } from '../harvester/harvester.service';
 import { TokenService } from '../token/token.service';
@@ -30,11 +30,13 @@ export const CARBON_IS_UPDATING = 'carbon:isUpdating';
 export const CARBON_IS_UPDATING_ANALYTICS = 'carbon:isUpdatingAnalytics';
 
 @Injectable()
-export class UpdaterService implements OnModuleInit {
+export class UpdaterService implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(UpdaterService.name);
   private isUpdating: Record<string, boolean> = {};
   private isUpdatingAnalytics: Record<string, boolean> = {};
   private serviceErrors: Record<string, number> = {}; // Track error counts
+  private updateIntervals: Record<string, NodeJS.Timeout> = {}; // Track interval timers
+  private lastUpdateTime: Record<string, number> = {}; // Track last update time
 
   private logEnvironmentVariables() {
     this.logger.log('=== Carbon Service Environment Configuration ===');
@@ -153,6 +155,7 @@ export class UpdaterService implements OnModuleInit {
     const t = Date.now();
     try {
       this.isUpdating[deploymentKey] = true;
+      this.lastUpdateTime[deploymentKey] = Date.now();
       const lockDuration = parseInt(this.configService.get('CARBON_LOCK_DURATION')) || 30;
       await this.redis.client.setex(`${CARBON_IS_UPDATING}:${deploymentKey}`, lockDuration, 1);
 
@@ -281,5 +284,53 @@ export class UpdaterService implements OnModuleInit {
       this.isUpdatingAnalytics[deploymentKey] = false;
       await this.redis.client.set(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`, 0);
     }
+  }
+
+  // Methods for health check
+  getIsUpdating(deploymentKey: string): boolean {
+    return this.isUpdating[deploymentKey] || false;
+  }
+
+  getErrorCount(deploymentKey: string): number {
+    return this.serviceErrors[deploymentKey] || 0;
+  }
+
+  getLastUpdateTime(deploymentKey: string): number {
+    return this.lastUpdateTime[deploymentKey] || 0;
+  }
+
+  async onApplicationBootstrap() {
+    // Start processing only after application is fully bootstrapped
+    const shouldHarvest = this.configService.get('SHOULD_HARVEST');
+    if (shouldHarvest?.startsWith('1')) {
+      const deployments = this.deploymentService.getDeployments();
+      deployments.forEach((deployment) => {
+        const updateInterval = 5000;
+        this.scheduleDeploymentUpdate(deployment, updateInterval);
+      });
+    }
+  }
+
+  async onModuleDestroy() {
+    // Clean up all interval timers
+    Object.values(this.updateIntervals).forEach(interval => {
+      clearInterval(interval);
+    });
+    
+    // Wait for any in-progress updates to finish
+    const deployments = this.deploymentService.getDeployments();
+    await Promise.all(
+      deployments.map(async (deployment) => {
+        const deploymentKey = `${deployment.blockchainType}:${deployment.exchangeId}`;
+        if (this.isUpdating[deploymentKey]) {
+          this.logger.log(`Waiting for update to finish for ${deploymentKey}`);
+          // Wait up to 30 seconds for the update to finish
+          for (let i = 0; i < 30; i++) {
+            if (!this.isUpdating[deploymentKey]) break;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+      })
+    );
   }
 }
