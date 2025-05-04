@@ -1,6 +1,6 @@
 import { Interval } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as _ from 'lodash';
 import { HarvesterService } from '../harvester/harvester.service';
 import { TokenService } from '../token/token.service';
@@ -30,7 +30,7 @@ export const CARBON_IS_UPDATING = 'carbon:isUpdating';
 export const CARBON_IS_UPDATING_ANALYTICS = 'carbon:isUpdatingAnalytics';
 
 @Injectable()
-export class UpdaterService {
+export class UpdaterService implements OnModuleInit {
   private readonly logger = new Logger(UpdaterService.name);
   private isUpdating: Record<string, boolean> = {};
   private isUpdatingAnalytics: Record<string, boolean> = {};
@@ -119,15 +119,16 @@ export class UpdaterService {
     private referralV2Service: ReferralV2Service,
     @Inject('REDIS') private redis: any,
   ) {
-    // Log all environment variables first
     this.logEnvironmentVariables();
+  }
 
+  async onModuleInit() {
+    // Start processing only after modules are initialized
     const shouldHarvest = this.configService.get('SHOULD_HARVEST');
-    this.logger.log(`shouldHarvest: ${shouldHarvest}`);
     if (shouldHarvest?.startsWith('1')) {
       const deployments = this.deploymentService.getDeployments();
       deployments.forEach((deployment) => {
-        const updateInterval = 5000; // Customize the interval as needed
+        const updateInterval = 5000;
         this.scheduleDeploymentUpdate(deployment, updateInterval);
       });
     }
