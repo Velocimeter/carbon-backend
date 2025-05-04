@@ -1,216 +1,216 @@
 export const ReferralStorage = [
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "code",
-        "type": "bytes32"
+        indexed: false,
+        internalType: 'bytes32',
+        name: 'code',
+        type: 'bytes32',
       },
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "newAccount",
-        "type": "address"
-      }
+        indexed: false,
+        internalType: 'address',
+        name: 'newAccount',
+        type: 'address',
+      },
     ],
-    "name": "GovSetCodeOwner",
-    "type": "event"
+    name: 'GovSetCodeOwner',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'account',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "code",
-        "type": "bytes32"
-      }
+        indexed: false,
+        internalType: 'bytes32',
+        name: 'code',
+        type: 'bytes32',
+      },
     ],
-    "name": "RegisterCode",
-    "type": "event"
+    name: 'RegisterCode',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'account',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "newAccount",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'newAccount',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "code",
-        "type": "bytes32"
-      }
+        indexed: false,
+        internalType: 'bytes32',
+        name: 'code',
+        type: 'bytes32',
+      },
     ],
-    "name": "SetCodeOwner",
-    "type": "event"
+    name: 'SetCodeOwner',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "handler",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'handler',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "bool",
-        "name": "isActive",
-        "type": "bool"
-      }
+        indexed: false,
+        internalType: 'bool',
+        name: 'isActive',
+        type: 'bool',
+      },
     ],
-    "name": "SetHandler",
-    "type": "event"
+    name: 'SetHandler',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "referrer",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'referrer',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "discountShare",
-        "type": "uint256"
-      }
+        indexed: false,
+        internalType: 'uint256',
+        name: 'discountShare',
+        type: 'uint256',
+      },
     ],
-    "name": "SetReferrerDiscountShare",
-    "type": "event"
+    name: 'SetReferrerDiscountShare',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "referrer",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'referrer',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "tierId",
-        "type": "uint256"
-      }
+        indexed: false,
+        internalType: 'uint256',
+        name: 'tierId',
+        type: 'uint256',
+      },
     ],
-    "name": "SetReferrerTier",
-    "type": "event"
+    name: 'SetReferrerTier',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "tierId",
-        "type": "uint256"
+        indexed: false,
+        internalType: 'uint256',
+        name: 'tierId',
+        type: 'uint256',
       },
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "totalRebate",
-        "type": "uint256"
+        indexed: false,
+        internalType: 'uint256',
+        name: 'totalRebate',
+        type: 'uint256',
       },
       {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "discountShare",
-        "type": "uint256"
-      }
+        indexed: false,
+        internalType: 'uint256',
+        name: 'discountShare',
+        type: 'uint256',
+      },
     ],
-    "name": "SetTier",
-    "type": "event"
+    name: 'SetTier',
+    type: 'event',
   },
   {
-    "anonymous": false,
-    "inputs": [
+    anonymous: false,
+    inputs: [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "account",
-        "type": "address"
+        indexed: false,
+        internalType: 'address',
+        name: 'account',
+        type: 'address',
       },
       {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "code",
-        "type": "bytes32"
-      }
+        indexed: false,
+        internalType: 'bytes32',
+        name: 'code',
+        type: 'bytes32',
+      },
     ],
-    "name": "SetTraderReferralCode",
-    "type": "event"
+    name: 'SetTraderReferralCode',
+    type: 'event',
   },
   {
-    "inputs": [
+    inputs: [
       {
-        "internalType": "bytes32",
-        "name": "code",
-        "type": "bytes32"
-      }
+        internalType: 'bytes32',
+        name: 'code',
+        type: 'bytes32',
+      },
     ],
-    "name": "registerCode",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    name: 'registerCode',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
   },
   {
-    "inputs": [
+    inputs: [
       {
-        "internalType": "address",
-        "name": "trader",
-        "type": "address"
+        internalType: 'address',
+        name: 'trader',
+        type: 'address',
       },
       {
-        "internalType": "bytes32",
-        "name": "code",
-        "type": "bytes32"
-      }
+        internalType: 'bytes32',
+        name: 'code',
+        type: 'bytes32',
+      },
     ],
-    "name": "setTraderReferralCode",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
+    name: 'setTraderReferralCode',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
   },
   {
-    "inputs": [
+    inputs: [
       {
-        "internalType": "address",
-        "name": "trader",
-        "type": "address"
-      }
+        internalType: 'address',
+        name: 'trader',
+        type: 'address',
+      },
     ],
-    "name": "traderReferralInfo",
-    "outputs": [
+    name: 'traderReferralInfo',
+    outputs: [
       {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
+        internalType: 'bytes32',
+        name: '',
+        type: 'bytes32',
+      },
     ],
-    "stateMutability": "view",
-    "type": "function"
-  }
-]; 
+    stateMutability: 'view',
+    type: 'function',
+  },
+];

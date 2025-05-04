@@ -5,11 +5,8 @@ import { SetReferrerTierEvent } from './set-referrer-tier-event.entity';
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SetReferrerTierEvent]),
-    HarvesterModule,
-  ],
+  imports: [TypeOrmModule.forFeature([SetReferrerTierEvent]), HarvesterModule],
   providers: [SetReferrerTierEventService],
   exports: [SetReferrerTierEventService],
 })
-export class SetReferrerTierEventModule {} 
+export class SetReferrerTierEventModule {}

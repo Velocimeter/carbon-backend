@@ -57,4 +57,4 @@ export class SetReferrerDiscountShareEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

@@ -92,7 +92,6 @@ export class CodexService {
         });
         return { ...bars.getBars, address: tokenAddress };
       } catch (error) {
-        
         return fetchWithRetry(tokenAddress, batchFrom, batchTo);
       }
     };
@@ -124,7 +123,6 @@ export class CodexService {
 
       return quotesByAddress;
     } catch (error) {
-      
       throw error;
     }
   }
@@ -137,7 +135,7 @@ export class CodexService {
   }
 
   private async fetchTokens(networkId: number, addresses?: string[]) {
-    const limit = 50;  // Each request is limited to 50 tokens
+    const limit = 50; // Each request is limited to 50 tokens
     let offset = 0;
     let allTokens = [];
     let fetched = [];
@@ -147,7 +145,6 @@ export class CodexService {
       try {
         // Check if we're about to exceed the maximum offset
         if (offset + limit > MAX_OFFSET) {
-          
           break;
         }
 
@@ -158,26 +155,24 @@ export class CodexService {
           tokens: addresses || undefined,
           limit,
           offset,
-          rankings: [{
-            attribute: TokenRankingAttribute.Volume24,
-            direction: RankingDirection.Desc
-          }]
+          rankings: [
+            {
+              attribute: TokenRankingAttribute.Volume24,
+              direction: RankingDirection.Desc,
+            },
+          ],
         });
 
         fetched = result.filterTokens.results;
-        
+
         // Log the first batch of tokens with their volume
         if (offset === 0) {
-          
-          fetched.forEach((token, index) => {
-            
-          });
+          fetched.forEach((token, index) => {});
         }
 
         allTokens = [...allTokens, ...fetched];
         offset += limit;
       } catch (error) {
-        
         throw error;
       }
     } while (fetched.length === limit);

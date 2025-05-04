@@ -218,11 +218,11 @@ export class ReferralEventService {
   private async validateReferralCode(args: CustomFnArgs): Promise<ReferralEvent> {
     const { event, customData } = args;
     const eventAny = event as ReferralEvent;
-    
+
     if (!eventAny.chainId && customData?.chainId) {
       eventAny.chainId = customData.chainId;
     }
-    
+
     return eventAny;
   }
 
@@ -232,29 +232,29 @@ export class ReferralEventService {
   private async validateSetTierEvent(args: CustomFnArgs): Promise<ReferralEvent> {
     const { event, rawEvent } = args;
     const eventAny = event as ReferralEvent;
-    
+
     if (!eventAny.blockNumber) {
       eventAny.blockNumber = parseInt(rawEvent.blockNumber);
     }
-    
+
     if (!eventAny.transactionHash) {
       eventAny.transactionHash = rawEvent.transactionHash;
     }
-    
+
     if (rawEvent.returnValues) {
       if (rawEvent.returnValues['_tierId'] !== undefined) {
         eventAny.tierId = rawEvent.returnValues['_tierId'].toString();
       }
-      
+
       if (rawEvent.returnValues['_totalRebate'] !== undefined) {
         eventAny.totalRebate = rawEvent.returnValues['_totalRebate'].toString();
       }
-      
+
       if (rawEvent.returnValues['_discountShare'] !== undefined) {
         eventAny.discountShare = rawEvent.returnValues['_discountShare'].toString();
       }
     }
-    
+
     return eventAny;
   }
 
@@ -265,12 +265,10 @@ export class ReferralEventService {
     try {
       // Remove '0x' prefix if present
       const cleanBytes = bytes.startsWith('0x') ? bytes.slice(2) : bytes;
-      
+
       // Convert hex to string and trim null bytes
-      const decoded = Buffer.from(cleanBytes, 'hex')
-        .toString('utf8')
-        .replace(/\0/g, '');
-      
+      const decoded = Buffer.from(cleanBytes, 'hex').toString('utf8').replace(/\0/g, '');
+
       return decoded.trim();
     } catch (error) {
       this.logger.error(`Error decoding bytes to string: ${error.message}`);
@@ -284,33 +282,33 @@ export class ReferralEventService {
   private async decodeReferralCode(args: CustomFnArgs): Promise<ReferralEvent> {
     const { event, rawEvent, customData } = args;
     const eventAny = event as ReferralEvent;
-    
+
     // Set required fields from raw event
     if (rawEvent.blockNumber) {
       eventAny.blockNumber = parseInt(rawEvent.blockNumber);
     }
-    
+
     if (rawEvent.transactionHash) {
       eventAny.transactionHash = rawEvent.transactionHash;
     }
-    
+
     // Set chainId from customData
     if (customData?.chainId) {
       eventAny.chainId = customData.chainId;
     }
-    
+
     // Get and decode the code
     const code = rawEvent.returnValues['code'];
     if (code) {
       eventAny.codeDecoded = this.bytesToString(code);
       eventAny.code = code;
     }
-    
+
     // For RegisterCode events, map account to owner
     if (rawEvent.event === 'RegisterCode' && rawEvent.returnValues['account']) {
       eventAny.owner = rawEvent.returnValues['account'];
     }
-    
+
     return eventAny;
   }
-} 
+}

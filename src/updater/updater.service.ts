@@ -38,14 +38,14 @@ export class UpdaterService {
 
   private logEnvironmentVariables() {
     this.logger.log('=== Carbon Service Environment Configuration ===');
-    
+
     // Core Settings
     this.logger.log('\nCore Settings:');
     this.logger.log(`- SHOULD_HARVEST: ${this.configService.get('SHOULD_HARVEST')}`);
     this.logger.log(`- SHOULD_UPDATE_ANALYTICS: ${this.configService.get('SHOULD_UPDATE_ANALYTICS')}`);
     this.logger.log(`- IS_FORK: ${this.configService.get('IS_FORK')}`);
     this.logger.log(`- CARBON_LOCK_DURATION: ${this.configService.get('CARBON_LOCK_DURATION')}`);
-    
+
     // RPC Endpoints
     this.logger.log('\nRPC Endpoints:');
     this.logger.log(`- IOTA_RPC_ENDPOINT: ${this.configService.get('IOTA_RPC_ENDPOINT')}`);

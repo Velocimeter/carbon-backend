@@ -9,7 +9,7 @@ export class ActivityDto {
   @IsOptional()
   @ApiPropertyOptional({
     type: String,
-    description: 'Comma-separated list of strategy IDs to filter by'
+    description: 'Comma-separated list of strategy IDs to filter by',
   })
   strategyIds?: string;
 
@@ -17,7 +17,7 @@ export class ActivityDto {
   @Transform((value) => formatEthereumAddress(value))
   @ApiPropertyOptional({
     type: String,
-    description: 'Ethereum address of the strategy owner'
+    description: 'Ethereum address of the strategy owner',
   })
   ownerId?: string;
 
@@ -25,7 +25,7 @@ export class ActivityDto {
   @Transform((value) => formatEthereumAddress(value))
   @ApiPropertyOptional({
     type: String,
-    description: 'First token address to filter by'
+    description: 'First token address to filter by',
   })
   token0?: string;
 
@@ -33,7 +33,7 @@ export class ActivityDto {
   @Transform((value) => formatEthereumAddress(value))
   @ApiPropertyOptional({
     type: String,
-    description: 'Second token address to filter by'
+    description: 'Second token address to filter by',
   })
   token1?: string;
 
@@ -42,7 +42,7 @@ export class ActivityDto {
   @Transform(({ value }) => Number(value))
   @ApiPropertyOptional({
     type: Number,
-    description: 'Start timestamp in seconds'
+    description: 'Start timestamp in seconds',
   })
   start?: number;
 
@@ -51,7 +51,7 @@ export class ActivityDto {
   @Transform(({ value }) => Number(value))
   @ApiPropertyOptional({
     type: Number,
-    description: 'End timestamp in seconds'
+    description: 'End timestamp in seconds',
   })
   end?: number;
 
@@ -76,7 +76,7 @@ export class ActivityDto {
   @ApiPropertyOptional({
     type: [String],
     description: 'List of comma-separated actions',
-    enum: validActions
+    enum: validActions,
   })
   actions?: string[];
 
@@ -84,7 +84,7 @@ export class ActivityDto {
   @IsString()
   @ApiPropertyOptional({
     type: String,
-    description: 'Comma-separated list of trading pairs to filter by'
+    description: 'Comma-separated list of trading pairs to filter by',
   })
   pairs?: string;
 
@@ -94,7 +94,7 @@ export class ActivityDto {
   @ApiPropertyOptional({
     type: Number,
     description: 'Maximum number of records to return',
-    default: 100
+    default: 100,
   })
   limit?: number;
 
@@ -104,7 +104,7 @@ export class ActivityDto {
   @ApiPropertyOptional({
     type: Number,
     description: 'Number of records to skip',
-    default: 0
+    default: 0,
   })
   offset?: number;
 }

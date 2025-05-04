@@ -48,4 +48,4 @@ export class SetTierEventService {
       .orderBy('block.id', 'ASC')
       .getMany();
   }
-} 
+}

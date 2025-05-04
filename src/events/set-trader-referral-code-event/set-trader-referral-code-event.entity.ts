@@ -64,4 +64,4 @@ export class SetTraderReferralCodeEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

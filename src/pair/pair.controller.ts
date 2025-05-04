@@ -23,10 +23,7 @@ export class PairController {
   @CacheTTL(1 * 60 * 1000)
   @Header('Cache-Control', 'public, max-age=60')
   @ApiExchangeIdParam()
-  async getAllPairs(
-    @ExchangeIdParam() exchangeId: ExchangeId,
-    @Query() query: PairQueryDto
-  ): Promise<any> {
+  async getAllPairs(@ExchangeIdParam() exchangeId: ExchangeId, @Query() query: PairQueryDto): Promise<any> {
     const deployment = this.deploymentService.getDeploymentByExchangeId(exchangeId);
     const [pairs, total] = await this.pairService.findWithFilters(deployment, query);
     return {
@@ -35,7 +32,7 @@ export class PairController {
         total,
         offset: query.offset || 0,
         limit: query.limit,
-      }
+      },
     };
   }
 
@@ -43,33 +40,35 @@ export class PairController {
   @CacheTTL(1 * 60 * 1000)
   @Header('Cache-Control', 'public, max-age=60')
   @ApiExchangeIdParam()
-  async getPairsWithVolume(
-    @ExchangeIdParam() exchangeId: ExchangeId,
-    @Query() query: PairQueryDto
-  ): Promise<any> {
+  async getPairsWithVolume(@ExchangeIdParam() exchangeId: ExchangeId, @Query() query: PairQueryDto): Promise<any> {
     const deployment = this.deploymentService.getDeploymentByExchangeId(exchangeId);
     const tokens = await this.tokenService.allByAddress(deployment);
     const [pairs, total] = await this.pairService.findWithFilters(deployment, query);
-    
+
     // Create volume query
     const volumeQuery = new VolumePairsDto();
-    volumeQuery.pairs = pairs.map(pair => ({
+    volumeQuery.pairs = pairs.map((pair) => ({
       token0: pair.token0.address,
-      token1: pair.token1.address
+      token1: pair.token1.address,
     }));
     volumeQuery.start = query.start;
     volumeQuery.end = query.end;
     volumeQuery.ownerId = query.ownerId;
-    
-    const volumeData = await this.volumeService.getVolume(deployment, volumeQuery, tokens, await this.pairService.allAsDictionary(deployment));
-    
+
+    const volumeData = await this.volumeService.getVolume(
+      deployment,
+      volumeQuery,
+      tokens,
+      await this.pairService.allAsDictionary(deployment),
+    );
+
     return {
       data: volumeData,
       pagination: {
         total,
         offset: query.offset || 0,
         limit: query.limit,
-      }
+      },
     };
   }
-} 
+}

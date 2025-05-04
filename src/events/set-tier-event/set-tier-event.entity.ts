@@ -60,4 +60,4 @@ export class SetTierEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

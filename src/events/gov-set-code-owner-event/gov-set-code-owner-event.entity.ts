@@ -60,4 +60,4 @@ export class GovSetCodeOwnerEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

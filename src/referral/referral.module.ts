@@ -17,10 +17,7 @@ import { ReferralV2Service } from './referral-v2.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      ReferralCode,
-      ReferralState
-    ]),
+    TypeOrmModule.forFeature([ReferralCode, ReferralState]),
     DeploymentModule,
     HarvesterModule,
     LastProcessedBlockModule,
@@ -31,9 +28,9 @@ import { ReferralV2Service } from './referral-v2.service';
     SetReferrerDiscountShareEventModule,
     SetReferrerTierEventModule,
     SetTierEventModule,
-    SetTraderReferralCodeEventModule
+    SetTraderReferralCodeEventModule,
   ],
   providers: [ReferralV2Service],
-  exports: [ReferralV2Service]
+  exports: [ReferralV2Service],
 })
-export class ReferralModule {} 
+export class ReferralModule {}

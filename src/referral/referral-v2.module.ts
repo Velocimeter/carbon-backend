@@ -24,4 +24,4 @@ import { SetTraderReferralCodeEventModule } from '../events/set-trader-referral-
   providers: [ReferralV2Service],
   exports: [ReferralV2Service],
 })
-export class ReferralV2Module {} 
+export class ReferralV2Module {}

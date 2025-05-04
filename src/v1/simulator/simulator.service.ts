@@ -118,9 +118,7 @@ export class SimulatorService {
       pythonOutput += data.toString();
     });
 
-    pythonProcess.stderr.on('data', (data) => {
-      
-    });
+    pythonProcess.stderr.on('data', (data) => {});
 
     try {
       // Return a promise that resolves with the content of the output.json file
@@ -128,7 +126,6 @@ export class SimulatorService {
         // Handle process exit
         pythonProcess.on('close', (code) => {
           if (code !== 0) {
-            
             reject(new Error(`Python process exited with code ${code}`));
             return;
           }
@@ -146,7 +143,6 @@ export class SimulatorService {
 
       return { ...parsedOutput, prices: pricesRatios };
     } catch (err) {
-      
       throw err;
     }
   }

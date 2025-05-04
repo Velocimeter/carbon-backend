@@ -5,11 +5,8 @@ import { RegisterCodeEvent } from './register-code-event.entity';
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([RegisterCodeEvent]),
-    HarvesterModule,
-  ],
+  imports: [TypeOrmModule.forFeature([RegisterCodeEvent]), HarvesterModule],
   providers: [RegisterCodeEventService],
   exports: [RegisterCodeEventService],
 })
-export class RegisterCodeEventModule {} 
+export class RegisterCodeEventModule {}

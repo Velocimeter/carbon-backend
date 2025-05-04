@@ -486,7 +486,6 @@ export class TvlService {
           token1: pair.token1.address.toLowerCase(),
         };
       } else {
-        
       }
     }
 

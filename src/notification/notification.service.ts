@@ -127,9 +127,7 @@ export class NotificationService {
           };
           try {
             await client.createTask(request);
-          } catch (error) {
-            
-          }
+          } catch (error) {}
         }),
       );
     }

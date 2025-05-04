@@ -85,4 +85,4 @@ export class ActivityMetaResponseDto {
 
   @ApiProperty({ description: 'List of unique actions', type: [String], example: ['buy', 'sell', 'create'] })
   actions: string[];
-} 
+}

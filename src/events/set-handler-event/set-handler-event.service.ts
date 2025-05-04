@@ -29,4 +29,4 @@ export class SetHandlerEventService {
       tagTimestampFromBlock: true,
     });
   }
-} 
+}

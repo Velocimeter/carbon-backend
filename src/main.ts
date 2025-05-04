@@ -8,17 +8,17 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
   try {
     logger.log('=== PHASE 1: Creating NestJS Application ===');
-    const app = await NestFactory.create(AppModule, { 
+    const app = await NestFactory.create(AppModule, {
       cors: {
         origin: '*',
         methods: '*',
         allowedHeaders: '*',
-        credentials: false
+        credentials: false,
       },
       logger: ['error', 'warn', 'log', 'debug', 'verbose'],
     });
     logger.log('NestJS application instance created');
-    
+
     logger.log('=== PHASE 2: Configuring Application ===');
     // Enable API versioning
     app.enableVersioning({
@@ -52,9 +52,8 @@ async function bootstrap() {
     } catch (error) {
       logger.error('Failed during app.listen():', error);
       logger.error('Stack trace:', error.stack);
-      throw error;  // Let the outer try-catch handle process.exit
+      throw error; // Let the outer try-catch handle process.exit
     }
-    
   } catch (error) {
     logger.error('Critical bootstrap error:', error);
     logger.error('Stack trace:', error.stack);

@@ -57,4 +57,4 @@ export class SetReferrerTierEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

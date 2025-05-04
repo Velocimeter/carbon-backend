@@ -96,15 +96,19 @@ export class StrategyUpdatedEventService {
       .leftJoinAndSelect('tokensTradedEvents.pair', 'pair')
       .leftJoinAndSelect('tokensTradedEvents.sourceToken', 'sourceToken')
       .leftJoinAndSelect('tokensTradedEvents.targetToken', 'targetToken')
-      .where('tokensTradedEvents.transactionHash = :transactionHash', { transactionHash: strategyUpdatedEvent.transactionHash })
-      .andWhere('tokensTradedEvents.blockchainType = :blockchainType', { blockchainType: strategyUpdatedEvent.blockchainType })
+      .where('tokensTradedEvents.transactionHash = :transactionHash', {
+        transactionHash: strategyUpdatedEvent.transactionHash,
+      })
+      .andWhere('tokensTradedEvents.blockchainType = :blockchainType', {
+        blockchainType: strategyUpdatedEvent.blockchainType,
+      })
       .andWhere('tokensTradedEvents.exchangeId = :exchangeId', { exchangeId: strategyUpdatedEvent.exchangeId })
       .getOne();
   }
 
   async calculateFees(
     strategyUpdatedEvent: StrategyUpdatedEvent,
-    strategyStates: StrategyStatesMap
+    strategyStates: StrategyStatesMap,
   ): Promise<{ fee: string; feeToken: string } | null> {
     // Only calculate fees for trade events (reason = 1)
     if (strategyUpdatedEvent.reason !== 1) {
@@ -128,14 +132,14 @@ export class StrategyUpdatedEventService {
       parseOrder(strategyUpdatedEvent.order0),
       parseOrder(strategyUpdatedEvent.order1),
       new Decimal(strategyUpdatedEvent.token0.decimals),
-      new Decimal(strategyUpdatedEvent.token1.decimals)
+      new Decimal(strategyUpdatedEvent.token1.decimals),
     );
 
     const prevOrders = processOrders(
       parseOrder(previousState.order0),
       parseOrder(previousState.order1),
       new Decimal(strategyUpdatedEvent.token0.decimals),
-      new Decimal(strategyUpdatedEvent.token1.decimals)
+      new Decimal(strategyUpdatedEvent.token1.decimals),
     );
 
     // Calculate liquidity deltas
@@ -143,11 +147,6 @@ export class StrategyUpdatedEventService {
     const liquidity1Delta = currentOrders.liquidity1.minus(prevOrders.liquidity1);
 
     // Calculate fees using the utility function
-    return calculateFeeFromTokensTradedEvent(
-      tokensTradedEvent,
-      strategyUpdatedEvent,
-      liquidity0Delta,
-      liquidity1Delta
-    );
+    return calculateFeeFromTokensTradedEvent(tokensTradedEvent, strategyUpdatedEvent, liquidity0Delta, liquidity1Delta);
   }
 }

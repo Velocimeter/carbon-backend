@@ -74,14 +74,14 @@ function bytesToString(hex: string): string {
   try {
     // Remove '0x' prefix if present
     hex = hex.startsWith('0x') ? hex.slice(2) : hex;
-    
+
     // Convert hex to bytes
     const bytes = Buffer.from(hex, 'hex');
-    
+
     // Convert bytes to string and trim null bytes
     return bytes.toString('utf8').replace(/\0/g, '');
   } catch (error) {
     console.error('Error decoding hex string:', error);
     return '';
   }
-} 
+}

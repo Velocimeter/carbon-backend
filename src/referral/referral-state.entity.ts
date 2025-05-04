@@ -58,4 +58,4 @@ export class ReferralState {
 
   @Column()
   updatedAt: Date;
-} 
+}

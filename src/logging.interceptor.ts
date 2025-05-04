@@ -16,7 +16,7 @@ export class LoggingInterceptor implements NestInterceptor {
 
     // Check for CORS preflight
     const isPreFlight = method === 'OPTIONS';
-    
+
     // Log the incoming request
     this.logger.log({
       type: 'Request',
@@ -64,7 +64,7 @@ export class LoggingInterceptor implements NestInterceptor {
       catchError((error) => {
         const responseTime = Date.now() - startTime;
         const isCorsError = this.isCorsError(error);
-        
+
         // Log error response
         this.logger.error({
           type: isCorsError ? 'CORS Error' : 'Error',
@@ -78,23 +78,25 @@ export class LoggingInterceptor implements NestInterceptor {
             message: error.message,
             stack: error.stack,
           },
-          corsDetails: isCorsError ? {
-            allowedOrigins: response.getHeader('access-control-allow-origin'),
-            allowedMethods: response.getHeader('access-control-allow-methods'),
-            allowedHeaders: response.getHeader('access-control-allow-headers'),
-            requestOrigin: headers.origin,
-            requestMethod: method,
-          } : undefined,
+          corsDetails: isCorsError
+            ? {
+                allowedOrigins: response.getHeader('access-control-allow-origin'),
+                allowedMethods: response.getHeader('access-control-allow-methods'),
+                allowedHeaders: response.getHeader('access-control-allow-headers'),
+                requestOrigin: headers.origin,
+                requestMethod: method,
+              }
+            : undefined,
         });
         throw error;
-      })
+      }),
     );
   }
 
   private checkCorsIssue(request: Request, response: Response): string | null {
     const { headers, method } = request;
     const origin = headers.origin;
-    
+
     if (!origin) {
       return null; // Not a CORS request
     }
@@ -127,4 +129,4 @@ export class LoggingInterceptor implements NestInterceptor {
       error.status === 403
     );
   }
-} 
+}

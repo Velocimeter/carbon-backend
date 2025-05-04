@@ -62,9 +62,9 @@ export class VortexTokensTradedEventService {
     return this.repository.findOne({ where: { id } });
   }
 
-  async getTotalTradedAmounts(deployment: Deployment): Promise<{ 
-    targetTokenAmount: string, 
-    finalTokenAmount: string 
+  async getTotalTradedAmounts(deployment: Deployment): Promise<{
+    targetTokenAmount: string;
+    finalTokenAmount: string;
   }> {
     const TARGET_TOKEN = '0x6969696969696969696969696969696969696969';
     const FINAL_TOKEN = '0xfcbd14dc51f0a4d49d5e53c2e0950e0bc26d0dce';
@@ -73,16 +73,16 @@ export class VortexTokensTradedEventService {
       .createQueryBuilder('vortexTokensTradedEvents')
       .select([
         'SUM(CASE WHEN vortexTokensTradedEvents.token = :targetToken THEN vortexTokensTradedEvents.targetAmount ELSE 0 END) as targetTokenAmount',
-        'SUM(CASE WHEN vortexTokensTradedEvents.token = :finalToken THEN vortexTokensTradedEvents.targetAmount ELSE 0 END) as finalTokenAmount'
+        'SUM(CASE WHEN vortexTokensTradedEvents.token = :finalToken THEN vortexTokensTradedEvents.targetAmount ELSE 0 END) as finalTokenAmount',
       ])
       .where('vortexTokensTradedEvents.blockchainType = :blockchainType', {
         blockchainType: deployment.blockchainType,
       })
-      .andWhere('vortexTokensTradedEvents.exchangeId = :exchangeId', { 
-        exchangeId: deployment.exchangeId 
+      .andWhere('vortexTokensTradedEvents.exchangeId = :exchangeId', {
+        exchangeId: deployment.exchangeId,
       })
       .andWhere('vortexTokensTradedEvents.token IN (:...tokens)', {
-        tokens: [TARGET_TOKEN, FINAL_TOKEN]
+        tokens: [TARGET_TOKEN, FINAL_TOKEN],
       })
       .setParameter('targetToken', TARGET_TOKEN)
       .setParameter('finalToken', FINAL_TOKEN)
@@ -90,7 +90,7 @@ export class VortexTokensTradedEventService {
 
     return {
       targetTokenAmount: result?.targetTokenAmount || '0',
-      finalTokenAmount: result?.finalTokenAmount || '0'
+      finalTokenAmount: result?.finalTokenAmount || '0',
     };
   }
 }

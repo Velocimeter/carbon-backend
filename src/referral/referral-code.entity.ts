@@ -54,4 +54,4 @@ export class ReferralCode {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

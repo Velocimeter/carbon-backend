@@ -43,9 +43,11 @@ export class SetReferrerDiscountShareEventService {
       .leftJoinAndSelect('setReferrerDiscountShareEvents.block', 'block')
       .where('block.id >= :startBlock', { startBlock })
       .andWhere('block.id <= :endBlock', { endBlock })
-      .andWhere('setReferrerDiscountShareEvents.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+      .andWhere('setReferrerDiscountShareEvents.blockchainType = :blockchainType', {
+        blockchainType: deployment.blockchainType,
+      })
       .andWhere('setReferrerDiscountShareEvents.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
       .orderBy('block.id', 'ASC')
       .getMany();
   }
-} 
+}

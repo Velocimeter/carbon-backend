@@ -83,12 +83,12 @@ export class DeploymentService {
     this.deployments = this.initializeDeployments();
     // Initialize only specific deployments as active
     this.setActiveDeployments([
-       BlockchainType.Base,
-         BlockchainType.Berachain,
+      BlockchainType.Base,
+      BlockchainType.Berachain,
       //   BlockchainType.Fantom,
-       BlockchainType.Mantle,
-       BlockchainType.Sonic,
-       BlockchainType.Iota,
+      BlockchainType.Mantle,
+      BlockchainType.Sonic,
+      BlockchainType.Iota,
     ]);
   }
 
@@ -99,7 +99,7 @@ export class DeploymentService {
         blockchainType: BlockchainType.Iota,
         rpcEndpoint: this.configService.get('IOTA_RPC_ENDPOINT'),
         harvestEventsBatchSize: 2000,
-        harvestConcurrency: 10, 
+        harvestConcurrency: 10,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 1936731,
         gasToken: {
@@ -145,7 +145,7 @@ export class DeploymentService {
           },
         },
       },
-      { 
+      {
         exchangeId: ExchangeId.OGBase,
         blockchainType: BlockchainType.Base,
         rpcEndpoint: this.configService.get('BASE_RPC_ENDPOINT'),
@@ -157,17 +157,17 @@ export class DeploymentService {
           name: 'BASE',
           symbol: 'BASE',
           address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-        },  
+        },
         nativeTokenAlias: '0x4200000000000000000000000000000000000006',
         contracts: {
           CarbonController: {
             address: '0xfbF069Dbbf453C1ab23042083CFa980B3a672BbA',
           },
           CarbonVoucher: {
-            address: '0x907F03ae649581EBFF369a21C587cb8F154A0B84',  // Replace with actual contract address
+            address: '0x907F03ae649581EBFF369a21C587cb8F154A0B84', // Replace with actual contract address
           },
           BancorArbitrage: {
-            address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
+            address: '0x0000000000000000000000000000000000000000', // Replace with actual contract address
           },
           ReferralStorage: {
             address: '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29',
@@ -257,13 +257,13 @@ export class DeploymentService {
             address: '0x10Fa549E70Ede76C258c0808b289e4Ac3c9ab2e2',
           },
           CarbonVoucher: {
-            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054', // Replace with actual contract address
           },
           BancorArbitrage: {
-            address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
+            address: '0x0000000000000000000000000000000000000000', // Replace with actual contract address
           },
           CarbonVortex: {
-            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054', // Replace with actual contract address
           },
         },
       },
@@ -286,10 +286,10 @@ export class DeploymentService {
             address: '0x10Fa549E70Ede76C258c0808b289e4Ac3c9ab2e2',
           },
           CarbonVoucher: {
-            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054', // Replace with actual contract address
           },
           CarbonVortex: {
-            address: '0x089c1A38c7616DB8d5f5beb5F311FD3f130E4463',  // updated other one was incorrect
+            address: '0x089c1A38c7616DB8d5f5beb5F311FD3f130E4463', // updated other one was incorrect
           },
           ReferralStorage: {
             address: '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29',
@@ -315,19 +315,34 @@ export class DeploymentService {
         nativeTokenAlias: '0x0000000000000000000000000000000000000000',
         contracts: {
           CarbonController: {
-            address: this.configService.get('FANTOM_CARBON_CONTROLLER_ADDRESS', '0x0000000000000000000000000000000000000000'),
+            address: this.configService.get(
+              'FANTOM_CARBON_CONTROLLER_ADDRESS',
+              '0x0000000000000000000000000000000000000000',
+            ),
           },
           CarbonVoucher: {
-            address: this.configService.get('FANTOM_CARBON_VOUCHER_ADDRESS', '0x0000000000000000000000000000000000000000'),
+            address: this.configService.get(
+              'FANTOM_CARBON_VOUCHER_ADDRESS',
+              '0x0000000000000000000000000000000000000000',
+            ),
           },
           BancorArbitrage: {
-            address: this.configService.get('FANTOM_BANCOR_ARBITRAGE_ADDRESS', '0x0000000000000000000000000000000000000000'),
+            address: this.configService.get(
+              'FANTOM_BANCOR_ARBITRAGE_ADDRESS',
+              '0x0000000000000000000000000000000000000000',
+            ),
           },
           ReferralStorage: {
-            address: this.configService.get('FANTOM_REFERRAL_STORAGE_ADDRESS', '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29'),
+            address: this.configService.get(
+              'FANTOM_REFERRAL_STORAGE_ADDRESS',
+              '0x09D3EBd3B1Edf0c5AACE694796CB446E8F594a29',
+            ),
           },
           ReferralReader: {
-            address: this.configService.get('FANTOM_REFERRAL_READER_ADDRESS', '0x264978bE88bd4b209Cb18DBDe66eE43472559463'),
+            address: this.configService.get(
+              'FANTOM_REFERRAL_READER_ADDRESS',
+              '0x264978bE88bd4b209Cb18DBDe66eE43472559463',
+            ),
           },
         },
         notifications: {
@@ -348,7 +363,7 @@ export class DeploymentService {
   }
 
   getDeployments(): Deployment[] {
-    return this.deployments.filter(d => this.activeDeploymentTypes.has(d.blockchainType));
+    return this.deployments.filter((d) => this.activeDeploymentTypes.has(d.blockchainType));
   }
 
   setActiveDeployments(blockchainTypes: BlockchainType[]) {

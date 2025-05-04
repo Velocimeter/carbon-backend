@@ -5,11 +5,8 @@ import { SetReferrerDiscountShareEvent } from './set-referrer-discount-share-eve
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SetReferrerDiscountShareEvent]),
-    HarvesterModule,
-  ],
+  imports: [TypeOrmModule.forFeature([SetReferrerDiscountShareEvent]), HarvesterModule],
   providers: [SetReferrerDiscountShareEventService],
   exports: [SetReferrerDiscountShareEventService],
 })
-export class SetReferrerDiscountShareEventModule {} 
+export class SetReferrerDiscountShareEventModule {}

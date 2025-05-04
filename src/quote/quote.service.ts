@@ -44,7 +44,6 @@ export class QuoteService implements OnModuleInit {
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Iota]: [{ name: 'codex', enabled: true }], not available in codex
     [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
-
   };
 
   constructor(
@@ -75,28 +74,23 @@ export class QuoteService implements OnModuleInit {
       return;
     }
 
-    
     this.isPolling = true;
 
     try {
       const deployments = await this.deploymentService.getDeployments();
-      
 
       await Promise.all(deployments.map((deployment) => this.pollForDeployment(deployment)));
     } catch (error) {
       this.logger.error(`Error fetching and storing quotes: ${error.message}`);
     } finally {
-      
       this.isPolling = false; // Reset the flag regardless of success or failure
     }
   }
 
   async pollForDeployment(deployment: Deployment): Promise<void> {
-    
     try {
       const tokens = await this.tokenService.getTokensByBlockchainType(deployment.blockchainType);
       const addresses = tokens.map((t) => t.address);
-      
 
       let newPrices;
       if (deployment.blockchainType === BlockchainType.Ethereum) {
@@ -108,7 +102,6 @@ export class QuoteService implements OnModuleInit {
       }
 
       await this.updateQuotes(tokens, newPrices, deployment);
-      
     } catch (error) {
       this.logger.error(
         `Error fetching and storing quotes for blockchain ${deployment.blockchainType}: ${error.message}`,

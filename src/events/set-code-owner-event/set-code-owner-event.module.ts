@@ -5,11 +5,8 @@ import { SetCodeOwnerEvent } from './set-code-owner-event.entity';
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SetCodeOwnerEvent]),
-    HarvesterModule,
-  ],
+  imports: [TypeOrmModule.forFeature([SetCodeOwnerEvent]), HarvesterModule],
   providers: [SetCodeOwnerEventService],
   exports: [SetCodeOwnerEventService],
 })
-export class SetCodeOwnerEventModule {} 
+export class SetCodeOwnerEventModule {}

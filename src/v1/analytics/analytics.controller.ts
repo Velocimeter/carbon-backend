@@ -92,14 +92,14 @@ export class AnalyticsController {
     const deployment = this.deploymentService.getDeploymentByExchangeId(exchangeId);
     const tokens = await this.tokenService.allByAddress(deployment);
     const allPairs = await this.pairService.all(deployment);
-    
+
     // Create a VolumePairsDto with all pairs
     const query = new VolumePairsDto();
-    query.pairs = allPairs.map(pair => ({
+    query.pairs = allPairs.map((pair) => ({
       token0: pair.token0.address,
-      token1: pair.token1.address
+      token1: pair.token1.address,
     }));
-    
+
     return this.volumeService.getVolume(deployment, query, tokens, await this.pairService.allAsDictionary(deployment));
   }
 

@@ -51,7 +51,7 @@ export class ActivityController {
           min: d.sellPriceA.toString(),
           max: d.sellPriceB.toString(),
           marginal: d.sellPriceMarg.toString(),
-        }
+        },
       },
       blockNumber: d.blockNumber,
       txHash: d.txhash,
@@ -64,7 +64,7 @@ export class ActivityController {
       result.changes[action] = {
         ...result.changes[action],
         fee: d.fee.toString(),
-        feeToken: d.feeToken
+        feeToken: d.feeToken,
       };
     }
 

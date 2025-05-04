@@ -12,9 +12,9 @@ import { SetReferrerDiscountShareEventService } from '../events/set-referrer-dis
 
 // Default tier values
 const DEFAULT_TIER = {
-  tierId: "0",
-  totalRebate: "0",
-  discountShare: "0"
+  tierId: '0',
+  totalRebate: '0',
+  discountShare: '0',
 };
 
 // Track code ownership and tier info
@@ -63,8 +63,8 @@ export class ReferralV2Service {
     const existingStatesCount = await this.referralStateRepository.count({
       where: {
         blockchainType: deployment.blockchainType,
-        exchangeId: deployment.exchangeId
-      }
+        exchangeId: deployment.exchangeId,
+      },
     });
 
     this.logger.log(`Last processed block: ${lastProcessedBlock}, existing states: ${existingStatesCount}`);
@@ -78,13 +78,13 @@ export class ReferralV2Service {
 
     // Otherwise, just process new events since last run
     this.logger.log(`Processing new events from block ${lastProcessedBlock} to ${endBlock}`);
-    
+
     // Get new events since last processed block
     const [
-      registerCodeEvents,    // Get all register events as we need them for lookups
-      newTraderCodeEvents,   // But only new trader code events
+      registerCodeEvents, // Get all register events as we need them for lookups
+      newTraderCodeEvents, // But only new trader code events
       setReferrerTierEvents, // Get all tier events as they affect all traders using that referrer's code
-      setTierEvents,         // Get all tier events as they affect all traders
+      setTierEvents, // Get all tier events as they affect all traders
     ] = await Promise.all([
       this.registerCodeEventService.get(0, endBlock, deployment),
       this.setTraderReferralCodeEventService.get(lastProcessedBlock + 1, endBlock, deployment),
@@ -105,7 +105,7 @@ export class ReferralV2Service {
     for (const event of newTraderCodeEvents) {
       // Find who owns this code
       const registerEvent = registerCodeEvents
-        .filter(e => e.code === event.code)
+        .filter((e) => e.code === event.code)
         .sort((a, b) => b.block.id - a.block.id)[0];
 
       if (!registerEvent) {
@@ -115,15 +115,13 @@ export class ReferralV2Service {
 
       // Find referrer's tier
       const referrerTierEvent = setReferrerTierEvents
-        .filter(e => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
+        .filter((e) => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
         .sort((a, b) => b.block.id - a.block.id)[0];
 
       const tierId = referrerTierEvent?.tierId || DEFAULT_TIER.tierId;
 
       // Find tier details
-      const tierEvent = setTierEvents
-        .filter(e => e.tierId === tierId)
-        .sort((a, b) => b.block.id - a.block.id)[0];
+      const tierEvent = setTierEvents.filter((e) => e.tierId === tierId).sort((a, b) => b.block.id - a.block.id)[0];
 
       // Create state
       const state = new ReferralState();
@@ -154,21 +152,21 @@ export class ReferralV2Service {
       const existingStates = await this.referralStateRepository.find({
         where: {
           blockchainType: deployment.blockchainType,
-          exchangeId: deployment.exchangeId
-        }
+          exchangeId: deployment.exchangeId,
+        },
       });
 
       for (const state of existingStates) {
         // Find the register event for this code to get the owner
         const registerEvent = registerCodeEvents
-          .filter(e => e.code === state.code)
+          .filter((e) => e.code === state.code)
           .sort((a, b) => b.block.id - a.block.id)[0];
 
         if (!registerEvent) continue;
 
         // Check if the referrer's tier changed
         const referrerTierEvent = setReferrerTierEvents
-          .filter(e => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
+          .filter((e) => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
           .sort((a, b) => b.block.id - a.block.id)[0];
 
         if (!referrerTierEvent && !setTierEvents.length) continue;
@@ -176,23 +174,20 @@ export class ReferralV2Service {
         const tierId = referrerTierEvent?.tierId || state.tierId;
 
         // Find tier details
-        const tierEvent = setTierEvents
-          .filter(e => e.tierId === tierId)
-          .sort((a, b) => b.block.id - a.block.id)[0];
+        const tierEvent = setTierEvents.filter((e) => e.tierId === tierId).sort((a, b) => b.block.id - a.block.id)[0];
 
         if (!tierEvent) continue;
 
         // Update tier info if changed
-        if (tierEvent.totalRebate !== state.totalRebate || 
-            tierEvent.discountShare !== state.discountShare ||
-            tierId !== state.tierId) {
+        if (
+          tierEvent.totalRebate !== state.totalRebate ||
+          tierEvent.discountShare !== state.discountShare ||
+          tierId !== state.tierId
+        ) {
           state.tierId = tierId;
           state.totalRebate = tierEvent.totalRebate;
           state.discountShare = tierEvent.discountShare;
-          state.lastProcessedBlock = Math.max(
-            referrerTierEvent?.block?.id || 0,
-            tierEvent.block.id
-          );
+          state.lastProcessedBlock = Math.max(referrerTierEvent?.block?.id || 0, tierEvent.block.id);
           latestStateByTrader.set(state.trader.toLowerCase(), state);
         }
       }
@@ -210,19 +205,22 @@ export class ReferralV2Service {
           .insert()
           .into(ReferralState)
           .values(batch)
-          .orUpdate([
-            "code",
-            "code_decoded", 
-            "owner",
-            "tierId",
-            "totalRebate",
-            "discountShare",
-            "last_processed_block",
-            "block_id",
-            "timestamp",
-            "blockchainType",
-            "exchangeId"
-          ], ["trader", "chain_id"])
+          .orUpdate(
+            [
+              'code',
+              'code_decoded',
+              'owner',
+              'tierId',
+              'totalRebate',
+              'discountShare',
+              'last_processed_block',
+              'block_id',
+              'timestamp',
+              'blockchainType',
+              'exchangeId',
+            ],
+            ['trader', 'chain_id'],
+          )
           .execute();
 
         this.logger.log(`Saved batch of ${batch.length} states`);
@@ -238,12 +236,7 @@ export class ReferralV2Service {
 
   private async rebuildAllStates(endBlock: number, deployment: Deployment): Promise<void> {
     // Get all historical events
-    const [
-      registerCodeEvents,
-      setTraderReferralCodeEvents,
-      setReferrerTierEvents,
-      setTierEvents,
-    ] = await Promise.all([
+    const [registerCodeEvents, setTraderReferralCodeEvents, setReferrerTierEvents, setTierEvents] = await Promise.all([
       this.registerCodeEventService.get(0, endBlock, deployment),
       this.setTraderReferralCodeEventService.get(0, endBlock, deployment),
       this.setReferrerTierEventService.get(0, endBlock, deployment),
@@ -262,7 +255,7 @@ export class ReferralV2Service {
     for (const event of setTraderReferralCodeEvents) {
       // Find who owns this code
       const registerEvent = registerCodeEvents
-        .filter(e => e.code === event.code)
+        .filter((e) => e.code === event.code)
         .sort((a, b) => b.block.id - a.block.id)[0];
 
       if (!registerEvent) {
@@ -272,15 +265,13 @@ export class ReferralV2Service {
 
       // Find referrer's tier
       const referrerTierEvent = setReferrerTierEvents
-        .filter(e => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
+        .filter((e) => e.referrer.toLowerCase() === registerEvent.account.toLowerCase())
         .sort((a, b) => b.block.id - a.block.id)[0];
 
       const tierId = referrerTierEvent?.tierId || DEFAULT_TIER.tierId;
 
       // Find tier details
-      const tierEvent = setTierEvents
-        .filter(e => e.tierId === tierId)
-        .sort((a, b) => b.block.id - a.block.id)[0];
+      const tierEvent = setTierEvents.filter((e) => e.tierId === tierId).sort((a, b) => b.block.id - a.block.id)[0];
 
       // Create state
       const state = new ReferralState();
@@ -317,19 +308,22 @@ export class ReferralV2Service {
           .insert()
           .into(ReferralState)
           .values(batch)
-          .orUpdate([
-            "code",
-            "code_decoded", 
-            "owner",
-            "tierId",
-            "totalRebate",
-            "discountShare",
-            "last_processed_block",
-            "block_id",
-            "timestamp",
-            "blockchainType",
-            "exchangeId"
-          ], ["trader", "chain_id"])
+          .orUpdate(
+            [
+              'code',
+              'code_decoded',
+              'owner',
+              'tierId',
+              'totalRebate',
+              'discountShare',
+              'last_processed_block',
+              'block_id',
+              'timestamp',
+              'blockchainType',
+              'exchangeId',
+            ],
+            ['trader', 'chain_id'],
+          )
           .execute();
 
         this.logger.log(`Saved batch of ${batch.length} states`);
@@ -344,7 +338,12 @@ export class ReferralV2Service {
     await this.lastProcessedBlockService.update(key, endBlock);
   }
 
-  private sortEventsByChronologicalOrder(registerCodeEvents: any[], setTraderReferralCodeEvents: any[], setReferrerTierEvents: any[], setTierEvents: any[]) {
+  private sortEventsByChronologicalOrder(
+    registerCodeEvents: any[],
+    setTraderReferralCodeEvents: any[],
+    setReferrerTierEvents: any[],
+    setTierEvents: any[],
+  ) {
     return [
       ...this.mapEventsWithType('register_code', registerCodeEvents),
       ...this.mapEventsWithType('set_trader_code', setTraderReferralCodeEvents),
@@ -352,61 +351,67 @@ export class ReferralV2Service {
       ...this.mapEventsWithType('set_tier', setTierEvents),
     ].sort((a, b) => {
       if (a.event.block.id !== b.event.block.id) return a.event.block.id - b.event.block.id;
-      if (a.event.transactionIndex !== b.event.transactionIndex) return a.event.transactionIndex - b.event.transactionIndex;
+      if (a.event.transactionIndex !== b.event.transactionIndex)
+        return a.event.transactionIndex - b.event.transactionIndex;
       return a.event.logIndex - b.event.logIndex;
     });
   }
 
   private mapEventsWithType(type: string, events: any[]) {
-    return events.map(event => ({ type, event }));
+    return events.map((event) => ({ type, event }));
   }
 
   async getTraderReferralInfo(trader: string, chainId?: number): Promise<ReferralState | null> {
-    const queryBuilder = this.referralStateRepository.createQueryBuilder('state')
+    const queryBuilder = this.referralStateRepository
+      .createQueryBuilder('state')
       .where('LOWER(state.trader) = LOWER(:trader)', { trader });
-    
+
     if (chainId) {
       queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
-    
+
     return queryBuilder.getOne();
   }
 
   async getReferralsByCode(code: string, chainId?: number): Promise<ReferralState[]> {
-    const queryBuilder = this.referralStateRepository.createQueryBuilder('state')
-      .where('state.code = :code', { code });
-    
+    const queryBuilder = this.referralStateRepository.createQueryBuilder('state').where('state.code = :code', { code });
+
     if (chainId) {
       queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
-    
+
     return queryBuilder.getMany();
   }
 
   async getReferralsByOwner(owner: string, chainId?: number): Promise<ReferralState[]> {
-    const queryBuilder = this.referralStateRepository.createQueryBuilder('state')
+    const queryBuilder = this.referralStateRepository
+      .createQueryBuilder('state')
       .where('LOWER(state.owner) = LOWER(:owner)', { owner });
-    
+
     if (chainId) {
       queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
-    
+
     return queryBuilder.getMany();
   }
 
-  async getTradersByOwner(owner: string, chainId?: number): Promise<{
-    totalTraders: number,
+  async getTradersByOwner(
+    owner: string,
+    chainId?: number,
+  ): Promise<{
+    totalTraders: number;
     traders: {
-      trader: string,
-      code: string,
-      codeDecoded: string,
-      tierId: string,
-      totalRebate: string,
-      discountShare: string,
-      timestamp: Date
-    }[]
+      trader: string;
+      code: string;
+      codeDecoded: string;
+      tierId: string;
+      totalRebate: string;
+      discountShare: string;
+      timestamp: Date;
+    }[];
   }> {
-    const queryBuilder = this.referralStateRepository.createQueryBuilder('state')
+    const queryBuilder = this.referralStateRepository
+      .createQueryBuilder('state')
       .select([
         'state.trader',
         'state.code',
@@ -414,28 +419,28 @@ export class ReferralV2Service {
         'state.tierId',
         'state.totalRebate',
         'state.discountShare',
-        'state.timestamp'
+        'state.timestamp',
       ])
       .where('LOWER(state.owner) = LOWER(:owner)', { owner })
       .orderBy('state.timestamp', 'DESC');
-    
+
     if (chainId) {
       queryBuilder.andWhere('state.chain_id = :chainId', { chainId });
     }
 
     const traders = await queryBuilder.getMany();
-    
+
     return {
       totalTraders: traders.length,
-      traders: traders.map(t => ({
+      traders: traders.map((t) => ({
         trader: t.trader,
         code: t.code,
         codeDecoded: t.codeDecoded,
         tierId: t.tierId,
         totalRebate: t.totalRebate,
         discountShare: t.discountShare,
-        timestamp: t.timestamp
-      }))
+        timestamp: t.timestamp,
+      })),
     };
   }
-} 
+}

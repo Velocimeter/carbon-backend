@@ -5,11 +5,8 @@ import { SetTraderReferralCodeEvent } from './set-trader-referral-code-event.ent
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SetTraderReferralCodeEvent]),
-    HarvesterModule,
-  ],
+  imports: [TypeOrmModule.forFeature([SetTraderReferralCodeEvent]), HarvesterModule],
   providers: [SetTraderReferralCodeEventService],
   exports: [SetTraderReferralCodeEventService],
 })
-export class SetTraderReferralCodeEventModule {} 
+export class SetTraderReferralCodeEventModule {}

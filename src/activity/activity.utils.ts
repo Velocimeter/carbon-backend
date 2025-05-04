@@ -111,7 +111,7 @@ export function createActivityFromEvent(
   deployment: Deployment,
   tokens: TokensByAddress,
   strategyStates: StrategyStatesMap,
-  fees?: { fee: string; feeToken: string } | null
+  fees?: { fee: string; feeToken: string } | null,
 ): ActivityV2 {
   // Handle other event types (StrategyCreatedEvent, StrategyUpdatedEvent, StrategyDeletedEvent)
   const token0 = tokens[event.token0.address];
@@ -148,7 +148,7 @@ export function createActivityFromEvent(
   activity.blockchainType = deployment.blockchainType;
   activity.exchangeId = deployment.exchangeId;
   activity.action = action;
-  
+
   activity.strategyId = event.strategyId;
   activity.baseQuote = `${event.token0.symbol}/${event.token1.symbol}`;
 
@@ -213,9 +213,6 @@ export function createActivityFromEvent(
     const liquidity1Delta = processedOrders.liquidity1.minus(prevProcessed.liquidity1);
     activity.sellBudgetChange = liquidity0Delta.toString();
     activity.buyBudgetChange = liquidity1Delta.toString();
-
-   
-
 
     // Price deltas.
     activity.sellPriceADelta = processedOrders.sellPriceA.minus(prevProcessed.sellPriceA).toString();
@@ -313,22 +310,22 @@ export function ordersEqual(obj1: any, obj2: any): boolean {
  */
 export function calculateFeeFromTokensTradedEvent(
   tokensTradedEvent: {
-    tradingFeeAmount: string,
-    sourceAmount: string,
-    targetAmount: string,
-    byTargetAmount: boolean,
-    sourceToken: { address: string, symbol: string, decimals: number },
-    targetToken: { address: string, symbol: string, decimals: number }
+    tradingFeeAmount: string;
+    sourceAmount: string;
+    targetAmount: string;
+    byTargetAmount: boolean;
+    sourceToken: { address: string; symbol: string; decimals: number };
+    targetToken: { address: string; symbol: string; decimals: number };
   },
   strategyUpdatedEvent: {
-    token0: { address: string },
-    token1: { address: string }
+    token0: { address: string };
+    token1: { address: string };
   },
   liquidity0Delta: Decimal,
-  liquidity1Delta: Decimal
-): { 
-  fee: string,  // human readable fee
-  feeToken: string 
+  liquidity1Delta: Decimal,
+): {
+  fee: string; // human readable fee
+  feeToken: string;
 } {
   if (!tokensTradedEvent.tradingFeeAmount) {
     return { fee: '0', feeToken: '' };
@@ -337,109 +334,88 @@ export function calculateFeeFromTokensTradedEvent(
   // Use the same normalization approach as processOrders (these are stored in db as raw values..)
   const denominatorSource = new Decimal(10).pow(tokensTradedEvent.sourceToken.decimals);
   const denominatorTarget = new Decimal(10).pow(tokensTradedEvent.targetToken.decimals);
-  
+
   // Convert raw blockchain values to human-readable amounts
   const normalizedSourceAmount = new Decimal(tokensTradedEvent.sourceAmount).div(denominatorSource);
   const normalizedTargetAmount = new Decimal(tokensTradedEvent.targetAmount).div(denominatorTarget);
-  
+
   // Log normalized amounts for debugging
-  
-  
-  
-  
-  
+
   const byTargetAmount = tokensTradedEvent.byTargetAmount;
-  
-  
+
   if (byTargetAmount) {
-    
     // Case: byTargetAmount = true
     // - Trader transfers variable source amount
     // - Fee is taken from source amount
     // - Fee is in source token
-    
+
     // Fee is in source token
     const feeToken = tokensTradedEvent.sourceToken;
     const feeDenominator = denominatorSource;
-    
+
     // Normalize the fee amount using the appropriate denominator
     const totalTradeFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount).div(feeDenominator);
-    
+
     // Use liquidity0Delta since it's normalized to source token decimals
     const relevantDelta = liquidity0Delta;
-    
+
     // Calculate total trade amount in fee token units (source token)
-    const totalAmount = new Decimal(tokensTradedEvent.sourceAmount).div(denominatorSource);  // This is q (what trader sends)
-    
+    const totalAmount = new Decimal(tokensTradedEvent.sourceAmount).div(denominatorSource); // This is q (what trader sends)
+
     // Calculate total delta in fee token units
     // For byTargetAmount=true:
     // totalAmount (q) = requiredSourceAmount (p) + fee
     // So p = q - fee
     // Our liquidity delta represents p (the actual amount affecting liquidity)
-    const totalDelta = totalAmount.sub(totalTradeFeeAmount);  // This gives us p
-    
+    const totalDelta = totalAmount.sub(totalTradeFeeAmount); // This gives us p
+
     // Calculate proportion using normalized values - both values are in fee token units
     const proportion = relevantDelta.abs().div(totalDelta);
-    
+
     // Calculate this strategy's portion of the fee
     const strategyFee = totalTradeFeeAmount.mul(proportion);
-    
-    
-    
-    
-    
-    
-    
-    
+
     return {
       fee: strategyFee.toFixed(18),
-      feeToken: feeToken.address
+      feeToken: feeToken.address,
     };
   } else {
-    
     // Case: byTargetAmount = false
     // - Trader transfers fixed source amount
     // - Fee is taken from target amount
     // - Fee is in target token
-    
+
     // Fee is in target token
     const feeToken = tokensTradedEvent.targetToken;
-    
-    
+
     const feeDenominator = denominatorTarget;
-    
+
     // Normalize the fee amount using the appropriate denominator
     const totalTradeFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount).div(feeDenominator);
-    
+
     // Determine which liquidity delta to use based on the fee token
     const feeIsToken0 = feeToken.address === strategyUpdatedEvent.token0.address;
     const relevantDelta = feeIsToken0 ? liquidity0Delta : liquidity1Delta;
-    
+
     // Calculate amounts in fee token units (target token)
-    const normalizedTargetAmount = new Decimal(tokensTradedEvent.targetAmount).div(denominatorTarget);  // This is q (what trader receives)
+    const normalizedTargetAmount = new Decimal(tokensTradedEvent.targetAmount).div(denominatorTarget); // This is q (what trader receives)
     const normalizedFeeAmount = new Decimal(tokensTradedEvent.tradingFeeAmount).div(denominatorTarget);
-    
+
     // Calculate total delta in fee token units
     // For byTargetAmount=false:
     // q = what trader receives (normalizedTargetAmount)
     // p = q + fee (total amount that affected liquidity)
-    const totalDelta = normalizedTargetAmount.add(normalizedFeeAmount);  // This gives us p
-    
+    const totalDelta = normalizedTargetAmount.add(normalizedFeeAmount); // This gives us p
+
     // Calculate proportion using normalized values - both values are in fee token units
     const proportion = relevantDelta.abs().div(totalDelta);
-    
+
     // Calculate this strategy's portion of the fee
     const strategyFee = totalTradeFeeAmount.mul(proportion);
-    
-    
-    
-    
-    
-    
-    
+
     return {
       fee: strategyFee.toFixed(18),
-      feeToken: feeToken.address
+      feeToken: feeToken.address,
     };
   }
 }

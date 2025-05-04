@@ -64,4 +64,4 @@ export class RegisterCodeEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

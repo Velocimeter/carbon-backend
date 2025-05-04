@@ -15,17 +15,16 @@ export class ReferralController {
   @ApiOperation({ summary: 'Get all affiliate-trader relationships' })
   @ApiParam({ name: 'blockchainType', description: 'Type of blockchain (e.g. berachain, base)', type: String })
   @ApiQuery({ name: 'chainId', required: false, type: Number })
-  async getReferralRelationships(
-    @Param('blockchainType') blockchainType: string,
-    @Query('chainId') chainId?: number
-  ) {
-    this.logger.log(`Referral relationships request received for ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`);
+  async getReferralRelationships(@Param('blockchainType') blockchainType: string, @Query('chainId') chainId?: number) {
+    this.logger.log(
+      `Referral relationships request received for ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`,
+    );
     const result = await this.referralService.getReferralRelationships(blockchainType, chainId);
     this.logger.log(`Returning response with ${result.length} entries`);
     this.logger.debug('Response structure sample:', {
       totalEntries: result.length,
       firstEntry: result[0],
-      isOwnerGrouped: result[0]?.codes !== undefined
+      isOwnerGrouped: result[0]?.codes !== undefined,
     });
     return result;
   }
@@ -38,20 +37,22 @@ export class ReferralController {
   async getReferralsByOwner(
     @Param('blockchainType') blockchainType: string,
     @Param('address') address: string,
-    @Query('chainId') chainId?: number
+    @Query('chainId') chainId?: number,
   ) {
-    this.logger.log(`Getting referrals for owner: ${address} on ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`);
+    this.logger.log(
+      `Getting referrals for owner: ${address} on ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`,
+    );
     const allReferrals = await this.referralService.getReferralRelationships(blockchainType, chainId);
-    const ownerReferrals = allReferrals.find(entry => entry.owner.toLowerCase() === address.toLowerCase());
-    
+    const ownerReferrals = allReferrals.find((entry) => entry.owner.toLowerCase() === address.toLowerCase());
+
     if (!ownerReferrals) {
       this.logger.log(`No referrals found for owner: ${address}`);
       return {
         owner: address.toLowerCase(),
-        tierId: "0",
-        totalRebate: "0",
-        discountShare: "0",
-        codes: []
+        tierId: '0',
+        totalRebate: '0',
+        discountShare: '0',
+        codes: [],
       };
     }
 
@@ -67,9 +68,13 @@ export class ReferralController {
   async getTraderCode(
     @Param('blockchainType') blockchainType: string,
     @Param('address') address: string,
-    @Query('chainId') chainId?: number
+    @Query('chainId') chainId?: number,
   ) {
-    this.logger.log(`Getting trader code, owner and tier info for address: ${address} on ${blockchainType}${chainId ? ` and chainId: ${chainId}` : ''}`);
+    this.logger.log(
+      `Getting trader code, owner and tier info for address: ${address} on ${blockchainType}${
+        chainId ? ` and chainId: ${chainId}` : ''
+      }`,
+    );
     const result = await this.referralService.getTraderCode(blockchainType, address, chainId);
     return result;
   }

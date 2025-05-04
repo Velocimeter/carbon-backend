@@ -5,11 +5,8 @@ import { SetHandlerEvent } from './set-handler-event.entity';
 import { HarvesterModule } from '../../harvester/harvester.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([SetHandlerEvent]),
-    HarvesterModule,
-  ],
+  imports: [TypeOrmModule.forFeature([SetHandlerEvent]), HarvesterModule],
   providers: [SetHandlerEventService],
   exports: [SetHandlerEventService],
 })
-export class SetHandlerEventModule {} 
+export class SetHandlerEventModule {}

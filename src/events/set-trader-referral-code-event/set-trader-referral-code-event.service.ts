@@ -44,7 +44,9 @@ export class SetTraderReferralCodeEventService {
       .leftJoinAndSelect('setTraderReferralCodeEvents.block', 'block')
       .where('block.id >= :startBlock', { startBlock })
       .andWhere('block.id <= :endBlock', { endBlock })
-      .andWhere('setTraderReferralCodeEvents.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+      .andWhere('setTraderReferralCodeEvents.blockchainType = :blockchainType', {
+        blockchainType: deployment.blockchainType,
+      })
       .andWhere('setTraderReferralCodeEvents.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
       .orderBy('block.id', 'ASC')
       .getMany();
@@ -53,13 +55,13 @@ export class SetTraderReferralCodeEventService {
   async parseEvent(args: CustomFnArgs): Promise<SetTraderReferralCodeEvent> {
     const { event, rawEvent } = args;
     const typedEvent = event as SetTraderReferralCodeEvent;
-    
+
     const code = rawEvent.returnValues['code'];
     if (code) {
       typedEvent.codeDecoded = bytesToString(code);
       typedEvent.code = code;
     }
-    
+
     return typedEvent;
   }
 }
@@ -67,11 +69,8 @@ export class SetTraderReferralCodeEventService {
 function bytesToString(bytes: string): string {
   try {
     const cleanBytes = bytes.startsWith('0x') ? bytes.slice(2) : bytes;
-    return Buffer.from(cleanBytes, 'hex')
-      .toString('utf8')
-      .replace(/\0/g, '')
-      .trim();
+    return Buffer.from(cleanBytes, 'hex').toString('utf8').replace(/\0/g, '').trim();
   } catch (error) {
     return bytes;
   }
-} 
+}

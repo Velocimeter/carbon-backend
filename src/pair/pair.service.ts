@@ -55,7 +55,6 @@ export class PairService {
     const pairs = [];
     events.forEach((e) => {
       if (!tokens[e.token1] || !tokens[e.token0]) {
-        
       }
       pairs.push(
         this.pair.create({
@@ -73,12 +72,7 @@ export class PairService {
   }
 
   async getSymbols(addresses: string[], deployment: Deployment): Promise<string[]> {
-    const symbols = await this.harvesterService.stringsWithMulticall(
-      addresses,
-      symbolABI,
-      'symbol',
-      deployment,
-    );
+    const symbols = await this.harvesterService.stringsWithMulticall(addresses, symbolABI, 'symbol', deployment);
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
       symbols[index] = deployment.gasToken.symbol;
@@ -87,12 +81,7 @@ export class PairService {
   }
 
   async getDecimals(addresses: string[], deployment: Deployment): Promise<number[]> {
-    const decimals = await this.harvesterService.integersWithMulticall(
-      addresses,
-      decimalsABI,
-      'decimals',
-      deployment,
-    );
+    const decimals = await this.harvesterService.integersWithMulticall(addresses, decimalsABI, 'decimals', deployment);
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
       decimals[index] = 18;
@@ -112,8 +101,6 @@ export class PairService {
   }
 
   async findWithFilters(deployment: Deployment, query: PairQueryDto): Promise<[Pair[], number]> {
-    
-
     try {
       const queryBuilder = this.pair
         .createQueryBuilder('pair')
@@ -128,61 +115,72 @@ export class PairService {
            AND activity."exchangeId" = pair."exchangeId"
            ${query.start ? `AND activity.timestamp >= :start` : ''}
            ${query.end ? `AND activity.timestamp <= :end` : ''}
-           ${query.ownerId ? `AND (activity."creationWallet" = :ownerId OR activity."currentOwner" = :ownerId)` : ''}`
+           ${query.ownerId ? `AND (activity."creationWallet" = :ownerId OR activity."currentOwner" = :ownerId)` : ''}`,
         )
-        .select([
-          'pair.id',
-          'pair.exchangeId',
-          'pair.blockchainType',
-          'pair.name',
-          'token0',
-          'token1'
-        ])
+        .select(['pair.id', 'pair.exchangeId', 'pair.blockchainType', 'pair.name', 'token0', 'token1'])
         .addSelect('COUNT(DISTINCT activity.id)', 'pair_activityCount')
         .addSelect('COUNT(DISTINCT activity."currentOwner")', 'pair_uniqueTraders')
         .addSelect('MAX(activity.timestamp)', 'pair_lastActivityTime')
-        .addSelect(`SUM(CASE 
+        .addSelect(
+          `SUM(CASE 
           WHEN activity."feeToken" = token0.address AND activity.fee != '' AND activity.fee ~ '^[0-9\.]+$'
           THEN CAST(activity.fee AS numeric)
           ELSE 0 
-        END)`, 'pair_token0_fees')
-        .addSelect(`SUM(CASE 
+        END)`,
+          'pair_token0_fees',
+        )
+        .addSelect(
+          `SUM(CASE 
           WHEN activity."feeToken" = token1.address AND activity.fee != '' AND activity.fee ~ '^[0-9\.]+$'
           THEN CAST(activity.fee AS numeric)
           ELSE 0 
-        END)`, 'pair_token1_fees')
-        .addSelect(`SUM(CASE 
+        END)`,
+          'pair_token1_fees',
+        )
+        .addSelect(
+          `SUM(CASE 
           WHEN activity.action = 'buy_low'
           AND activity.token0Id = token0.id 
           AND activity.token1Id = token1.id
           AND activity."strategyBought" ~ '^[0-9\.]+$'
           THEN CAST(activity."strategyBought" AS numeric)
           ELSE 0 
-        END)`, 'pair_token0_bought')
-        .addSelect(`SUM(CASE 
+        END)`,
+          'pair_token0_bought',
+        )
+        .addSelect(
+          `SUM(CASE 
           WHEN activity.action = 'sell_high'
           AND activity.token0Id = token0.id
           AND activity.token1Id = token1.id
           AND activity."strategySold" ~ '^[0-9\.]+$'
           THEN CAST(activity."strategySold" AS numeric)
           ELSE 0 
-        END)`, 'pair_token0_sold')
-        .addSelect(`SUM(CASE 
+        END)`,
+          'pair_token0_sold',
+        )
+        .addSelect(
+          `SUM(CASE 
           WHEN activity.action = 'buy_low'
           AND activity.token1Id = token0.id
           AND activity.token0Id = token1.id
           AND activity."strategyBought" ~ '^[0-9\.]+$'
           THEN CAST(activity."strategyBought" AS numeric)
           ELSE 0 
-        END)`, 'pair_token1_bought')
-        .addSelect(`SUM(CASE 
+        END)`,
+          'pair_token1_bought',
+        )
+        .addSelect(
+          `SUM(CASE 
           WHEN activity.action = 'sell_high'
           AND activity.token1Id = token0.id
           AND activity.token0Id = token1.id
           AND activity."strategySold" ~ '^[0-9\.]+$'
           THEN CAST(activity."strategySold" AS numeric)
           ELSE 0 
-        END)`, 'pair_token1_sold')
+        END)`,
+          'pair_token1_sold',
+        )
         .where('pair."exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
         .andWhere('pair."blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType });
 
@@ -234,16 +232,12 @@ export class PairService {
           token0_bought: rawData.pair_token0_bought || '0',
           token0_sold: rawData.pair_token0_sold || '0',
           token1_bought: rawData.pair_token1_bought || '0',
-          token1_sold: rawData.pair_token1_sold || '0'
+          token1_sold: rawData.pair_token1_sold || '0',
         };
       });
 
-      
-      
-
       return [transformedPairs, total];
     } catch (error) {
-      
       throw error;
     }
   }

@@ -63,4 +63,4 @@ export class SetCodeOwnerEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

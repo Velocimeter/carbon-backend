@@ -3,10 +3,7 @@ import { HealthCheck, HealthCheckService, HttpHealthIndicator, HealthIndicatorRe
 
 @Controller('health')
 export class HealthController {
-  constructor(
-    private health: HealthCheckService,
-    private http: HttpHealthIndicator,
-  ) {}
+  constructor(private health: HealthCheckService, private http: HttpHealthIndicator) {}
 
   @Get()
   @HealthCheck()
@@ -16,9 +13,9 @@ export class HealthController {
         server: {
           status: 'up',
           uptime: process.uptime(),
-          timestamp: new Date().toISOString()
-        }
-      })
+          timestamp: new Date().toISOString(),
+        },
+      }),
     ]);
   }
-} 
+}

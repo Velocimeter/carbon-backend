@@ -56,9 +56,7 @@ export class BlockService {
               newBlocks.push(newBlock);
 
               await sleep(deployment.harvestSleep || 0);
-            } catch (error) {
-              
-            }
+            } catch (error) {}
           }),
         ),
       );

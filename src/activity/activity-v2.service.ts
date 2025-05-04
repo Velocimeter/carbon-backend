@@ -34,11 +34,9 @@ export class ActivityV2Service {
   ) {}
 
   async update(endBlock: number, deployment: Deployment, tokens: TokensByAddress): Promise<void> {
-    
     const strategyStates: StrategyStatesMap = new Map<string, StrategyState>();
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-activities-v2`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
-    
 
     // Clean up existing activities for this batch range
     const deleteResult = await this.activityRepository
@@ -48,15 +46,12 @@ export class ActivityV2Service {
       .andWhere('"blockchainType" = :blockchainType', { blockchainType: deployment.blockchainType })
       .andWhere('"exchangeId" = :exchangeId', { exchangeId: deployment.exchangeId })
       .execute();
-    
 
     await this.initializeStrategyStates(lastProcessedBlock, deployment, strategyStates);
-    
 
     // Process blocks in batches
     for (let batchStart = lastProcessedBlock; batchStart < endBlock; batchStart += this.BATCH_SIZE) {
       const batchEnd = Math.min(batchStart + this.BATCH_SIZE - 1, endBlock);
-      
 
       // Fetch events in parallel
       const [createdEvents, updatedEvents, deletedEvents, transferEvents] = await Promise.all([
@@ -65,8 +60,6 @@ export class ActivityV2Service {
         this.strategyDeletedEventService.get(batchStart, batchEnd, deployment),
         this.voucherTransferEventService.get(batchStart, batchEnd, deployment),
       ]);
-
-      
 
       // Process events into activities
       const activities = await this.processEvents(
@@ -78,7 +71,6 @@ export class ActivityV2Service {
         tokens,
         strategyStates,
       );
-      
 
       // Save activities in smaller batches
       let savedCount = 0;
@@ -86,18 +78,14 @@ export class ActivityV2Service {
         const activityBatch = activities.slice(i, i + this.SAVE_BATCH_SIZE);
         await this.activityRepository.save(activityBatch);
         savedCount += activityBatch.length;
-        
       }
 
       // Update the last processed block for this batch
       await this.lastProcessedBlockService.update(key, batchEnd);
-      
     }
-    
   }
 
   async getFilteredActivities(params: ActivityDto | ActivityMetaDto, deployment: Deployment): Promise<ActivityV2[]> {
-    
     const queryBuilder = this.activityRepository.createQueryBuilder('activity');
 
     queryBuilder.where('activity.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId });
@@ -178,7 +166,6 @@ export class ActivityV2Service {
     }
 
     const activities = await queryBuilder.getMany();
-    
 
     // Replace any null values with 0
     return activities.map((activity) => {
@@ -311,18 +298,16 @@ export class ActivityV2Service {
     tokens: TokensByAddress,
     strategyStates: StrategyStatesMap,
   ): Promise<ActivityV2[]> {
-    
     const activities: ActivityV2[] = [];
 
     // Process all events in chronological order
     const allEvents = this.sortEventsByChronologicalOrder(createdEvents, updatedEvents, deletedEvents, transferEvents);
-    
 
     for (const { type, event } of allEvents) {
       switch (type) {
         case 'created': {
           const createdEvent = event as StrategyCreatedEvent;
-          
+
           const activity = createActivityFromEvent(createdEvent, 'create_strategy', deployment, tokens, strategyStates);
           activities.push(activity);
           strategyStates.set(createdEvent.strategyId, {
@@ -340,21 +325,20 @@ export class ActivityV2Service {
           const state = strategyStates.get(event.strategyId);
           if (state) {
             const updatedEvent = event as StrategyUpdatedEvent;
-            
-            
+
             // Calculate fees for trade events
             let fees = null;
             if (updatedEvent.reason === 1) {
               fees = await this.strategyUpdatedEventService.calculateFees(updatedEvent, strategyStates);
             }
-            
+
             const activity = createActivityFromEvent(
               updatedEvent,
               this.determineUpdateType(updatedEvent, state),
               deployment,
               tokens,
               strategyStates,
-              fees
+              fees,
             );
             activities.push(activity);
             state.order0 = updatedEvent.order0;
@@ -365,7 +349,7 @@ export class ActivityV2Service {
         }
         case 'deleted': {
           const deletedEvent = event as StrategyDeletedEvent;
-          
+
           const activity = createActivityFromEvent(deletedEvent, 'deleted', deployment, tokens, strategyStates);
           activities.push(activity);
           strategyStates.delete(deletedEvent.strategyId);
@@ -373,7 +357,7 @@ export class ActivityV2Service {
         }
         case 'transfer': {
           const transferEvent = event as VoucherTransferEvent;
-          
+
           // Filter out events with a zero address in either the 'from' or 'to' field
           if (
             transferEvent.to.toLowerCase() === '0x0000000000000000000000000000000000000000' ||
@@ -393,7 +377,6 @@ export class ActivityV2Service {
       }
     }
 
-    
     return activities;
   }
 
@@ -429,7 +412,6 @@ export class ActivityV2Service {
   }
 
   private determineUpdateType(event: StrategyUpdatedEvent, previousState: StrategyState): string {
-    
     const prevOrder0 = parseOrder(previousState.order0);
     const prevOrder1 = parseOrder(previousState.order1);
     const newOrder0 = parseOrder(event.order0);
@@ -609,12 +591,10 @@ export class ActivityV2Service {
     deployment: Deployment,
     strategyStates: StrategyStatesMap,
   ): Promise<void> {
-    
     strategyStates.clear();
 
     // Get all creation events using the all() method
     const creationEvents = await this.strategyCreatedEventService.all(deployment);
-    
 
     // Get the last events for each strategy
     const lastEvents = await this.activityRepository
@@ -645,6 +625,5 @@ export class ActivityV2Service {
         lastProcessedBlock: activity.blockNumber,
       });
     }
-    
   }
 }

@@ -57,4 +57,4 @@ export class SetHandlerEvent {
 
   @UpdateDateColumn()
   updatedAt: Date;
-} 
+}

@@ -23,7 +23,7 @@ export class GovSetCodeOwnerEventService {
     }
 
     const chainId = NETWORK_IDS[deployment.blockchainType];
-    
+
     try {
       await this.harvesterService.processEvents({
         entity: 'gov-set-code-owner-events',
@@ -46,37 +46,34 @@ export class GovSetCodeOwnerEventService {
   private async decodeReferralCode(args: CustomFnArgs): Promise<any> {
     const { event, rawEvent, customData } = args;
     const eventAny = event as any;
-    
+
     if (rawEvent.blockNumber) {
       eventAny.blockNumber = parseInt(rawEvent.blockNumber);
     }
-    
+
     if (rawEvent.transactionHash) {
       eventAny.transactionHash = rawEvent.transactionHash;
     }
-    
+
     if (customData?.chainId) {
       eventAny.chainId = customData.chainId;
     }
-    
+
     const code = rawEvent.returnValues['code'];
     if (code) {
       eventAny.codeDecoded = this.bytesToString(code);
       eventAny.code = code;
     }
-    
+
     return eventAny;
   }
 
   private bytesToString(bytes: string): string {
     try {
       const cleanBytes = bytes.startsWith('0x') ? bytes.slice(2) : bytes;
-      return Buffer.from(cleanBytes, 'hex')
-        .toString('utf8')
-        .replace(/\0/g, '')
-        .trim();
+      return Buffer.from(cleanBytes, 'hex').toString('utf8').replace(/\0/g, '').trim();
     } catch (error) {
       return bytes;
     }
   }
-} 
+}

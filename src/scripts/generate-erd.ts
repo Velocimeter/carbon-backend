@@ -82,7 +82,6 @@ async function generateERD() {
   });
 
   fs.writeFileSync('erd.mmd', mermaidString);
-  
 }
 
 generateERD().catch(console.error);

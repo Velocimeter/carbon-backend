@@ -30,8 +30,6 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
   return exchangeId;
 }
 
-
-
 export const ApiExchangeIdParam = () =>
   ApiParam({
     name: 'exchangeId',

@@ -41,19 +41,31 @@ export class HistoricQuoteService implements OnModuleInit {
       { name: 'coinmarketcap', enabled: false },
       { name: 'codex', enabled: false },
     ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: false}],
+    [BlockchainType.Sei]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Celo]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Blast]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Base]: [
-      { name: 'codex', enabled: true }, 
-      { name: 'coinmarketcap', enabled: false }
+      { name: 'codex', enabled: true },
+      { name: 'coinmarketcap', enabled: false },
     ],
     [BlockchainType.Fantom]: [{ name: 'codex', enabled: false }],
     [BlockchainType.Linea]: [{ name: 'codex', enabled: false }],
-    [BlockchainType.Iota]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: false }, { name: 'coinmarketcap', enabled: false }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
-    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }, { name: 'coinmarketcap', enabled: false }],
+    [BlockchainType.Iota]: [
+      { name: 'codex', enabled: false },
+      { name: 'coinmarketcap', enabled: false },
+    ],
+    [BlockchainType.Mantle]: [
+      { name: 'codex', enabled: false },
+      { name: 'coinmarketcap', enabled: false },
+    ],
+    [BlockchainType.Berachain]: [
+      { name: 'codex', enabled: true },
+      { name: 'coinmarketcap', enabled: false },
+    ],
+    [BlockchainType.Sonic]: [
+      { name: 'codex', enabled: true },
+      { name: 'coinmarketcap', enabled: false },
+    ],
   };
 
   constructor(
@@ -76,29 +88,24 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     const seedCodexOnStartup = this.configService.get('SEED_CODEX_ON_STARTUP') === '1';
-    
+
     if (seedCodexOnStartup) {
-      const blockchainType = BlockchainType.Berachain; // Set the specific chain here
-      
+      const blockchainType = BlockchainType.Sonic; // Set the specific chain here
+
       try {
         await this.seedCodex(blockchainType);
-        
-      } catch (error) {
-        
-      }
+      } catch (error) {}
     }
   }
 
   async pollForUpdates(): Promise<void> {
     if (this.isPolling) return;
-    
+
     this.isPolling = true;
 
     try {
       // Process chains sequentially instead of in parallel to avoid rate limits
-      await this.updateCoinMarketCapQuotes().catch(error => {
-        
-      });
+      await this.updateCoinMarketCapQuotes().catch((error) => {});
 
       // Process each chain one at a time
       const chains = [
@@ -112,20 +119,16 @@ export class HistoricQuoteService implements OnModuleInit {
         try {
           await this.updateCodexQuotes(chain);
         } catch (error) {
-          
           // Continue with next chain even if one fails
         }
       }
     } catch (error) {
-      
     } finally {
       this.isPolling = false;
-      
     }
   }
 
   private async updateCoinMarketCapQuotes(): Promise<void> {
-    
     const latest = await this.getLatest(BlockchainType.Ethereum);
     const quotes = await this.coinmarketcapService.getLatestQuotes();
     const newQuotes = [];
@@ -142,31 +145,28 @@ export class HistoricQuoteService implements OnModuleInit {
 
     const batches = _.chunk(newQuotes, 1000);
     await Promise.all(batches.map((batch) => this.repository.save(batch)));
-    
   }
 
   private async updateCodexQuotes(blockchainType: BlockchainType): Promise<void> {
-    
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const latest = await this.getLatest(blockchainType);
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
-    
+
     // Process in batches of 50 tokens
     const batchSize = 200;
     const newQuotes = [];
-    
+
     for (let i = 0; i < addresses.length; i += batchSize) {
       const addressBatch = addresses.slice(i, i + batchSize);
-      
-      
+
       const quotes = await this.codexService.getLatestPrices(deployment, addressBatch);
-      
+
       for (const address of Object.keys(quotes)) {
         const quote = quotes[address];
         const price = `${quote.usd}`;
 
         if (latest[address] && latest[address].usd === price) continue;
-        
+
         newQuotes.push(
           this.repository.create({
             tokenAddress: address,
@@ -196,14 +196,12 @@ export class HistoricQuoteService implements OnModuleInit {
     // Save in batches of 50
     const saveBatches = _.chunk(newQuotes, 50);
     try {
-      
       for (let i = 0; i < saveBatches.length; i++) {
         const batch = saveBatches[i];
-        
+
         await this.repository.save(batch);
       }
     } catch (error) {
-      
       throw error;
     }
   }
@@ -211,7 +209,7 @@ export class HistoricQuoteService implements OnModuleInit {
   async seed(): Promise<void> {
     const start = moment().subtract(1, 'year').unix();
     const end = moment().unix();
-    let i = 0;
+    const i = 0;
 
     const tokens = await this.coinmarketcapService.getAllTokens();
     const batchSize = 100; // Adjust the batch size as needed
@@ -239,7 +237,6 @@ export class HistoricQuoteService implements OnModuleInit {
 
         const batches = _.chunk(newQuotes, 1000);
         await Promise.all(batches.map((batch) => this.repository.save(batch)));
-        
       }
     }
   }
@@ -248,7 +245,7 @@ export class HistoricQuoteService implements OnModuleInit {
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const start = moment().subtract(1, 'year').unix();
     const end = moment().unix();
-    let i = 0;
+    const i = 0;
 
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
     const batchSize = 100;
@@ -298,7 +295,6 @@ export class HistoricQuoteService implements OnModuleInit {
 
       const batches = _.chunk(newQuotes, 50);
       await Promise.all(batches.map((batch) => this.repository.save(batch)));
-      
     }
   }
 
@@ -341,7 +337,6 @@ export class HistoricQuoteService implements OnModuleInit {
 
       return quotesByAddress;
     } catch (error) {
-      
       throw new Error(`Error fetching historical quotes for addresses`);
     }
   }

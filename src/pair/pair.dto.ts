@@ -50,4 +50,4 @@ export class PairQueryDto {
     description: 'Wallet or contract address. Filters results by this address.',
   })
   ownerId?: string;
-} 
+}

@@ -77,9 +77,7 @@ export class MarketRateController {
           usedProvider = provider.name;
           break;
         }
-      } catch (error) {
-        
-      }
+      } catch (error) {}
       data = null;
     }
 
