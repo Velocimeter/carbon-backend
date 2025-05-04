@@ -23,8 +23,7 @@ import { DeploymentModule } from './deployment/deployment.module';
 import { CodexService } from './codex/codex.service';
 import { CodexModule } from './codex/codex.module';
 import { SubdomainCacheInterceptor } from './cache.interceptor';
-import { TerminusModule } from '@nestjs/terminus';
-import { HealthController } from './health/health.controller';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -108,15 +107,13 @@ import { HealthController } from './health/health.controller';
     TvlModule,
     DeploymentModule,
     CodexModule,
-    TerminusModule,
+    HealthModule,
   ],
-
-  controllers: [HealthController],
 
   providers: [
     {
       provide: APP_INTERCEPTOR,
-      useClass: SubdomainCacheInterceptor, // Use custom interceptor
+      useClass: SubdomainCacheInterceptor,
     },
     CodexService,
   ],

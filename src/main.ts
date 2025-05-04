@@ -46,7 +46,14 @@ async function bootstrap() {
     logger.log('=== PHASE 3: Starting HTTP Server ===');
     try {
       logger.log('About to call app.listen()...');
-      await app.listen(3000, '0.0.0.0');
+      await app.listen(3000, '0.0.0.0').then(async () => {
+        logger.log(`Application is running on: ${await app.getUrl()}`);
+        // Maybe add a periodic check
+        setInterval(() => {
+          const server = app.getHttpServer();
+          logger.log(`Server listening status: ${server.listening}`);
+        }, 30000);
+      });
       logger.log('app.listen() completed successfully');
       logger.log('HTTP Server successfully started and listening on port 3000');
     } catch (error) {
