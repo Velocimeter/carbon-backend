@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, OnApplicationBootstrap } from '@nestjs/common';
 import { CoinMarketCapService } from '../coinmarketcap/coinmarketcap.service';
 import { HistoricQuote } from './historic-quote.entity';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -32,10 +32,11 @@ export type BlockchainProviderConfig = {
 };
 
 @Injectable()
-export class HistoricQuoteService implements OnModuleInit {
+export class HistoricQuoteService implements OnModuleInit, OnApplicationBootstrap {
   private isPolling = false;
   private readonly intervalDuration: number;
   private shouldPollQuotes: boolean;
+  private seedCodexOnStartup: boolean;
   private priceProviders: BlockchainProviderConfig = {
     [BlockchainType.Ethereum]: [
       { name: 'coinmarketcap', enabled: false },
@@ -78,6 +79,7 @@ export class HistoricQuoteService implements OnModuleInit {
   ) {
     this.intervalDuration = +this.configService.get('POLL_HISTORIC_QUOTES_INTERVAL') || 300000;
     this.shouldPollQuotes = this.configService.get('SHOULD_POLL_HISTORIC_QUOTES') === '1';
+    this.seedCodexOnStartup = this.configService.get('SEED_CODEX_ON_STARTUP') === '1';
   }
 
   async onModuleInit() {
@@ -86,15 +88,19 @@ export class HistoricQuoteService implements OnModuleInit {
       const interval = setInterval(callback, this.intervalDuration);
       this.schedulerRegistry.addInterval('pollForUpdates', interval);
     }
+  }
 
-    const seedCodexOnStartup = this.configService.get('SEED_CODEX_ON_STARTUP') === '1';
-
-    if (seedCodexOnStartup) {
-      const blockchainType = BlockchainType.Base; // Set the specific chain here
-
+  async onApplicationBootstrap() {
+    if (this.seedCodexOnStartup) {
+      const blockchainType = BlockchainType.Berachain;
       try {
-        await this.seedCodex(blockchainType);
-      } catch (error) {}
+        console.log(`Starting to seed Codex data for ${blockchainType} after application startup...`);
+        this.seedCodex(blockchainType)
+          .then(() => console.log(`Completed seeding Codex data for ${blockchainType}`))
+          .catch(error => console.error(`Error seeding Codex data for ${blockchainType}:`, error));
+      } catch (error) {
+        console.error(`Error initiating Codex seeding:`, error);
+      }
     }
   }
 
@@ -153,7 +159,7 @@ export class HistoricQuoteService implements OnModuleInit {
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
 
     // Process in batches of 50 tokens
-    const batchSize = 200;
+    const batchSize = 5; // Smaller batch size for better processing
     const newQuotes = [];
 
     for (let i = 0; i < addresses.length; i += batchSize) {
@@ -198,10 +204,16 @@ export class HistoricQuoteService implements OnModuleInit {
     try {
       for (let i = 0; i < saveBatches.length; i++) {
         const batch = saveBatches[i];
-
-        await this.repository.save(batch);
+        console.log(`Saving batch ${i+1}/${saveBatches.length} with ${batch.length} quotes to database...`);
+        const startTime = Date.now();
+        const savedResult = await this.repository.save(batch);
+        const endTime = Date.now();
+        console.log(`Successfully saved batch ${i+1}: ${savedResult.length} quotes in ${endTime - startTime}ms`);
       }
     } catch (error) {
+      console.error(`Error saving quotes to database:`, error.message || 'Unknown error');
+      if (error.detail) console.error(`DB Error detail: ${error.detail}`);
+      if (error.code) console.error(`DB Error code: ${error.code}`);
       throw error;
     }
   }
@@ -243,58 +255,146 @@ export class HistoricQuoteService implements OnModuleInit {
 
   async seedCodex(blockchainType: BlockchainType): Promise<void> {
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
-    const start = moment().subtract(1, 'year').unix();
+    
+    // First try with 3 months data instead of a full year
+    const start = moment().subtract(3, 'months').unix();
     const end = moment().unix();
-    const i = 0;
+    
+    try {
+      // Use getKnownTokenAddresses instead of getAllTokenAddresses
+      console.log(`Starting to fetch known token addresses for ${blockchainType}...`);
+      const addresses = await this.codexService.getKnownTokenAddresses(deployment);
+      console.log(`Found ${addresses.length} tokens to seed for ${blockchainType}`);
+      
+      // Handle case where no tokens are found
+      if (!addresses || addresses.length === 0) {
+        console.log(`No tokens found for ${blockchainType}, skipping seeding`);
+        return;
+      }
+      
+      const batchSize = 5; // Smaller batch size for better processing
+      const nativeTokenAlias = deployment.nativeTokenAlias ? deployment.nativeTokenAlias : null;
+      let successCount = 0;
+      let skipCount = 0;
+      let errorCount = 0;
 
-    const addresses = await this.codexService.getAllTokenAddresses(deployment);
-    const batchSize = 100;
+      // Process batches sequentially to reduce load on Codex API
+      for (let startIndex = 0; startIndex < addresses.length; startIndex += batchSize) {
+        const batchAddresses = addresses.slice(startIndex, startIndex + batchSize);
+        
+        console.log(`Processing batch ${Math.floor(startIndex/batchSize) + 1}/${Math.ceil(addresses.length/batchSize)} with ${batchAddresses.length} tokens...`);
 
-    const nativeTokenAlias = deployment.nativeTokenAlias ? deployment.nativeTokenAlias : null;
+        try {
+          // Fetch historical quotes for the current batch of addresses
+          const quotesByAddress = await this.codexService.getHistoricalQuotes(deployment, batchAddresses, start, end);
+          const newQuotes = [];
 
-    for (let startIndex = 0; startIndex < addresses.length; startIndex += batchSize) {
-      const batchAddresses = addresses.slice(startIndex, startIndex + batchSize);
+          for (const address of batchAddresses) {
+            try {
+              const quotes = quotesByAddress[address];
+              
+              // Log full quotes object for the first token in each batch for debugging
+              if (batchAddresses.indexOf(address) === 0) {
+                console.log(`Quote details for first token (${address}) in batch: 
+                  Defined: ${!!quotes}, 
+                  Length: ${quotes ? quotes.length : 0},
+                  Sample: ${quotes && quotes.length > 0 ? JSON.stringify(quotes[0]) : 'No data'}`);
+              }
+              
+              if (!quotes || quotes.length === 0) {
+                console.log(`No quotes found for token: ${address}`);
+                skipCount++;
+                continue;
+              }
 
-      // Fetch historical quotes for the current batch of addresses
-      const quotesByAddress = await this.codexService.getHistoricalQuotes(deployment, batchAddresses, start, end);
-
-      const newQuotes = [];
-
-      for (const address of batchAddresses) {
-        const quotes = quotesByAddress[address];
-
-        quotes.forEach((q: any) => {
-          if (q.usd && q.timestamp) {
-            const quote = this.repository.create({
-              tokenAddress: address,
-              usd: q.usd,
-              timestamp: moment.unix(q.timestamp).utc().toISOString(),
-              provider: 'codex',
-              blockchainType: blockchainType,
-            });
-            newQuotes.push(quote);
-          }
-        });
-
-        // If this is the native token alias, also create an entry for the native token
-        if (nativeTokenAlias && address.toLowerCase() === nativeTokenAlias.toLowerCase()) {
-          quotes.forEach((q: any) => {
-            if (q.usd && q.timestamp) {
-              const nativeTokenQuote = this.repository.create({
-                tokenAddress: NATIVE_TOKEN.toLowerCase(),
-                usd: q.usd,
-                timestamp: moment.unix(q.timestamp).utc().toISOString(),
-                provider: 'codex',
-                blockchainType: blockchainType,
+              console.log(`Processing ${quotes.length} quotes for token: ${address}`);
+              let quoteCount = 0;
+              quotes.forEach((q: any) => {
+                if (q && q.usd && q.timestamp) {
+                  const quote = this.repository.create({
+                    tokenAddress: address,
+                    usd: q.usd,
+                    timestamp: moment.unix(q.timestamp).utc().toISOString(),
+                    provider: 'codex',
+                    blockchainType: blockchainType,
+                  });
+                  newQuotes.push(quote);
+                  quoteCount++;
+                }
               });
-              newQuotes.push(nativeTokenQuote);
+
+              console.log(`Added ${quoteCount} quotes for token: ${address}`);
+              
+              // If this is the native token alias, also create an entry for the native token
+              if (nativeTokenAlias && address.toLowerCase() === nativeTokenAlias.toLowerCase()) {
+                let nativeQuoteCount = 0;
+                quotes.forEach((q: any) => {
+                  if (q && q.usd && q.timestamp) {
+                    const nativeTokenQuote = this.repository.create({
+                      tokenAddress: NATIVE_TOKEN.toLowerCase(),
+                      usd: q.usd,
+                      timestamp: moment.unix(q.timestamp).utc().toISOString(),
+                      provider: 'codex',
+                      blockchainType: blockchainType,
+                    });
+                    newQuotes.push(nativeTokenQuote);
+                    nativeQuoteCount++;
+                  }
+                });
+                console.log(`Added ${nativeQuoteCount} quotes for native token (${NATIVE_TOKEN})`);
+              }
+              
+              if (quoteCount > 0) {
+                successCount++;
+              } else {
+                skipCount++;
+              }
+            } catch (error) {
+              console.error(`Error processing token ${address}:`, error.message || 'Unknown error');
+              errorCount++;
             }
-          });
+          }
+
+          if (newQuotes.length === 0) {
+            console.log(`No quotes to save for this batch, continuing to next batch`);
+            continue;
+          }
+
+          console.log(`Saving ${newQuotes.length} quotes for batch...`);
+          const batches = _.chunk(newQuotes, 50);
+          
+          for (const batch of batches) {
+            try {
+              console.log(`Saving batch of ${batch.length} quotes to database...`);
+              const startTime = Date.now();
+              const savedResult = await this.repository.save(batch);
+              const endTime = Date.now();
+              console.log(`Successfully saved ${savedResult.length} quotes to database in ${endTime - startTime}ms`);
+            } catch (error) {
+              console.error(`Error saving batch to database:`, error.message || 'Unknown error');
+              if (error.detail) console.error(`DB Error detail: ${error.detail}`);
+              if (error.code) console.error(`DB Error code: ${error.code}`);
+              errorCount++;
+            }
+          }
+          
+          console.log(`Completed saving quotes for batch`);
+          
+          // Add a small delay between batches to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+        } catch (error) {
+          console.error(`Error processing batch starting at index ${startIndex}:`, error.message || 'Unknown error');
+          errorCount++;
+          // Continue to the next batch even if one fails
         }
       }
-
-      const batches = _.chunk(newQuotes, 50);
-      await Promise.all(batches.map((batch) => this.repository.save(batch)));
+      
+      console.log(`Completed seeding all tokens for ${blockchainType}`);
+      console.log(`Summary: ${successCount} tokens processed successfully, ${skipCount} tokens skipped, ${errorCount} errors encountered`);
+    } catch (error) {
+      console.error(`Fatal error in seedCodex for ${blockchainType}:`, error.message || 'Unknown error');
+      throw error;
     }
   }
 

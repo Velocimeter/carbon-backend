@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { ActivityV2 } from './activity-v2.entity';
@@ -20,8 +20,9 @@ import { TokensByAddress } from '../token/token.service';
 import { Decimal } from 'decimal.js';
 @Injectable()
 export class ActivityV2Service {
-  private readonly BATCH_SIZE = 300000; // Number of blocks per batch
+  private readonly BATCH_SIZE = 90000; // Number of blocks per batch
   private readonly SAVE_BATCH_SIZE = 1000; // Number of activities to save at once
+  private readonly logger = new Logger(ActivityV2Service.name);
 
   constructor(
     @InjectRepository(ActivityV2)
@@ -61,6 +62,8 @@ export class ActivityV2Service {
         this.voucherTransferEventService.get(batchStart, batchEnd, deployment),
       ]);
 
+      this.logger.log(`Fetched ${createdEvents.length} StrategyCreatedEvents for blocks ${batchStart}-${batchEnd}`);
+
       // Process events into activities
       const activities = await this.processEvents(
         createdEvents,
@@ -77,6 +80,7 @@ export class ActivityV2Service {
       for (let i = 0; i < activities.length; i += this.SAVE_BATCH_SIZE) {
         const activityBatch = activities.slice(i, i + this.SAVE_BATCH_SIZE);
         await this.activityRepository.save(activityBatch);
+        this.logger.log(`Saved ${activityBatch.length} activities to DB (batch ${i / this.SAVE_BATCH_SIZE + 1})`);
         savedCount += activityBatch.length;
       }
 
@@ -307,8 +311,11 @@ export class ActivityV2Service {
       switch (type) {
         case 'created': {
           const createdEvent = event as StrategyCreatedEvent;
+          this.logger.log(`Processing StrategyCreatedEvent: strategyId=${createdEvent.strategyId}, owner=${createdEvent.owner}, block=${createdEvent.block.id}, tx=${createdEvent.transactionHash}`);
 
           const activity = createActivityFromEvent(createdEvent, 'create_strategy', deployment, tokens, strategyStates);
+          this.logger.log(`Created ActivityV2 for StrategyCreatedEvent: strategyId=${createdEvent.strategyId}, activityId=${activity.id}, block=${activity.blockNumber}, tx=${activity.txhash}`);
+
           activities.push(activity);
           strategyStates.set(createdEvent.strategyId, {
             currentOwner: createdEvent.owner,

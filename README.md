@@ -403,6 +403,8 @@ You can also manually process referral events by running:
 npx ts-node -r tsconfig-paths/register src/scripts/run-referral-harvester.ts
 ```
 
+MCP connection: docker run -i --rm mcp/postgres postgresql://postgres:postgres@host.docker.internal:5433/postgres
+
 This script can be scheduled via cron if you prefer not to enable the automatic processing.
 
 ## License

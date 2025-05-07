@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { CodexService } from './codex.service';
 import { ConfigModule } from '@nestjs/config';
+import { TokenModule } from '../token/token.module';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, forwardRef(() => TokenModule)],
   providers: [CodexService],
   exports: [CodexService],
 })

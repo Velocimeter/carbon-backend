@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastProcessedBlockModule } from '../last-processed-block/last-processed-block.module';
 import { RedisModule } from '../redis/redis.module';
@@ -25,7 +25,7 @@ import { CodexModule } from '../codex/codex.module';
     VortexTradingResetEventModule,
     VortexFundsWithdrawnEventModule,
     ProtectionRemovedEventModule,
-    CodexModule,
+    forwardRef(() => CodexModule),
   ],
   providers: [TokenService],
   exports: [TokenService, TypeOrmModule.forFeature([Token])],

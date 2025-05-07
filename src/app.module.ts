@@ -116,7 +116,6 @@ import { LoggingMiddleware } from './logging.middleware';
       provide: APP_INTERCEPTOR,
       useClass: SubdomainCacheInterceptor, // Use custom interceptor
     },
-    CodexService,
   ],
 })
 export class AppModule implements NestModule {
