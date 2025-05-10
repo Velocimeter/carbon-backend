@@ -20,7 +20,7 @@ import { TokensByAddress } from '../token/token.service';
 import { Decimal } from 'decimal.js';
 @Injectable()
 export class ActivityV2Service {
-  private readonly BATCH_SIZE = 300000; // Number of blocks per batch
+  private readonly BATCH_SIZE = 30000; // Number of blocks per batch
   private readonly SAVE_BATCH_SIZE = 1000; // Number of activities to save at once
 
   constructor(
