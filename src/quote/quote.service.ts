@@ -35,14 +35,14 @@ export class QuoteService implements OnModuleInit {
       { name: 'coingecko', enabled: true },
       { name: 'codex', enabled: true },
     ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Coti]: [],
+    // [BlockchainType.Coti]: [],
     [BlockchainType.Iota]: [],
   };
 
@@ -89,9 +89,9 @@ export class QuoteService implements OnModuleInit {
   }
 
   async pollForDeployment(deployment: Deployment): Promise<void> {
-    if (deployment.blockchainType === BlockchainType.Coti) {
-      return;
-    }
+    // if (deployment.blockchainType === BlockchainType.Coti) {
+    //   return;
+    // }
 
     try {
       const tokens = await this.tokenService.getTokensByBlockchainType(deployment.blockchainType);

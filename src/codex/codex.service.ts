@@ -5,14 +5,14 @@ import moment from 'moment';
 import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 
 export const NETWORK_IDS = {
-  [BlockchainType.Sei]: 531,
-  [BlockchainType.Celo]: 42220,
+  // [BlockchainType.Sei]: 531,
+  // [BlockchainType.Celo]: 42220,
   [BlockchainType.Ethereum]: 1,
-  [BlockchainType.Base]: 8453,
-  [BlockchainType.Fantom]: 250,
-  [BlockchainType.Mantle]: 5000,
-  [BlockchainType.Blast]: 81457,
-  [BlockchainType.Linea]: 59144,
+  // [BlockchainType.Base]: 8453,
+  // [BlockchainType.Fantom]: 250,
+  // [BlockchainType.Mantle]: 5000,
+  // [BlockchainType.Blast]: 81457,
+  // [BlockchainType.Linea]: 59144,
   [BlockchainType.Berachain]: 80094,
 };
 

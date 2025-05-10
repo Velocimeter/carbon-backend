@@ -38,20 +38,20 @@ export class HistoricQuoteService implements OnModuleInit {
   private readonly intervalDuration: number;
   private shouldPollQuotes: boolean;
   private priceProviders: BlockchainProviderConfig = {
-    [BlockchainType.Ethereum]: [
-      { name: 'coinmarketcap', enabled: true },
-      { name: 'codex', enabled: true },
-    ],
-    [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Fantom]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
+     [BlockchainType.Ethereum]: [
+       { name: 'coinmarketcap', enabled: true },
+       { name: 'codex', enabled: true },
+     ],
+    // [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
+     [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Fantom]: [{ name: 'codex', enabled: true }],
+     [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
-    [BlockchainType.Iota]: [],
+    // [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
+   [BlockchainType.Iota]: [],
   };
 
   constructor(
@@ -98,8 +98,8 @@ export class HistoricQuoteService implements OnModuleInit {
 
       await Promise.all([
         await this.updateCoinMarketCapQuotes(),
-        await this.updateCodexQuotes(BlockchainType.Sei),
-        await this.updateCodexQuotes(BlockchainType.Celo),
+        // await this.updateCodexQuotes(BlockchainType.Sei),
+        // await this.updateCodexQuotes(BlockchainType.Celo),
         // await this.updateCodexQuotes(BlockchainType.Base, BASE_NETWORK_ID),
       ]);
 
