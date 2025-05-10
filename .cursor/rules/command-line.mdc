@@ -1,0 +1,104 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Command Line Usage Rules
+
+## Directory Navigation
+Always use forward slashes for paths, even on Windows:
+```bash
+# ✅ Works everywhere
+cd ../folder_name
+cd ./subfolder
+cd /absolute/path
+cd C:/Users/path  # Windows absolute path
+
+# ❌ Avoid backslashes
+cd ..\folder_name  # Windows-only
+cd .\subfolder    # Windows-only
+cd C:\Users\path  # Windows-only
+```
+
+## Working Directory
+Always verify and fix your location before running commands:
+```bash
+# 1. Check current directory
+pwd
+
+# 2. Navigate if needed - use relative paths when possible
+cd ../project-name         # Go up and into project
+cd ./subfolder            # Go into subfolder
+cd ../../other-project    # Go up twice and into project
+
+# 3. Verify you're in the right place
+ls
+# or
+dir    # on Windows
+```
+
+## Docker Commands
+Docker commands work the same on all platforms:
+```bash
+# Starting services
+docker-compose up -d              # Start all services
+docker-compose up service-name    # Start specific service
+
+# Stopping services
+docker-compose down              # Stop and remove all
+docker-compose stop service-name # Stop specific service
+
+# Checking status
+docker ps                        # List running containers
+docker-compose ps               # List compose services
+
+# Logs
+docker logs container-name      # View container logs
+docker-compose logs -f         # Follow all logs
+```
+
+## Environment Variables
+Set environment variables according to your shell:
+```bash
+# Bash/Linux/Mac
+export VAR_NAME=value
+
+# Windows CMD
+set VAR_NAME=value
+
+# Windows PowerShell
+$env:VAR_NAME = "value"
+```
+
+## Common Gotchas
+1. Wrong directory:
+   ```bash
+   # ❌ Running command in wrong place
+   > docker-compose up
+   ERROR: Can't find a suitable configuration file...
+   
+   # ✅ Check and fix location first
+   > pwd
+   /wrong/directory
+   > cd ../right-directory
+   > docker-compose up
+   ```
+
+2. Path separators:
+   ```bash
+   # ✅ Forward slashes work everywhere
+   docker run -v ./local:/container
+   
+   # ❌ Backslashes only work on Windows
+   docker run -v .\local:/container
+   ```
+
+3. File permissions:
+   ```bash
+   # If permission denied, check file mode
+   ls -l script.sh
+   
+   # Make file executable if needed
+   chmod +x script.sh    # Unix
+   icacls script.sh /grant Users:F    # Windows
+   ```

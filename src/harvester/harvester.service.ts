@@ -12,6 +12,8 @@ import { CarbonPOL } from '../abis/CarbonPOL.abi';
 import { CarbonVortex } from '../abis/CarbonVortex.abi';
 import { CarbonVoucher } from '../abis/CarbonVoucher.abi';
 import { BancorArbitrage } from '../abis/BancorArbitrage.abi';
+import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
+import { ReferralStorage } from '../abis/ReferralStorage.abi';
 import moment from 'moment';
 import { MulticallAbiEthereum } from '../abis/multicall.abi';
 import { multicallAbiSei } from '../abis/multicall.abi';
@@ -21,7 +23,6 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { BlockchainType, Deployment } from '../deployment/deployment.service';
 import { ConfigService } from '@nestjs/config';
 import { sleep } from '../utilities';
-import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
 export const VERSIONS = {
   // PoolMigrator: [{ terminatesAt: 14830503, version: 1 }, { version: 2 }],
 };
@@ -34,6 +35,7 @@ export enum ContractsNames {
   CarbonVoucher = 'CarbonVoucher',
   BancorArbitrage = 'BancorArbitrage',
   LiquidityProtectionStore = 'LiquidityProtectionStore',
+  ReferralStorage = 'ReferralStorage',
 }
 
 const Contracts = {
@@ -44,6 +46,7 @@ const Contracts = {
   [ContractsNames.CarbonVoucher]: CarbonVoucher,
   [ContractsNames.BancorArbitrage]: BancorArbitrage,
   [ContractsNames.LiquidityProtectionStore]: LiquidityProtectionStore,
+  [ContractsNames.ReferralStorage]: ReferralStorage,
 };
 
 export interface ConstantField {
@@ -169,19 +172,29 @@ export class HarvesterService {
         const endBlock = Math.min(startBlock + deployment.harvestEventsBatchSize - 1, range.rangeEnd, toBlock);
         tasks.push(
           concurrency(async () => {
-            const _events = await contract.getPastEvents(eventName, {
-              fromBlock: startBlock,
-              toBlock: endBlock,
-            });
-            if (_events.length > 0) {
-              _events.forEach((e) => events.push(e));
+            try {
+              const _events = await contract.getPastEvents(eventName, {
+                fromBlock: startBlock,
+                toBlock: endBlock,
+              });
+              if (_events.length > 0) {
+                _events.forEach((e) => events.push(e));
+              }
+            } catch (error) {
+              console.error(`Error fetching events for ${eventName} from block ${startBlock} to ${endBlock}:`, error);
+              throw error;
             }
           }),
         );
       }
     }
 
-    await Promise.all(tasks);
+    try {
+      await Promise.all(tasks);
+    } catch (error) {
+      console.error('Error in Promise.all(tasks) during event fetching:', error);
+      throw error;
+    }
     return events;
   }
 
@@ -334,7 +347,7 @@ export class HarvesterService {
           }),
         );
 
-        const batches = _.chunk(newEvents, 1000);
+        const batches = _.chunk(newEvents, 100);
         await Promise.all(batches.map((batch) => args.repository.save(batch)));
 
         result.push(newEvents);

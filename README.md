@@ -382,6 +382,34 @@ ETHEREUM_WALLET_URL=https://app.carbondefi.xyz/wallet/
 
 This system ensures reliable delivery of notifications even with high event volumes and provides network-specific configuration options.
 
+## Referral Data
+
+The referral system processes events directly as part of the application lifecycle. To enable automatic referral event processing, set the following environment variables:
+
+```bash
+# Enable referral event processing
+SHOULD_PROCESS_REFERRALS=1
+
+# Set the interval for processing (in milliseconds, default: 300000 - 5 minutes)
+PROCESS_REFERRALS_INTERVAL=300000
+
+# Process referrals immediately on application startup
+PROCESS_REFERRALS_ON_STARTUP=1
+```
+
+You can also manually process referral events by running:
+
+```bash
+npx ts-node -r tsconfig-paths/register src/scripts/run-referral-harvester.ts
+```
+
+MCP connection: docker run -i --rm mcp/postgres postgresql://postgres:postgres@host.docker.internal:5433/postgres
+
+This script can be scheduled via cron if you prefer not to enable the automatic processing.
+
 ## License
 
 Carbon Backend is licensed under the [MIT License](LICENSE).
+
+
+

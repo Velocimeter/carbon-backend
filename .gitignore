@@ -139,3 +139,5 @@ src/.DS_Store
 # ERD
 erd.mmd
 erd.svg
+*.mau
+.vscode/settings.json

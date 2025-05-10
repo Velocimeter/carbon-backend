@@ -19,20 +19,14 @@ export class SimulatorService {
     private readonly historicQuoteService: HistoricQuoteService,
   ) {}
 
-  async generateSimulation(
-    params: SimulatorDto,
-    usdPrices: any,
-    baseTokenDeployment: Deployment,
-    quoteTokenDeployment: Deployment,
-    originalDeployment: Deployment,
-  ): Promise<any> {
+  async generateSimulation(params: SimulatorDto, usdPrices: any, deployment: Deployment): Promise<any> {
     const { start, end, buyBudget, sellBudget, buyMin, buyMax, sellMin, sellMax } = params;
     const baseToken = params['baseToken'].toLowerCase();
     const quoteToken = params['quoteToken'].toLowerCase();
 
-    // handle fees - use the original deployment for fees
-    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(originalDeployment)).newFeePPM;
-    const pairFees = await this.pairTradingFeePpmUpdatedEventService.allAsDictionary(originalDeployment);
+    // handle fees
+    const defaultFee = (await this.tradingFeePpmUpdatedEventService.last(deployment)).newFeePPM;
+    const pairFees = await this.pairTradingFeePpmUpdatedEventService.allAsDictionary(deployment);
     let feePpm;
     if (pairFees[baseToken] && pairFees[baseToken][quoteToken]) {
       feePpm = pairFees[baseToken][quoteToken];
@@ -41,24 +35,15 @@ export class SimulatorService {
     }
 
     // handle prices
-    // Get prices for base token using baseTokenDeployment
-    const baseTokenPrices = await this.historicQuoteService.getHistoryQuotesBuckets(
-      baseTokenDeployment.blockchainType,
-      [baseToken],
+    const tokens = [baseToken, quoteToken];
+    const prices = await this.historicQuoteService.getHistoryQuotesBuckets(
+      deployment.blockchainType,
+      tokens,
       start,
       end,
     );
-
-    // Get prices for quote token using quoteTokenDeployment
-    const quoteTokenPrices = await this.historicQuoteService.getHistoryQuotesBuckets(
-      quoteTokenDeployment.blockchainType,
-      [quoteToken],
-      start,
-      end,
-    );
-
-    const pricesBaseToken = baseTokenPrices[baseToken];
-    const pricesQuoteToken = quoteTokenPrices[quoteToken];
+    const pricesBaseToken = prices[baseToken];
+    const pricesQuoteToken = prices[quoteToken];
 
     // Synchronize arrays to have the same length
     const minLength = Math.min(pricesBaseToken.length, pricesQuoteToken.length);
@@ -133,9 +118,7 @@ export class SimulatorService {
       pythonOutput += data.toString();
     });
 
-    pythonProcess.stderr.on('data', (data) => {
-      console.error(`Error from Python process: ${data.toString()}`);
-    });
+    pythonProcess.stderr.on('data', (data) => {});
 
     try {
       // Return a promise that resolves with the content of the output.json file
@@ -143,7 +126,6 @@ export class SimulatorService {
         // Handle process exit
         pythonProcess.on('close', (code) => {
           if (code !== 0) {
-            console.error(`Python process exited with code ${code}`);
             reject(new Error(`Python process exited with code ${code}`));
             return;
           }
@@ -161,7 +143,6 @@ export class SimulatorService {
 
       return { ...parsedOutput, prices: pricesRatios };
     } catch (err) {
-      console.error('Error in generateSimulation:', err.message);
       throw err;
     }
   }

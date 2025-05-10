@@ -48,38 +48,24 @@ describe('Blocks', () => {
 
   describe('update', () => {
     it('stores new data', async () => {
-      jest
-        .spyOn(blockService, 'getBlockchainData')
-        .mockReturnValue(Promise.resolve({}));
+      jest.spyOn(blockService, 'getBlockchainData').mockReturnValue(Promise.resolve({}));
       jest
         .spyOn(blockService, 'getMissingBlocks')
         .mockReturnValueOnce(Promise.resolve([1, 2, 3, 4, 5]))
         .mockReturnValue(Promise.resolve([]));
       await blockService.update(100);
-      expect(save).toBeCalledWith([
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-      ]);
+      expect(save).toBeCalledWith([undefined, undefined, undefined, undefined, undefined]);
     });
 
     it('stores nothing when already updated to the latest', async () => {
-      jest
-        .spyOn(blockService, 'getBlockchainData')
-        .mockReturnValue(Promise.resolve({}));
-      jest
-        .spyOn(blockService, 'getMissingBlocks')
-        .mockReturnValue(Promise.resolve([]));
+      jest.spyOn(blockService, 'getBlockchainData').mockReturnValue(Promise.resolve({}));
+      jest.spyOn(blockService, 'getMissingBlocks').mockReturnValue(Promise.resolve([]));
       await blockService.update(200);
       expect(save).toBeCalledTimes(0);
     });
 
     it('caches the last processed block id', async () => {
-      jest
-        .spyOn(blockService, 'getBlockchainData')
-        .mockReturnValue(Promise.resolve({}));
+      jest.spyOn(blockService, 'getBlockchainData').mockReturnValue(Promise.resolve({}));
       jest
         .spyOn(blockService, 'getMissingBlocks')
         .mockReturnValueOnce(Promise.resolve([1, 2, 3, 4, 5]))

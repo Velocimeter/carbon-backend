@@ -1,0 +1,50 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Windows Usage Guidelines for Cursor
+
+## Path Handling
+- Always use forward slashes (`/`) in configuration files, even on Windows
+- For absolute Windows paths in configurations, use the format: `C:/Users/path/to/file`
+- Never use backslashes (`\`) in configuration files as they need to be escaped
+- For environment variables, use `%USERPROFILE%` instead of `~` for home directory
+
+## Directory Locations
+- Global Cursor config: `C:/Users/<username>/.cursor/`
+- Project-specific config: `<project_root>/.cursor/`
+- MCP configuration must be in global config: `C:/Users/<username>/.cursor/mcp.json`
+- Never put global configurations in project directory
+
+## Docker & Container Usage
+- Use `localhost` when accessing services from Windows host
+- Use container names when services need to communicate within Docker network
+- For exposed ports, remember Windows may require explicit port mapping
+- Check Windows-specific line endings (CRLF vs LF) in Docker files
+
+## Terminal Commands
+- Use `cmd.exe` syntax for Windows command prompt
+- NEVER use Unix-style operators like `&&`, `||`, or `|` - they don't work in cmd.exe
+- Instead of `&&`, use:
+  * For single line: `&` to chain commands
+  * For multiple lines: create a `.bat` file
+- Instead of `/` for command flags, use `-` (example: `dir -s` not `dir /s`)
+- For PowerShell commands, ensure proper escaping of special characters
+- Use absolute paths when working across different drives
+- Remember that environment variables use `%VAR%` syntax in cmd.exe
+- Don't use Unix commands like `ls`, `cp`, `mv` - use Windows equivalents:
+  * `ls` → `dir`
+  * `cp` → `copy`
+  * `mv` → `move`
+  * `rm` → `del` or `rd`
+  * `cat` → `type`
+
+## Common Pitfalls
+- Avoid mixing backslashes and forward slashes in the same configuration
+- Don't assume Unix-style paths will work in Windows terminal commands
+- Remember that Windows paths are case-insensitive but container paths are case-sensitive
+- Be careful with path length limitations on Windows
+
+
+

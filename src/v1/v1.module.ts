@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { CmcModule } from './cmc/cmc.module';
 import { RoiModule } from './roi/roi.module';
 import { CoingeckoModule } from './coingecko/coingecko.module';
@@ -9,6 +10,10 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { DexScreenerModule } from './dex-screener/dex-screener.module';
 import { ActivityModule } from './activity/activity.module';
 import { StateModule } from './state/state.module';
+import { ReferralModule } from '../referral/referral.module';
+import { ReferralController } from './referral/referral.controller';
+import { ReferralService } from './referral/referral.service';
+import { ReferralState } from '../referral/referral-state.entity';
 
 @Module({
   imports: [
@@ -21,7 +26,11 @@ import { StateModule } from './state/state.module';
     DexScreenerModule,
     ActivityModule,
     StateModule,
+    ReferralModule,
+    TypeOrmModule.forFeature([ReferralState]),
   ],
-  controllers: [V1Controller],
+  controllers: [V1Controller, ReferralController],
+  providers: [ReferralService],
+  exports: [ReferralService],
 })
 export class V1Module {}

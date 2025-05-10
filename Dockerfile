@@ -27,5 +27,8 @@ COPY . .
 # Build the application
 RUN npm run build
 
+# Expose port 3000
+EXPOSE 3000
+
 # Run the web service on container startup
 CMD [ "npm", "run", "start:prod" ]

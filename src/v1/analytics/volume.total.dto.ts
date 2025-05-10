@@ -1,7 +1,7 @@
-import { IsOptional, IsNumber, Min, Max, IsString, IsArray } from 'class-validator';
+import { IsOptional, IsNumber, Min, Max, IsString, IsArray, IsBoolean } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { formatEthereumAddress } from '../../isAddress.validator';
+import { formatEthereumAddress, IsAddress } from '../../isAddress.validator';
 
 export class VolumeTotalDto {
   @IsOptional()
@@ -50,4 +50,26 @@ export class VolumeTotalDto {
     description: 'Wallet or contract address. Filters results by this address.',
   })
   ownerId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Whether to aggregate results without timestamp segmentation. Only needed for the /volume endpoint, not needed for /volume/tokens/aggregate which is always non-timestamped.',
+  })
+  aggregateTotal?: boolean;
+  
+  @IsOptional()
+  @IsArray()
+  @Transform(({ value }) => value ? (
+    typeof value === 'string' ? value.split(',').map((addr: string) => addr.trim()) : value
+  ) : [])
+  @IsAddress({ each: true })
+  @IsString({ each: true })
+  @ApiPropertyOptional({
+    type: String,
+    description: 'Array of token addresses or comma-separated list of addresses to filter. Optional for tokens/aggregate endpoint - if not provided, all tokens will be used.',
+  })
+  addresses?: string[];
 }

@@ -2,7 +2,7 @@ import { Request } from 'express';
 import { ExchangeId } from './deployment/deployment.service';
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { ApiParam } from '@nestjs/swagger';
-
+// bump to fix multichain
 export function extractExchangeId(request: Request, exchangeIdParam?: string): ExchangeId {
   let exchangeId: ExchangeId;
 
@@ -10,15 +10,17 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
     exchangeId = exchangeIdParam as ExchangeId;
   } else {
     let subdomain = request.hostname.split('.')[0];
-    if (subdomain.endsWith('-api')) {
-      subdomain = subdomain.slice(0, -4); // Remove '-api' suffix
+    // Handle localhost case
+    if (request.hostname === 'localhost') {
+      return ExchangeId.BerachainGraphene; // Default for localhost
     }
-    if (subdomain === 'api') {
-      subdomain = ExchangeId.OGEthereum;
+    if (subdomain.endsWith('-automate-api')) {
+      subdomain = subdomain.slice(0, -13); // Remove '-automate-api' suffix
     }
-
-    // Default to 'ethereum' if subdomain is empty
-    exchangeId = subdomain ? (subdomain as ExchangeId) : ('ethereum' as ExchangeId);
+    if (subdomain === 'automate-api') {
+      subdomain = ExchangeId.IotaGraphene; // Adjust to your preferred default network
+    }
+    exchangeId = subdomain ? (subdomain as ExchangeId) : (ExchangeId.IotaGraphene as ExchangeId);
   }
 
   if (!Object.values(ExchangeId).includes(exchangeId)) {

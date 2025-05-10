@@ -33,7 +33,6 @@ export class StrategyCreatedEventService {
       customFns: [this.parseEvent],
       tagTimestampFromBlock: true,
       deployment,
-      fetchCallerId: true,
     });
   }
 
@@ -92,9 +91,6 @@ export class StrategyCreatedEventService {
         B: BigNumber.from(rawEvent.returnValues[key]['B']).toString(),
       });
     }
-
-    // parse owner
-    event['owner'] = event['callerId'];
 
     return event;
   }

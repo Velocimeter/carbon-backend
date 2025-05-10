@@ -486,7 +486,6 @@ export class TvlService {
           token1: pair.token1.address.toLowerCase(),
         };
       } else {
-        console.warn(`Pair not found for tokens: ${token0}, ${token1}`);
       }
     }
 
