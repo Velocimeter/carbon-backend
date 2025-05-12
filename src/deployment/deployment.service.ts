@@ -394,8 +394,8 @@ export class DeploymentService {
         exchangeId: ExchangeId.MantleGraphene,
         blockchainType: BlockchainType.Mantle,
         rpcEndpoint: this.configService.get('MANTLE_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
-        harvestConcurrency: 10,
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 3,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 18438182,
         gasToken: {

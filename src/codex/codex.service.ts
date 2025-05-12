@@ -1,4 +1,4 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Codex } from '@codex-data/sdk';
 import moment from 'moment';
@@ -9,9 +9,9 @@ export const NETWORK_IDS = {
   // [BlockchainType.Sei]: 531,
   // [BlockchainType.Celo]: 42220,
   [BlockchainType.Ethereum]: 1,
-  // [BlockchainType.Base]: 8453,
+  [BlockchainType.Base]: 8453,
   // [BlockchainType.Fantom]: 250,
-  // [BlockchainType.Mantle]: 5000,
+   [BlockchainType.Mantle]: 5000,
   // [BlockchainType.Blast]: 81457,
   // [BlockchainType.Linea]: 59144,
   [BlockchainType.Berachain]: 80094,
@@ -20,6 +20,7 @@ export const NETWORK_IDS = {
 @Injectable()
 export class CodexService {
   private sdk: Codex;
+  private readonly logger = new Logger(CodexService.name);
 
   constructor(
     private configService: ConfigService,
@@ -27,6 +28,7 @@ export class CodexService {
   ) {
     const apiKey = this.configService.get<string>('CODEX_API_KEY');
     this.sdk = new Codex(apiKey);
+    this.logger.log('Codex service initialized');
   }
 
   async getKnownTokenAddresses(deployment: Deployment): Promise<string[]> {
@@ -47,12 +49,19 @@ export class CodexService {
     if (addresses.length === 0) return {};
 
     const networkId = NETWORK_IDS[deployment.blockchainType];
-    if (!networkId) return null;
+    if (!networkId) {
+      this.logger.warn(`No network ID configured for ${deployment.blockchainType}`);
+      return null;
+    }
+
+    this.logger.log(`Fetching latest prices for ${addresses.length} tokens on ${deployment.blockchainType} (Network ID: ${networkId})`);
 
     // Replace only if targetAddress (NATIVE_TOKEN) is present in addresses
     if (deployment.nativeTokenAlias) {
+      const originalAddresses = [...addresses];
       addresses = addresses.map((address) => {
         if (address.toLowerCase() === NATIVE_TOKEN.toLowerCase()) {
+          this.logger.log(`Mapping native token ${NATIVE_TOKEN} to ${deployment.nativeTokenAlias}`);
           return deployment.nativeTokenAlias;
         }
         return address;
@@ -60,7 +69,9 @@ export class CodexService {
     }
 
     const result = {};
+    this.logger.log(`Calling Codex API to fetch token data...`);
     const tokens = await this.fetchTokens(networkId, addresses);
+    this.logger.log(`Received data for ${tokens.length} tokens from Codex`);
 
     tokens.forEach((t) => {
       const address = t.token.address.toLowerCase();
@@ -75,6 +86,7 @@ export class CodexService {
     });
 
     if (deployment.nativeTokenAlias && result[deployment.nativeTokenAlias.toLowerCase()]) {
+      this.logger.log(`Adding native token price mapping for ${NATIVE_TOKEN}`);
       result[NATIVE_TOKEN.toLowerCase()] = {
         address: NATIVE_TOKEN.toLowerCase(),
         usd: result[deployment.nativeTokenAlias.toLowerCase()].usd,
@@ -83,6 +95,7 @@ export class CodexService {
       };
     }
 
+    this.logger.log(`Returning price data for ${Object.keys(result).length} tokens`);
     return result;
   }
 
@@ -283,8 +296,12 @@ export class CodexService {
 
   async getAllTokenAddresses(deployment: Deployment): Promise<string[]> {
     const networkId = NETWORK_IDS[deployment.blockchainType];
+    this.logger.log(`Fetching all token addresses for ${deployment.blockchainType} (Network ID: ${networkId})`);
+    
     const tokens = await this.fetchTokens(networkId);
     const uniqueAddresses = Array.from(new Set(tokens.map((t) => t.token.address.toLowerCase())));
+    
+    this.logger.log(`Found ${uniqueAddresses.length} unique token addresses for ${deployment.blockchainType}`);
     return uniqueAddresses;
   }
 
@@ -293,16 +310,18 @@ export class CodexService {
     let allTokens = [];
 
     if (addresses && addresses.length > 0) {
-      // Handle the case where addresses are provided
+      this.logger.log(`Fetching specific tokens for network ${networkId}, ${addresses.length} addresses in total`);
       // Process in batches of 200 addresses
       const addressBatches = [];
       for (let i = 0; i < addresses.length; i += limit) {
         addressBatches.push(addresses.slice(i, i + limit));
       }
+      this.logger.log(`Split into ${addressBatches.length} batches of ${limit} addresses`);
 
       // Fetch each batch of addresses
       for (const batch of addressBatches) {
         try {
+          this.logger.debug(`Fetching batch of ${batch.length} tokens...`);
           const result = await this.sdk.queries.filterTokens({
             filters: {
               network: [networkId],
@@ -313,43 +332,23 @@ export class CodexService {
           });
 
           allTokens = [...allTokens, ...result.filterTokens.results];
+          this.logger.debug(`Batch fetch successful, got ${result.filterTokens.results.length} tokens`);
         } catch (error) {
-          console.error('Error fetching tokens:', error);
+          this.logger.error(`Error fetching token batch: ${error.message}`);
           throw error;
         }
       }
 
+      this.logger.log(`Successfully fetched ${allTokens.length} tokens in total`);
       return allTokens;
     } else {
-      // Handle the case where no addresses are provided (fetching all tokens)
+      this.logger.log(`Fetching all tokens for network ${networkId}`);
       let offset = 0;
       let fetched = [];
 
-      if (addresses) {
-        // If addresses are provided, batch them in chunks of 200
-        for (let i = 0; i < addresses.length; i += limit) {
-          const addressBatch = addresses.slice(i, i + limit);
-          try {
-            const result = await this.sdk.queries.filterTokens({
-              filters: {
-                network: [networkId],
-              },
-              tokens: addressBatch,
-              limit,
-              offset: 0,
-            });
-            allTokens = [...allTokens, ...result.filterTokens.results];
-          } catch (error) {
-            console.error('Error fetching tokens:', error);
-            throw error;
-          }
-        }
-        return allTokens;
-      }
-
-      // If no addresses provided, fetch all tokens with pagination
       do {
         try {
+          this.logger.debug(`Fetching tokens with offset ${offset}...`);
           const result = await this.sdk.queries.filterTokens({
             filters: {
               network: [networkId],
@@ -361,12 +360,14 @@ export class CodexService {
           fetched = result.filterTokens.results;
           allTokens = [...allTokens, ...fetched];
           offset += limit;
+          this.logger.debug(`Fetched ${fetched.length} tokens, total so far: ${allTokens.length}`);
         } catch (error) {
-          console.error('Error fetching tokens:', error);
+          this.logger.error(`Error fetching tokens at offset ${offset}: ${error.message}`);
           throw error;
         }
       } while (fetched.length === limit);
 
+      this.logger.log(`Successfully fetched all ${allTokens.length} tokens`);
       return allTokens;
     }
   }
