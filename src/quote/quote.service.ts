@@ -232,7 +232,7 @@ export class QuoteService implements OnModuleInit {
     }
 
     if (!data || Object.keys(data).length === 0) {
-      throw new Error(`No price data available for token: ${address}`);
+      throw new Error(`No price data available for token in quote table: ${address}`);
     }
 
     const result = {

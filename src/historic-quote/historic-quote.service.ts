@@ -83,7 +83,7 @@ export class HistoricQuoteService implements OnModuleInit {
         } catch (error) {
           this.logger.error('Error during delayed Codex seeding:', error);
         }
-      }, 60000); // 1 minute delay
+      }, 10000); // 1 minute delay
     }
   }
 
@@ -279,22 +279,27 @@ export class HistoricQuoteService implements OnModuleInit {
     }
   }
 
-  async seedCodex(blockchainType: BlockchainType): Promise<void> {
+  async seedCodex(blockchainType: BlockchainType, addresses?: string[]): Promise<void> {
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const start = moment().subtract(3, 'months').unix();
     const end = moment().unix();
     let i = 0;
 
     this.logger.log(`Starting to seed ${blockchainType} price history for last 3 months...`);
-    const addresses = await this.codexService.getAllTokenAddresses(deployment);
-    this.logger.log(`Found ${addresses.length} tokens to seed for ${blockchainType}`);
+    const tokensToSeed = addresses || await this.codexService.getKnownTokenAddresses(deployment);
+    this.logger.log(`Found ${tokensToSeed.length} tokens to seed for ${blockchainType}`);
+    
+    // Delete existing data for these tokens before seeding
+    this.logger.log(`Deleting existing price data for ${tokensToSeed.length} tokens...`);
+    await this.deleteQuotes(blockchainType, tokensToSeed);
+    this.logger.log('Existing price data deleted');
     
     const batchSize = 100;
     const nativeTokenAlias = deployment.nativeTokenAlias ? deployment.nativeTokenAlias : null;
 
-    for (let startIndex = 0; startIndex < addresses.length; startIndex += batchSize) {
-      const batchAddresses = addresses.slice(startIndex, startIndex + batchSize);
-      this.logger.log(`Processing batch ${Math.floor(startIndex/batchSize) + 1} of ${Math.ceil(addresses.length/batchSize)} for ${blockchainType}`);
+    for (let startIndex = 0; startIndex < tokensToSeed.length; startIndex += batchSize) {
+      const batchAddresses = tokensToSeed.slice(startIndex, startIndex + batchSize);
+      this.logger.log(`Processing batch ${Math.floor(startIndex/batchSize) + 1} of ${Math.ceil(tokensToSeed.length/batchSize)} for ${blockchainType}`);
 
       // Fetch historical quotes for the current batch of addresses
       const quotesByAddress = await this.codexService.getHistoricalQuotes(deployment, batchAddresses, start, end);
@@ -346,7 +351,7 @@ export class HistoricQuoteService implements OnModuleInit {
         await Promise.all(batches.map((batch) => this.repository.save(batch)));
       }
       
-      this.logger.log(`Completed ${++i} of ${Math.ceil(addresses.length/batchSize)} batches for ${blockchainType}`);
+      this.logger.log(`Completed ${++i} of ${Math.ceil(tokensToSeed.length/batchSize)} batches for ${blockchainType}`);
     }
     
     this.logger.log(`Completed seeding historical prices for ${blockchainType}`);
@@ -570,7 +575,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
     const result = await this.repository.query(query);
 
-    const candlesByAddress: { [key: string]: Candlestick[] } = {};
+    let candlesByAddress = {} as { [key: string]: Candlestick[] };
 
     result.forEach((row: any) => {
       if (!row.open) {
@@ -599,18 +604,70 @@ export class HistoricQuoteService implements OnModuleInit {
     });
 
     // Check if tokens exist at all in candlesByAddress
-    // This check may need to be relaxed if pagination can result in empty token results
     const nonExistentTokens = addresses.filter((address) => !candlesByAddress[address]);
     if (nonExistentTokens.length > 0) {
-      throw new BadRequestException({
-        message: [
-          `No price data available for token${nonExistentTokens.length > 1 ? 's' : ''}: ${nonExistentTokens.join(
-            ', ',
-          )}`,
-        ],
-        error: 'Bad Request',
-        statusCode: 400,
-      });
+      this.logger.log(`No price data found for tokens: ${nonExistentTokens.join(', ')}. Attempting to fetch from Codex...`);
+      
+      // Try to seed just the missing tokens using our existing seedCodex function
+      try {
+        await this.seedCodex(blockchainType, nonExistentTokens);
+        this.logger.log('Successfully seeded data from Codex. Querying buckets again...');
+        
+        // Try getting the buckets again after seeding
+        const result = await this.repository.query(query);
+        candlesByAddress = {} as { [key: string]: Candlestick[] };
+        
+        result.forEach((row: any) => {
+          if (!row.open) {
+            return;
+          }
+
+          const timestamp = moment(row.bucket).utc();
+
+          if (timestamp.isSameOrAfter(startQ)) {
+            const tokenAddress = row.tokenAddress;
+            const candle = {
+              timestamp: timestamp.unix(),
+              open: row.open,
+              close: row.close,
+              high: row.high,
+              low: row.low,
+              provider: row.selected_provider,
+            };
+
+            if (!candlesByAddress[tokenAddress]) {
+              candlesByAddress[tokenAddress] = [];
+            }
+
+            candlesByAddress[tokenAddress].push(candle);
+          }
+        });
+        
+        // Check if we still have missing tokens after seeding
+        const stillMissingTokens = addresses.filter((address) => !candlesByAddress[address]);
+        if (stillMissingTokens.length > 0) {
+          throw new BadRequestException({
+            message: [
+              `No price data available for token${stillMissingTokens.length > 1 ? 's' : ''}: ${stillMissingTokens.join(
+                ', ',
+              )} even after attempting to fetch from Codex`,
+            ],
+            error: 'Bad Request',
+            statusCode: 400,
+          });
+        }
+      } catch (error) {
+        this.logger.error('Error seeding data from Codex:', error);
+        throw new BadRequestException({
+          message: [
+            `Failed to fetch price data for token${nonExistentTokens.length > 1 ? 's' : ''}: ${nonExistentTokens.join(
+              ', ',
+            )}. Error: ${error.message}`,
+          ],
+          error: 'Bad Request',
+          statusCode: 400,
+        });
+      }
     }
 
     return candlesByAddress;
@@ -909,5 +966,15 @@ export class HistoricQuoteService implements OnModuleInit {
       this.logger.error(`Error adding historical quote for address ${quote.tokenAddress}:`, error);
       throw new Error(`Error adding historical quote for address ${quote.tokenAddress}`);
     }
+  }
+
+  async deleteQuotes(blockchainType: BlockchainType, tokenAddresses: string[]): Promise<void> {
+    await this.repository
+      .createQueryBuilder()
+      .delete()
+      .from('historic-quotes')
+      .where('blockchainType = :blockchainType', { blockchainType })
+      .andWhere('tokenAddress IN (:...tokenAddresses)', { tokenAddresses })
+      .execute();
   }
 }

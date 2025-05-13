@@ -1,0 +1,161 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Quote and Token Data Queries
+
+## Database Schema Overview
+
+### Key Tables
+- `quotes`: Contains current price data for tokens
+- `historic-quotes`: Contains historical price data for tokens
+- `tokens`: Contains token metadata and details
+
+### Important Fields for Joining
+- For current quotes: Use `quotes.tokenId` to join with `tokens.id`
+- For historic quotes: Join using `historic-quotes.tokenAddress = tokens.address` AND `historic-quotes.blockchainType = tokens.blockchainType`
+
+## Example Queries
+
+### Basic Token Quote Lookup
+```sql
+SELECT 
+    q.id as quote_id,
+    q.\"blockchainType\",
+    q.provider,
+    q.\"timestamp\",
+    q.usd,
+    t.symbol,
+    t.address,
+    t.\"name\",
+    t.decimals,
+    t.\"exchangeId\"
+FROM public.quotes q
+JOIN public.tokens t ON q.\"tokenId\" = t.id
+```
+
+### Example Token Addresses
+- USDCe: 0x549943e04f40284185054145c6E4e9568C1D3241 (ID: 1)
+- WBTC: 0x0555E30da8f98308EdB960aa94C0Db47230d2B9c (ID: 43)
+
+### Query Specific Token Quotes
+```sql
+-- Current quotes for specific tokens
+SELECT 
+    t.symbol,
+    t.address,
+    q.\"timestamp\",
+    q.usd,
+    q.provider
+FROM public.tokens t
+JOIN public.quotes q ON t.id = q.\"tokenId\"
+WHERE t.address IN (
+    '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c',  -- WBTC
+    '0x549943e04f40284185054145c6E4e9568C1D3241'   -- USDCe
+);
+
+-- Historic quotes for specific tokens
+SELECT 
+    hq.\"tokenAddress\",
+    hq.\"timestamp\",
+    hq.usd,
+    hq.provider
+FROM public.\"historic-quotes\" hq
+WHERE hq.\"tokenAddress\" IN (
+    '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c',  -- WBTC
+    '0x549943e04f40284185054145c6E4e9568C1D3241'   -- USDCe
+)
+ORDER BY hq.\"timestamp\" DESC;
+```
+
+### Historic Quote Statistics
+```sql
+WITH QuoteCounts AS (
+    SELECT 
+        "blockchainType",
+        "tokenAddress",
+        COUNT(*) as quote_count
+    FROM public."historic-quotes"
+    GROUP BY "blockchainType", "tokenAddress"
+)
+SELECT 
+    "blockchainType",
+    COUNT(DISTINCT "tokenAddress") as unique_addresses,
+    SUM(quote_count) as total_quotes,
+    AVG(quote_count)::numeric(10,2) as avg_quotes_per_address,
+    MIN(quote_count) as min_quotes,
+    MAX(quote_count) as max_quotes
+FROM QuoteCounts
+GROUP BY "blockchainType"
+ORDER BY total_quotes DESC;
+```
+
+### Berachain Current Quote Count
+```sql
+SELECT 
+    t.symbol,
+    t.address,
+    t."blockchainType",
+    COUNT(q.id) as quote_count
+FROM public.tokens t
+LEFT JOIN public.quotes q ON t.id = q."tokenId"
+WHERE t."blockchainType" = 'berachain'
+GROUP BY t.symbol, t.address, t."blockchainType"
+ORDER BY quote_count DESC;
+```
+
+### Berachain Historic Quote Count
+```sql
+SELECT 
+    t.symbol,
+    t.address,
+    t."blockchainType",
+    COUNT(hq.id) as historic_quote_count
+FROM public.tokens t
+LEFT JOIN public."historic-quotes" hq ON t.address = hq."tokenAddress" 
+    AND t."blockchainType" = hq."blockchainType"
+WHERE t."blockchainType" = 'berachain'
+GROUP BY t.symbol, t.address, t."blockchainType"
+ORDER BY historic_quote_count DESC;
+```
+
+### Quote Coverage Summary
+
+#### Current Quotes (Berachain)
+- All tracked Berachain tokens have 1 current quote each
+- Total of 16 tokens being tracked
+
+#### Historic Quotes (Berachain)
+- Total unique addresses: 4,243
+- Total historic quotes: 293,251
+- Average quotes per address: 69.11
+- Range: 1 to 1,139 quotes per address
+- Most addresses have between 50-100 historic quotes
+
+### Token Categories
+Currently tracked Berachain tokens:
+- Core tokens: WETH, WBTC, USDCe, ETH
+- Protocol tokens: HONEY, BERO, BRLY, NECT, sNECT
+- Ecosystem tokens: BB, BBOT, OOGA, YEET, iBERA, iBGT, WBERA
+
+### Best Practices
+1. Use appropriate join method for each quote type:
+   - Current quotes: Join on `tokenId`
+   - Historic quotes: Join on `address` AND `blockchainType`
+2. Include blockchain type in queries when filtering for specific chains
+3. Order by timestamp when analyzing historical data
+4. Consider using provider field to distinguish data sources
+
+### Common Use Cases
+- Recent price lookup: Add `ORDER BY q."timestamp" DESC LIMIT 1`
+- Historical data analysis: Filter by timestamp range
+- Chain-specific queries: Filter by `blockchainType`
+- Quote density analysis: Group by address and count quotes
+
+### Data Requirements
+- Minimum 24 data points required per token
+- Maximum data range is 12 months
+- Validate data availability before processing
+
+

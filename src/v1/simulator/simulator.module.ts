@@ -6,6 +6,7 @@ import { TradingFeePpmUpdatedEventModule } from '../../events/trading-fee-ppm-up
 import { PairTradingFeePpmUpdatedEventModule } from '../../events/pair-trading-fee-ppm-updated-event/pair-trading-fee-ppm-updated-event.module';
 import { HistoricQuoteModule } from '../../historic-quote/historic-quote.module';
 import { DeploymentModule } from '../../deployment/deployment.module';
+import { CodexModule } from '../../codex/codex.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { DeploymentModule } from '../../deployment/deployment.module';
     PairTradingFeePpmUpdatedEventModule,
     HistoricQuoteModule,
     DeploymentModule,
+    CodexModule,
   ],
   controllers: [SimulatorController],
   providers: [SimulatorService],

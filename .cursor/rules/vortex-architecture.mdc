@@ -3,3 +3,53 @@ description:
 globs:
 alwaysApply: false
 ---
+# Vortex Rewards Component Architecture
+
+The Vortex rewards section displays data about token rewards, volumes, and fees. The architecture separates concerns for better maintainability:
+
+## Hooks and Data Flow
+
+### Contract Interactions
+Contract interactions should be isolated in a dedicated hook:
+- [useVortexContract.ts](mdc:src/components/rewards/vortex/useVortexContract.ts) - Handles all contract calls to the Vortex contract
+- Responsible for: claiming fees, reading token availability, reading trading amounts
+- Should NOT contain API calls or UI-related logic
+
+### API Data Fetching
+API interactions should be isolated in dedicated hooks:
+- [useVortexAnalytics.ts](mdc:src/components/rewards/vortex/useVortexAnalytics.ts) - Handles all API calls to Carbon endpoints
+- Fetches volume and fee data from aggregate endpoints
+- Uses the carbonApi service (never direct fetch calls)
+
+### Data Processing & Aggregation
+- [useVortexData.ts](mdc:src/components/rewards/vortex/useVortexData.ts) - Main hook combining contract and API data
+- Processes and formats data for UI consumption
+- Provides data for tables and charts
+
+## Components
+
+### Pie Chart
+There should be one unified pie chart component that handles both token allocation and fee distribution views:
+- [VortexPieChart.tsx](mdc:src/components/rewards/vortex/VortexPieChart.tsx) - The main pie chart component
+- Supports switching between allocation view and fee distribution view
+- Reuses chart configuration where possible
+
+### Main Interface Components
+- [VortexDistribution.tsx](mdc:src/components/rewards/vortex/VortexDistribution.tsx) - Main container component
+- Handles view switching between allocation and fee distribution
+- Uses the VortexPieChart for visualization
+
+## Data Flow
+
+1. Contract data comes from useVortexContract hook
+2. Analytics data comes from useVortexAnalytics hook
+3. useVortexData combines both data sources
+4. VortexDistribution component consumes the data and manages UI state
+5. VortexPieChart visualizes the data based on current view mode
+
+## Principles
+
+1. Separation of concerns between contract calls, API calls, and UI
+2. Reuse components where possible (one pie chart with different data)
+3. Pass configuration rather than creating new components
+4. Use the carbonApi service for all API calls (no direct fetch)

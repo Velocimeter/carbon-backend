@@ -173,10 +173,6 @@ export class UpdaterService {
       await this.vortexTokensTradedEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished Vortex tokens traded events for ${deployment.exchangeId}`);
 
-      // handle ArbitrageExecuted events
-      await this.arbitrageExecutedEventService.update(endBlock, deployment);
-      this.logger.log(`CARBON SERVICE - Finished updating arbitrage executed events for ${deployment.exchangeId}`);
-
       // handle VortexTradingReset events
       await this.vortexTradingResetEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating vortex trading reset events for ${deployment.exchangeId}`);

@@ -128,170 +128,70 @@ export class CodexService {
     });
 
     const fetchWithRetry = async (tokenAddress: string, batchFrom: number, batchTo: number, retryCount = 0): Promise<any> => {
-      try {
-        // Skip known failed tokens
-        if (failedTokens.has(tokenAddress)) {
-          console.log(`Skipping known problematic token: ${tokenAddress}`);
-          return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
-        }
-        
-        // Log request details for debugging
-        console.log(`Requesting Codex API: ${tokenAddress}:${networkId} (attempt ${retryCount+1})`);
-        
-        const response = await this.sdk.queries.bars({
-          symbol: `${tokenAddress}:${networkId}`,
-          from: batchFrom,
-          to: batchTo,
-          resolution: `${resolution}`,
-          removeLeadingNullValues: true,
-        });
-        
-        // Check response structure
-        if (!response || !response.getBars) {
-          console.error(`Empty or invalid response for ${tokenAddress}:${networkId}: ${JSON.stringify(response)}`);
-          return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
-        }
-        
-        const bars = response.getBars;
-        
-        // Log success and data status
-        if (!bars.t || bars.t.length === 0) {
-          console.error(`Empty data array returned for ${tokenAddress}:${networkId}`);
-          console.error(`Response structure: ${JSON.stringify(response, null, 2)}`);
-          return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
-        } else {
-          console.log(`Success! Found ${bars.t.length} data points for ${tokenAddress}:${networkId}`);
-        }
-        
-        return { ...bars, address: tokenAddress };
-      } catch (error) {
-        // Basic error info
-        console.error(`============ ERROR DETAILS START ============`);
-        console.error(`Error fetching data for ${tokenAddress}:${networkId} (attempt ${retryCount + 1}/${MAX_RETRIES})`);
-        console.error(`Error message: ${error.message}`);
-        console.error(`Error type: ${error.constructor.name}`);
-        
-        // Detailed error inspection
-        if (error.response) {
-          console.error(`Response status: ${error.response.status}`);
-          console.error(`Response data: ${JSON.stringify(error.response.data, null, 2)}`);
-        }
-        
-        if (error.request) {
-          console.error(`Request made but no response received`);
-        }
-        
-        // Log the full error for debugging
-        console.error(`Full error object: ${JSON.stringify(error, (key, value) => {
-          // Skip circular references
-          if (key === 'request' || key === 'response') return typeof value;
-          return value;
-        }, 2)}`);
-        console.error(`============ ERROR DETAILS END ============`);
-        
-        if (retryCount >= MAX_RETRIES) {
-          console.warn(`Max retries reached for token ${tokenAddress}, marking as failed and returning empty data`);
-          failedTokens.add(tokenAddress);
-          return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
-        }
-        
-        // Wait a bit before retrying (exponential backoff)
-        const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 10000);
-        await new Promise(resolve => setTimeout(resolve, backoffTime));
-        return fetchWithRetry(tokenAddress, batchFrom, batchTo, retryCount + 1);
+      if (failedTokens.has(tokenAddress)) {
+        return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
       }
+      
+      console.log(`Requesting Codex API: ${tokenAddress}:${networkId} (attempt ${retryCount+1})`);
+      
+      const response = await this.sdk.queries.bars({
+        symbol: `${tokenAddress}:${networkId}`,
+        from: batchFrom,
+        to: batchTo,
+        resolution: `${resolution}`,
+        removeLeadingNullValues: true,
+      });
+      
+      return { ...(response?.getBars || { t: [], c: [], o: [], h: [], l: [], v: [] }), address: tokenAddress };
     };
 
     const fetchAllBatches = async (tokenAddress: string): Promise<any> => {
-      try {
-        const batchedResults = [];
-        let hasData = false;
-        
-        for (let start = from; start < to; start += maxBatchDuration) {
-          const end = Math.min(start + maxBatchDuration, to);
-          const result = await fetchWithRetry(tokenAddress, start, end);
-          
-          // Check if this batch has data
-          if (result && result.t && result.t.length > 0) {
-            hasData = true;
-          }
-          
-          batchedResults.push(result);
-        }
-        
-        // Combine all batches into one result
-        const combinedResult = {
-          t: [],
-          c: [],
-          h: [],
-          l: [],
-          o: [],
-          v: [],
-          address: tokenAddress,
-          hasData: hasData  // Add flag to track if any data was found
-        };
-        
-        // Combine all the arrays from each batch
-        batchedResults.forEach(batch => {
-          if (batch.t && batch.t.length > 0) {
-            combinedResult.t = combinedResult.t.concat(batch.t);
-            combinedResult.c = combinedResult.c.concat(batch.c);
-            combinedResult.h = combinedResult.h && batch.h ? combinedResult.h.concat(batch.h) : combinedResult.h;
-            combinedResult.l = combinedResult.l && batch.l ? combinedResult.l.concat(batch.l) : combinedResult.l;
-            combinedResult.o = combinedResult.o && batch.o ? combinedResult.o.concat(batch.o) : combinedResult.o;
-            combinedResult.v = combinedResult.v && batch.v ? combinedResult.v.concat(batch.v) : combinedResult.v;
-          }
-        });
-        
-        return combinedResult;
-      } catch (error) {
-        console.error(`Failed to fetch all batches for ${tokenAddress}:`, error.message || 'Unknown error');
-        return { t: [], c: [], address: tokenAddress, hasData: false };
+      const batchedResults = [];
+      
+      for (let start = from; start < to; start += maxBatchDuration) {
+        const end = Math.min(start + maxBatchDuration, to);
+        batchedResults.push(await fetchWithRetry(tokenAddress, start, end));
       }
+      
+      const combinedResult = {
+        t: [],
+        c: [],
+        h: [],
+        l: [],
+        o: [],
+        v: [],
+        address: tokenAddress
+      };
+      
+      batchedResults.forEach(batch => {
+        combinedResult.t = combinedResult.t.concat(batch.t || []);
+        combinedResult.c = combinedResult.c.concat(batch.c || []);
+        combinedResult.h = combinedResult.h.concat(batch.h || []);
+        combinedResult.l = combinedResult.l.concat(batch.l || []);
+        combinedResult.o = combinedResult.o.concat(batch.o || []);
+        combinedResult.v = combinedResult.v.concat(batch.v || []);
+      });
+      
+      return combinedResult;
     };
 
-    try {
-      const results = await Promise.all(
-        mappedTokenAddresses.map((tokenAddress) => concurrencyLimit(() => fetchAllBatches(tokenAddress))),
-      );
+    const results = await Promise.all(
+      mappedTokenAddresses.map((tokenAddress) => concurrencyLimit(() => fetchAllBatches(tokenAddress))),
+    );
 
-      const quotesByAddress = {};
+    const quotesByAddress = {};
+    
+    results.forEach((batchedResult, index) => {
+      const mappedAddress = mappedTokenAddresses[index];
+      const originalAddress = addressMap[mappedAddress];
       
-      // Process results
-      results.forEach((batchedResult, index) => {
-        const mappedAddress = mappedTokenAddresses[index];
-        const originalAddress = addressMap[mappedAddress];
-        
-        // Log the data summary for debugging
-        console.log(`Data summary for ${originalAddress}: ${batchedResult.hasData ? 'Has data' : 'No data'}, ${batchedResult.t ? batchedResult.t.length : 0} points`);
-        
-        // Skip if we couldn't get any data
-        if (!batchedResult || !batchedResult.t || batchedResult.t.length === 0) {
-          console.warn(`No valid data points for ${mappedAddress} (original: ${originalAddress}), setting empty quotes array`);
-          quotesByAddress[originalAddress] = [];
-          return;
-        }
-        
-        // Map the quotes to the original address
-        quotesByAddress[originalAddress] = batchedResult.t.map((timestamp: number, i: number) => ({
-          timestamp,
-          usd: batchedResult.c[i],
-        }));
-        
-        console.log(`Successfully created ${quotesByAddress[originalAddress].length} quote objects for ${originalAddress}`);
-      });
+      quotesByAddress[originalAddress] = batchedResult.t.map((timestamp: number, i: number) => ({
+        timestamp,
+        usd: batchedResult.c[i],
+      })) || [];
+    });
 
-      return quotesByAddress;
-    } catch (error) {
-      console.error('Unexpected error in getHistoricalQuotes:', error.message || 'Unknown error');
-      
-      // Return an empty object rather than throwing
-      const emptyResult = {};
-      tokenAddresses.forEach(address => {
-        emptyResult[address] = [];
-      });
-      return emptyResult;
-    }
+    return quotesByAddress;
   }
 
   async getAllTokenAddresses(deployment: Deployment): Promise<string[]> {
@@ -311,32 +211,25 @@ export class CodexService {
 
     if (addresses && addresses.length > 0) {
       this.logger.log(`Fetching specific tokens for network ${networkId}, ${addresses.length} addresses in total`);
-      // Process in batches of 200 addresses
       const addressBatches = [];
       for (let i = 0; i < addresses.length; i += limit) {
         addressBatches.push(addresses.slice(i, i + limit));
       }
       this.logger.log(`Split into ${addressBatches.length} batches of ${limit} addresses`);
 
-      // Fetch each batch of addresses
       for (const batch of addressBatches) {
-        try {
-          this.logger.debug(`Fetching batch of ${batch.length} tokens...`);
-          const result = await this.sdk.queries.filterTokens({
-            filters: {
-              network: [networkId],
-            },
-            tokens: batch,
-            limit,
-            offset: 0,
-          });
+        this.logger.debug(`Fetching batch of ${batch.length} tokens...`);
+        const result = await this.sdk.queries.filterTokens({
+          filters: {
+            network: [networkId],
+          },
+          tokens: batch,
+          limit,
+          offset: 0,
+        });
 
-          allTokens = [...allTokens, ...result.filterTokens.results];
-          this.logger.debug(`Batch fetch successful, got ${result.filterTokens.results.length} tokens`);
-        } catch (error) {
-          this.logger.error(`Error fetching token batch: ${error.message}`);
-          throw error;
-        }
+        allTokens = [...allTokens, ...result.filterTokens.results];
+        this.logger.debug(`Batch fetch successful, got ${result.filterTokens.results.length} tokens`);
       }
 
       this.logger.log(`Successfully fetched ${allTokens.length} tokens in total`);
@@ -347,24 +240,19 @@ export class CodexService {
       let fetched = [];
 
       do {
-        try {
-          this.logger.debug(`Fetching tokens with offset ${offset}...`);
-          const result = await this.sdk.queries.filterTokens({
-            filters: {
-              network: [networkId],
-            },
-            limit,
-            offset,
-          });
+        this.logger.debug(`Fetching tokens with offset ${offset}...`);
+        const result = await this.sdk.queries.filterTokens({
+          filters: {
+            network: [networkId],
+          },
+          limit,
+          offset,
+        });
 
-          fetched = result.filterTokens.results;
-          allTokens = [...allTokens, ...fetched];
-          offset += limit;
-          this.logger.debug(`Fetched ${fetched.length} tokens, total so far: ${allTokens.length}`);
-        } catch (error) {
-          this.logger.error(`Error fetching tokens at offset ${offset}: ${error.message}`);
-          throw error;
-        }
+        fetched = result.filterTokens.results;
+        allTokens = [...allTokens, ...fetched];
+        offset += limit;
+        this.logger.debug(`Fetched ${fetched.length} tokens, total so far: ${allTokens.length}`);
       } while (fetched.length === limit);
 
       this.logger.log(`Successfully fetched all ${allTokens.length} tokens`);
