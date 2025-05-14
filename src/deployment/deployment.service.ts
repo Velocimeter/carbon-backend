@@ -17,10 +17,12 @@ export enum BlockchainType {
   Berachain = 'berachain',
   // Coti = 'coti',
   Iota = 'iota',
+  Sonic = 'sonic',
 }
 
 export enum ExchangeId {
   OGEthereum = 'ethereum',
+  OGSonic = 'sonic',
   // OGSei = 'sei',
   // OGCelo = 'celo',
   // OGBlast = 'blast',
@@ -138,6 +140,35 @@ export class DeploymentService {
               vortexId: this.configService.get('ETHEREUM_VORTEX_THREAD_ID'),
               bancorProtectionId: this.configService.get('ETHEREUM_BANCOR_PROTECTION_THREAD_ID'),
             },
+          },
+        },
+      },
+      {
+        exchangeId: ExchangeId.OGSonic,
+        blockchainType: BlockchainType.Sonic,
+        rpcEndpoint: this.configService.get('SONIC_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 20000,
+        harvestConcurrency: 10,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 11025601,
+        gasToken: {
+          name: 'SONIC',
+          symbol: 'SONIC',
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        },
+        nativeTokenAlias: '0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38',
+        contracts: {
+          CarbonController: {
+            address: '0x10Fa549E70Ede76C258c0808b289e4Ac3c9ab2e2',
+          },
+          CarbonVoucher: {
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
+          },
+          BancorArbitrage: {
+            address: '0x0000000000000000000000000000000000000000',  // Replace with actual contract address
+          },
+          CarbonVortex: {
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
           },
         },
       },
