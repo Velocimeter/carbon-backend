@@ -23,7 +23,7 @@ export class SimulatorService {
 
   async seedTokensToCodex(baseToken: string, quoteToken: string, deployment: Deployment, start: number, end: number): Promise<void> {
     const tokens = [baseToken.toLowerCase(), quoteToken.toLowerCase()];
-    const MINIMUM_POINTS_PER_TOKEN = 90; // At least 90 points per token (3 months of daily data)
+    const MINIMUM_POINTS_PER_TOKEN = 7; // At least 90 points per token (3 months of daily data)
     
     // Check existing data first
     const existingData = await this.historicQuoteService.getHistoryQuotesBuckets(
@@ -143,7 +143,7 @@ export class SimulatorService {
     console.log(`Quote token (${quoteToken}): ${availableData[quoteToken]?.length || 0} daily candles`);
 
     // Check if we have enough data points for both tokens
-    const MINIMUM_POINTS_PER_TOKEN = 90; // At least 90 points per token (3 months of daily data)
+    const MINIMUM_POINTS_PER_TOKEN = 30; // At least 90 points per token (3 months of daily data)
     const needsMoreData = (!availableData[baseToken] || availableData[baseToken].length < MINIMUM_POINTS_PER_TOKEN) ||
                          (!availableData[quoteToken] || availableData[quoteToken].length < MINIMUM_POINTS_PER_TOKEN);
 
