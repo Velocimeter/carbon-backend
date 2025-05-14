@@ -30,7 +30,7 @@
     "db:seed": "node src/scripts/seed.js"
   },
   "dependencies": {
-    "@codex-data/sdk": "^1.0.6",
+    "@codex-data/sdk": "0.6.2",
     "@ethersproject/bignumber": "^5.7.0",
     "@google-cloud/secret-manager": "^5.3.0",
     "@google-cloud/tasks": "^5.5.1",
