@@ -39,7 +39,7 @@ export class ActivityV2Service {
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-activities-v2`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
 
-    // Clean up existing activities for this batch range
+    // Clean up existing activities for this batch range.
     const deleteResult = await this.activityRepository
       .createQueryBuilder()
       .delete()
