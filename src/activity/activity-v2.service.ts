@@ -84,7 +84,7 @@ export class ActivityV2Service {
         savedCount += activityBatch.length;
       }
 
-      // Update the last processed block for this batch
+      // Update the last processed block for this batch.
       await this.lastProcessedBlockService.update(key, batchEnd);
     }
   }
