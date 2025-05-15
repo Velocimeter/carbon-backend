@@ -85,6 +85,8 @@ export class StrategyService {
     deployment: Deployment,
     deletionEvent = false,
   ) {
+    console.log(`[Strategy Service] Processing ${events.length} events for ${deployment.blockchainType}-${deployment.exchangeId}`);
+
     // Fetch existing strategies in the current block range
     const existingStrategies = await this.strategyRepository.find({
       where: {
@@ -92,6 +94,8 @@ export class StrategyService {
         exchangeId: deployment.exchangeId,
       },
     });
+
+    console.log(`[Strategy Service] Found ${existingStrategies.length} existing strategies for ${deployment.blockchainType}-${deployment.exchangeId}`);
 
     const strategies = [];
     events.forEach((e) => {
@@ -102,6 +106,7 @@ export class StrategyService {
       let newStrategy;
       if (strategyIndex >= 0) {
         // Update existing strategy
+        console.log(`[Strategy Service] Updating strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${e.pair?.id}, Deleted: ${deletionEvent})`);
         newStrategy = existingStrategies[strategyIndex];
         newStrategy.token0 = e.token0;
         newStrategy.token1 = e.token1;
@@ -118,6 +123,7 @@ export class StrategyService {
         newStrategy.deleted = deletionEvent;
       } else {
         // Create new strategy
+        console.log(`[Strategy Service] Creating new strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${e.pair?.id}, Deleted: ${deletionEvent})`);
         newStrategy = this.strategyRepository.create({
           token0: e.token0,
           token1: e.token1,
@@ -144,7 +150,14 @@ export class StrategyService {
     const BATCH_SIZE = 1000;
     for (let i = 0; i < strategies.length; i += BATCH_SIZE) {
       const batch = strategies.slice(i, i + BATCH_SIZE);
-      await this.strategyRepository.save(batch);
+      console.log(`[Strategy Service] Saving batch ${Math.floor(i/BATCH_SIZE) + 1} of ${Math.ceil(strategies.length/BATCH_SIZE)} (${batch.length} strategies) for ${deployment.blockchainType}-${deployment.exchangeId}`);
+      try {
+        await this.strategyRepository.save(batch);
+        console.log(`[Strategy Service] Successfully saved batch ${Math.floor(i/BATCH_SIZE) + 1}`);
+      } catch (error) {
+        console.error(`[Strategy Service] Error saving batch ${Math.floor(i/BATCH_SIZE) + 1}:`, error);
+        throw error;
+      }
     }
   }
 
