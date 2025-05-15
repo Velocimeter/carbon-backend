@@ -148,7 +148,7 @@ export class DeploymentService {
         blockchainType: BlockchainType.Sonic,
         rpcEndpoint: this.configService.get('SONIC_RPC_ENDPOINT'),
         harvestEventsBatchSize: 20000,
-        harvestConcurrency: 10,
+        harvestConcurrency: 2,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 11025601,
         gasToken: {
@@ -170,13 +170,19 @@ export class DeploymentService {
           CarbonVortex: {
             address: '0x248594Be9BE605905B8912cf575f03fE42d89054',  // Replace with actual contract address
           },
+          ReferralStorage: {
+            address: '0xcBB1fa1Df296D0DE297B6E0239f57bEdC1A37FC0',  // Replace with actual contract address
+          },
+          ReferralReader: {
+            address: '0xFF63F55aEC1219DFEbEac3CF1cc5Ab4eCb5c4C97',  // Replace with actual contract address
+          },
         },
       },
       {
         exchangeId: ExchangeId.IotaGraphene,
         blockchainType: BlockchainType.Iota,
         rpcEndpoint: this.configService.get('IOTA_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 2000,
+        harvestEventsBatchSize: 1000,
         harvestConcurrency: 1,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 1936731,

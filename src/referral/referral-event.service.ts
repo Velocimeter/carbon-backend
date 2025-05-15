@@ -197,13 +197,13 @@ export class ReferralEventService {
   private getChainIdForBlockchain(blockchainType: string): number {
     switch (blockchainType) {
       case 'berachain':
-        return 80085; // Berachain testnet chain ID
+        return 80094; // Berachain chain ID
       case 'ethereum':
         return 1;
       case 'arbitrum':
         return 42161;
-      case 'optimism':
-        return 10;
+      case 'sonic':
+        return 146;
       case 'base':
         return 8453;
       default:
