@@ -588,8 +588,8 @@ export class DeploymentService {
         exchangeId: ExchangeId.BerachainGraphene,
         blockchainType: BlockchainType.Berachain,
         rpcEndpoint: this.configService.get('BERACHAIN_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 1000,
-        harvestConcurrency: 1,
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 5,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 1377587,
         gasToken: {
