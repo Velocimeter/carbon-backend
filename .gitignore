@@ -148,3 +148,7 @@ erd.mmd
 erd.svg
 *.mau
 .vscode/settings.json
+src/scripts/seed.js
+timescale-standard_fork-db-57419-credentials.txt
+src/scripts/seed.js
+src/scripts/seed.md

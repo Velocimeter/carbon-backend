@@ -31,7 +31,7 @@ interface CodeState {
 @Injectable()
 export class ReferralV2Service {
   private readonly logger = new Logger(ReferralV2Service.name);
-  private readonly BATCH_SIZE = 300000; // Number of blocks per batch
+  private readonly BATCH_SIZE = 3000; // Number of blocks per batch
   private readonly SAVE_BATCH_SIZE = 1000; // Number of referrals to save at once
 
   constructor(
@@ -80,6 +80,7 @@ export class ReferralV2Service {
     this.logger.log(`Processing new events from block ${lastProcessedBlock} to ${endBlock}`);
 
     // Get new events since last processed block
+    // TODO check if we have discount share events & if not add them.
     const [
       registerCodeEvents, // Get all register events as we need them for lookups
       newTraderCodeEvents, // But only new trader code events

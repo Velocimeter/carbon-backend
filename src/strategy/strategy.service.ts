@@ -97,26 +97,25 @@ export class StrategyService {
 
     console.log(`[Strategy Service] Found ${existingStrategies.length} existing strategies for ${deployment.blockchainType}-${deployment.exchangeId}`);
     
-    // Log existing strategies for debugging
-    console.log('[Strategy Service] Existing strategy IDs:', existingStrategies.map(s => s.strategyId));
+
 
     // Double check for specific strategy if it exists
-    const problematicId = '340282366920938463463374607431768211459';
-    const doubleCheck = await this.strategyRepository.findOne({
-      where: {
-        blockchainType: deployment.blockchainType,
-        exchangeId: deployment.exchangeId,
-        strategyId: problematicId
-      }
-    });
-    if (doubleCheck) {
-      console.log(`[Strategy Service] Double check found strategy ${problematicId} exists:`, {
-        id: doubleCheck.id,
-        blockchainType: doubleCheck.blockchainType,
-        exchangeId: doubleCheck.exchangeId,
-        strategyId: doubleCheck.strategyId
-      });
-    }
+    // const problematicId = '340282366920938463463374607431768211459';
+    // const doubleCheck = await this.strategyRepository.findOne({
+    //   where: {
+    //     blockchainType: deployment.blockchainType,
+    //     exchangeId: deployment.exchangeId,
+    //     strategyId: problematicId
+    //   }
+    // });
+    // if (doubleCheck) {
+    //   console.log(`[Strategy Service] Double check found strategy ${problematicId} exists:`, {
+    //     id: doubleCheck.id,
+    //     blockchainType: doubleCheck.blockchainType,
+    //     exchangeId: doubleCheck.exchangeId,
+    //     strategyId: doubleCheck.strategyId
+    //   });
+    // }
 
     const strategies = [];
     const processedStrategyIds = new Set(); // Track strategies we've processed in this batch

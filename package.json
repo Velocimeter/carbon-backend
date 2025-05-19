@@ -107,5 +107,8 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "resolutions": {
+    "chardet": "^1.0.0"
   }
 }
