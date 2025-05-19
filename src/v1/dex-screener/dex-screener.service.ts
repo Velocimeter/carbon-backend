@@ -1,19 +1,40 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Strategy } from '../../strategy/strategy.entity';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { BlockchainType, Deployment } from '../../deployment/deployment.service';
+import { sleep } from '../../utilities';
 
 @Injectable()
 export class DexScreenerService {
+  private readonly logger = new Logger(DexScreenerService.name);
+  private updateDelayMs = 180000; // 3 minutes delay
+  private lastUpdateTime: { [key: string]: number } = {};
+
   constructor(
     @InjectRepository(Strategy) private strategy: Repository<Strategy>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-  ) {}
+  ) {
+    this.logger.log(`Initialized with dex-screener update delay of ${this.updateDelayMs/1000}s (3 minutes)`);
+  }
 
   async update(deployment: Deployment): Promise<void> {
+    const deploymentKey = `${deployment.blockchainType}-${deployment.exchangeId}`;
+    const now = Date.now();
+    
+    // If this deployment was updated too recently, delay
+    if (this.lastUpdateTime[deploymentKey] && (now - this.lastUpdateTime[deploymentKey]) < this.updateDelayMs) {
+      const waitTime = this.updateDelayMs - (now - this.lastUpdateTime[deploymentKey]);
+      const waitTimeSeconds = (waitTime / 1000).toFixed(1);
+      this.logger.log(`Throttling dex-screener update for ${deploymentKey} - waiting ${waitTimeSeconds}s before next update.`);
+      await sleep(waitTime);
+    }
+    
+    // Set the last update time
+    this.lastUpdateTime[deploymentKey] = Date.now();
+    
     if (deployment.blockchainType === BlockchainType.Ethereum) {
       const events = await this.getEvents(deployment);
       this.cacheManager.set(`${deployment.blockchainType}:${deployment.exchangeId}:events`, events);
@@ -130,7 +151,7 @@ join_exit_events AS (
     (SELECT blockNumber, blockTimestamp, 'join' AS eventType, txnId, txnIndex, eventIndex, maker, pairId, amount0, NULL AS amount1, reserves0, NULL AS reserves1
      FROM non_trade_liquidity WHERE join_exit = 2
      UNION
-     SELECT blockNumber, blockTimestamp, 'exit' AS eventType, txnId, txnIndex, eventIndex + 0.5, maker, pairId, NULL AS amount0, ABS(amount1) AS amount1, NULL AS reserves0, reserves1
+     SELECT blockNumber, blockTimestamp, 'exit' AS eventType, txnId, txnIndex, eventIndex, maker, pairId, ABS(amount0) AS amount0, NULL AS amount1, reserves0, NULL AS reserves1
      FROM non_trade_liquidity WHERE join_exit = 2)
     UNION
     (SELECT blockNumber, blockTimestamp, 'exit' AS eventType, txnId, txnIndex, eventIndex, maker, pairId, ABS(amount0) AS amount0, NULL AS amount1, reserves0, NULL AS reserves1

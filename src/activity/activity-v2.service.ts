@@ -18,11 +18,15 @@ import { StrategyState, StrategyStatesMap } from './activity.types';
 import { createActivityFromEvent, ordersEqual, parseOrder, processOrders } from './activity.utils';
 import { TokensByAddress } from '../token/token.service';
 import { Decimal } from 'decimal.js';
+import { sleep } from '../utilities';
+
 @Injectable()
 export class ActivityV2Service {
   private readonly BATCH_SIZE = 30000; // Number of blocks per batch
   private readonly SAVE_BATCH_SIZE = 1000; // Number of activities to save at once
   private readonly logger = new Logger(ActivityV2Service.name);
+  private activityUpdateDelayMs = 180000; // 3 minutes delay
+  private lastActivityUpdateTime: { [key: string]: number } = {};
 
   constructor(
     @InjectRepository(ActivityV2)
@@ -32,9 +36,25 @@ export class ActivityV2Service {
     private strategyDeletedEventService: StrategyDeletedEventService,
     private voucherTransferEventService: VoucherTransferEventService,
     private lastProcessedBlockService: LastProcessedBlockService,
-  ) {}
+  ) {
+    this.logger.log(`Initialized with activity update delay of ${this.activityUpdateDelayMs/1000}s (3 minutes)`);
+  }
 
   async update(endBlock: number, deployment: Deployment, tokens: TokensByAddress): Promise<void> {
+    const deploymentKey = `${deployment.blockchainType}-${deployment.exchangeId}`;
+    const now = Date.now();
+    
+    // If this deployment was updated too recently, delay
+    if (this.lastActivityUpdateTime[deploymentKey] && (now - this.lastActivityUpdateTime[deploymentKey]) < this.activityUpdateDelayMs) {
+      const waitTime = this.activityUpdateDelayMs - (now - this.lastActivityUpdateTime[deploymentKey]);
+      const waitTimeSeconds = (waitTime / 1000).toFixed(1);
+      this.logger.log(`Throttling activity update for ${deploymentKey} - waiting ${waitTimeSeconds}s before next update.`);
+      await sleep(waitTime);
+    }
+    
+    // Set the last update time
+    this.lastActivityUpdateTime[deploymentKey] = Date.now();
+    
     const strategyStates: StrategyStatesMap = new Map<string, StrategyState>();
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-activities-v2`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);

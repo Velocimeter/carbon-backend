@@ -8,7 +8,7 @@ import { sleep } from '../utilities';
 
 @Injectable()
 export class LastProcessedBlockService {
-  private queryDelayMs = 10000;
+  private queryDelayMs = 60000;
   private lastQueryTime: { [key: string]: number } = {};
   private readonly logger = new Logger(LastProcessedBlockService.name);
 
@@ -17,7 +17,7 @@ export class LastProcessedBlockService {
     private lastProcessedBlock: Repository<LastProcessedBlock>,
     private configService: ConfigService,
   ) {
-    this.logger.log(`Initialized with query delay of ${this.queryDelayMs}ms`);
+    this.logger.log(`Initialized with query delay of ${this.queryDelayMs/1000}s (1 minute)`);
   }
 
   async update(param: string, block: number): Promise<any> {
