@@ -380,8 +380,11 @@ export class DeploymentService {
           CarbonVoucher: {
             address: '0x907F03ae649581EBFF369a21C587cb8F154A0B84',
           },
+          ReferralStorage: {
+            address: '0x16117462b303b9D0a7CE1F95502a5464ed0E2299',
+          },
           ReferralReader: {
-            address: '0x264978bE88bd4b209Cb18DBDe66eE43472559463',
+            address: '0x48Ec31130E3A1eFD4DaC4eb0273863eD047C3334',
           },
         },
       },
