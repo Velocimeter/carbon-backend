@@ -11,6 +11,8 @@ import { VortexTokensTradedEventModule } from '../events/vortex-tokens-traded-ev
 import { VortexTradingResetEventModule } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.module';
 import { VortexFundsWithdrawnEventModule } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.module';
 import { ProtectionRemovedEventModule } from '../events/protection-removed-event/protection-removed-event.module';
+import { CodexModule } from '../codex/codex.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Token]),
@@ -23,6 +25,7 @@ import { ProtectionRemovedEventModule } from '../events/protection-removed-event
     VortexTradingResetEventModule,
     VortexFundsWithdrawnEventModule,
     ProtectionRemovedEventModule,
+    CodexModule,
   ],
   providers: [TokenService],
   exports: [TokenService, TypeOrmModule.forFeature([Token])],
