@@ -20,17 +20,20 @@ import { HistoricQuoteModule } from '../historic-quote/historic-quote.module';
 import { VoucherTransferEventModule } from '../events/voucher-transfer-event/voucher-transfer-event.module';
 import { AnalyticsModule } from '../v1/analytics/analytics.module';
 import { DexScreenerModule } from '../v1/dex-screener/dex-screener.module';
+import { DexScreenerV2Module } from '../v1/dex-screener/dex-screener-v2.module';
 import { VolumeModule } from '../volume/volume.module';
 import { TvlModule } from '../tvl/tvl.module';
 import { DeploymentModule } from '../deployment/deployment.module';
 import { CodexModule } from '../codex/codex.module';
 import { ArbitrageExecutedEventModule } from '../events/arbitrage-executed-event/arbitrage-executed-event.module';
+import { ArbitrageExecutedEventModuleV2 } from '../events/arbitrage-executed-event-v2/arbitrage-executed-event-v2.module';
 import { VortexTokensTradedEventModule } from '../events/vortex-tokens-traded-event/vortex-tokens-traded-event.module';
 import { VortexTradingResetEventModule } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.module';
 import { VortexFundsWithdrawnEventModule } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ProtectionRemovedEventModule } from '../events/protection-removed-event/protection-removed-event.module';
 import { CarbonPriceModule } from '../carbon-price/carbon-price.module';
+import { MerklModule } from '../merkl/merkl.module';
 
 @Module({
   imports: [
@@ -54,17 +57,21 @@ import { CarbonPriceModule } from '../carbon-price/carbon-price.module';
     VoucherTransferEventModule,
     AnalyticsModule,
     DexScreenerModule,
+    DexScreenerV2Module,
     VolumeModule,
     TvlModule,
     DeploymentModule,
     CodexModule,
     ArbitrageExecutedEventModule,
+    ArbitrageExecutedEventModuleV2,
     VortexTokensTradedEventModule,
     VortexTradingResetEventModule,
     VortexFundsWithdrawnEventModule,
     NotificationModule,
     ProtectionRemovedEventModule,
     CarbonPriceModule,
+    MerklModule,
+    HistoricQuoteModule,
   ],
   providers: [UpdaterService],
 })

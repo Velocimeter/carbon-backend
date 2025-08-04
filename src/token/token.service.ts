@@ -1,18 +1,20 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { decimalsABI, nameABI, symbolABI } from '../abis/erc20.abi';
 import * as _ from 'lodash';
 import { Token } from './token.entity';
 import { HarvesterService } from '../harvester/harvester.service';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
 import { PairCreatedEventService } from '../events/pair-created-event/pair-created-event.service';
-import { BlockchainType, Deployment } from '../deployment/deployment.service';
+import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 import { VortexTokensTradedEventService } from '../events/vortex-tokens-traded-event/vortex-tokens-traded-event.service';
 import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-event/arbitrage-executed-event.service';
+import { ArbitrageExecutedEventServiceV2 } from '../events/arbitrage-executed-event-v2/arbitrage-executed-event-v2.service';
 import { VortexTradingResetEventService } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.service';
 import { VortexFundsWithdrawnEventService } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.service';
 import { ProtectionRemovedEventService } from '../events/protection-removed-event/protection-removed-event.service';
+import { DeploymentService } from '../deployment/deployment.service';
 export interface TokensByAddress {
   [address: string]: Token;
 }
@@ -24,7 +26,7 @@ interface AddressData {
 }
 
 @Injectable()
-export class TokenService {
+export class TokenService implements OnModuleInit {
   constructor(
     @InjectRepository(Token) private token: Repository<Token>,
     private harvesterService: HarvesterService,
@@ -32,10 +34,36 @@ export class TokenService {
     private pairCreatedEventService: PairCreatedEventService,
     private vortexTokensTradedEventService: VortexTokensTradedEventService,
     private arbitrageExecutedEventService: ArbitrageExecutedEventService,
+    private arbitrageExecutedEventServiceV2: ArbitrageExecutedEventServiceV2,
     private vortexTradingResetEventService: VortexTradingResetEventService,
     private vortexFundsWithdrawnEventService: VortexFundsWithdrawnEventService,
     private protectionRemovedEventService: ProtectionRemovedEventService,
+    private deploymentService: DeploymentService,
   ) {}
+
+  /**
+   * Ensure all Ethereum tokens mapped from any deployment exist
+   * This is done at application startup since token mappings are hardcoded in the
+   * deployment configuration and cannot change at runtime.
+   */
+  async onModuleInit() {
+    await this.ensureAllEthereumMappedTokensExist();
+  }
+
+  /**
+   * Ensures all Ethereum tokens mapped from any deployment exist in the database
+   * This replaces the former implementation where QuoteService would call ensureEthereumMappedTokensExist
+   * We only need to do this once at startup since mappings are static in the configuration.
+   */
+  async ensureAllEthereumMappedTokensExist(): Promise<void> {
+    const deployments = this.deploymentService.getDeployments();
+
+    for (const deployment of deployments) {
+      if (deployment.mapEthereumTokens && Object.keys(deployment.mapEthereumTokens).length > 0) {
+        await this.ensureEthereumMappedTokensExist(deployment);
+      }
+    }
+  }
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
     const lastProcessedEntity = `${deployment.blockchainType}-${deployment.exchangeId}-tokens`;
@@ -51,39 +79,46 @@ export class TokenService {
       const nextBlock = Math.min(currentBlock + batchSize, endBlock);
 
       // fetch pair created events
-      const newPairCreatedEvents = await this.pairCreatedEventService.get(currentBlock, nextBlock, deployment);
+      const newPairCreatedEvents = await this.pairCreatedEventService.get(currentBlock + 1, nextBlock, deployment);
 
       // fetch arbitrage executed events
       const newArbitrageExecutedEvents = await this.arbitrageExecutedEventService.get(
-        currentBlock,
+        currentBlock + 1,
+        nextBlock,
+        deployment,
+      );
+
+      // fetch arbitrage executed events v2
+      const newArbitrageExecutedEventsV2 = await this.arbitrageExecutedEventServiceV2.get(
+        currentBlock + 1,
         nextBlock,
         deployment,
       );
 
       // fetch vortex tokens traded events
       const newVortexTokensTradedEvents = await this.vortexTokensTradedEventService.get(
-        currentBlock,
+        currentBlock + 1,
         nextBlock,
         deployment,
       );
 
       // fetch vortex trading reset events
       const newVortexTradingResetEvents = await this.vortexTradingResetEventService.get(
-        currentBlock,
+        currentBlock + 1,
         nextBlock,
         deployment,
       );
 
       // fetch vortex funds withdrawn events
       const newVortexFundsWithdrawnEvents = await this.vortexFundsWithdrawnEventService.get(
-        currentBlock,
+        currentBlock + 1,
         nextBlock,
         deployment,
       );
 
       // fetch protection removed events
       const newProtectionRemovedEvents = await this.protectionRemovedEventService.get(
-        currentBlock,
+        currentBlock + 1,
         nextBlock,
         deployment,
       );
@@ -97,6 +132,12 @@ export class TokenService {
           .map((e) => e.sourceTokens.map((token) => ({ address: token, blockId: e.block.id })))
           .flat(),
         ...newArbitrageExecutedEvents
+          .map((e) => e.tokenPath.map((token) => ({ address: token, blockId: e.block.id })))
+          .flat(),
+        ...newArbitrageExecutedEventsV2
+          .map((e) => e.sourceTokens.map((token) => ({ address: token, blockId: e.block.id })))
+          .flat(),
+        ...newArbitrageExecutedEventsV2
           .map((e) => e.tokenPath.map((token) => ({ address: token, blockId: e.block.id })))
           .flat(),
         ...newVortexTradingResetEvents.map((e) => ({ address: e.token, blockId: e.block.id })),
@@ -157,15 +198,15 @@ export class TokenService {
     // map all token addresses in an array
     const addressesSet = new Set(addresses);
 
-    // filter out already existing tokens
+    // filter out already existing tokens (case-insensitive comparison)
     const currentlyExistingTokens: any = await this.token.find({
       where: { blockchainType: deployment.blockchainType, exchangeId: deployment.exchangeId },
     });
-    const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address);
+    const currentlyExistingAddresses = currentlyExistingTokens.map((t) => t.address.toLowerCase());
 
     const newAddresses = [];
     Array.from(addressesSet).forEach((t) => {
-      if (!currentlyExistingAddresses.includes(t)) {
+      if (!currentlyExistingAddresses.includes(t.toLowerCase())) {
         newAddresses.push(t);
       }
     });
@@ -220,8 +261,112 @@ export class TokenService {
   }
 
   async getTokensByBlockchainType(blockchainType: BlockchainType): Promise<Token[]> {
-    return this.token.find({
+    const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
+    const tokens = await this.token.find({
       where: { blockchainType },
     });
+
+    // If there's no deployment or no native token alias, return as is
+    if (!deployment || !deployment.nativeTokenAlias) {
+      return tokens;
+    }
+
+    // Convert addresses to lowercase for comparison
+    const nativeTokenAlias = deployment.nativeTokenAlias.toLowerCase();
+    const NATIVE_TOKEN_ADDRESS = NATIVE_TOKEN.toLowerCase();
+
+    // Find the native token and check if alias exists
+    const nativeToken = tokens.find((token) => token.address.toLowerCase() === NATIVE_TOKEN_ADDRESS);
+    const aliasExists = tokens.some((token) => token.address.toLowerCase() === nativeTokenAlias);
+
+    // If we found the native token and the alias doesn't exist, create it
+    if (nativeToken && !aliasExists) {
+      const aliasToken = this.token.create({
+        ...nativeToken,
+        address: nativeTokenAlias,
+      });
+      tokens.push(aliasToken);
+    }
+
+    return tokens;
+  }
+
+  /**
+   * Ensures all mapped Ethereum tokens exist in the database
+   * @param deployment The source deployment containing token mappings
+   * @returns Array of created or found Ethereum tokens
+   */
+  async ensureEthereumMappedTokensExist(deployment: Deployment): Promise<Token[]> {
+    // Skip if no mappings exist
+    if (!deployment.mapEthereumTokens || Object.keys(deployment.mapEthereumTokens).length === 0) {
+      return [];
+    }
+
+    // Get Ethereum deployment
+    const ethereumDeployment = this.deploymentService.getDeploymentByBlockchainType(BlockchainType.Ethereum);
+
+    // Get all mapped Ethereum addresses
+    const lowercaseTokenMap = {};
+    Object.entries(deployment.mapEthereumTokens).forEach(([key, value]) => {
+      lowercaseTokenMap[key.toLowerCase()] = value.toLowerCase();
+    });
+    const mappedAddresses = Object.values(lowercaseTokenMap) as string[];
+
+    // Return empty array if no mappings
+    if (mappedAddresses.length === 0) {
+      return [];
+    }
+
+    // Ensure each token exists
+    const tokens = await Promise.all(
+      mappedAddresses.map((address: string) => this.getOrCreateTokenByAddress(address, ethereumDeployment)),
+    );
+
+    return tokens;
+  }
+
+  /**
+   * Gets a token by address for a specific blockchain type, or creates it if it doesn't exist
+   * This is particularly useful for Ethereum tokens that are mapped from other chains
+   * @param address Token address
+   * @param deployment Deployment information
+   * @returns The existing or newly created token
+   */
+  async getOrCreateTokenByAddress(address: string, deployment: Deployment): Promise<Token> {
+    // Normalize address to lowercase for consistent lookup
+    const normalizedAddress = address.toLowerCase();
+
+    // Get all tokens for this deployment and filter in memory (more reliable than Raw query)
+    const allTokens = await this.token.find({
+      where: {
+        blockchainType: deployment.blockchainType,
+        exchangeId: deployment.exchangeId,
+      },
+    });
+
+    // Find existing token with case-insensitive matching
+    const existingToken = allTokens.find((token) => token.address.toLowerCase() === normalizedAddress);
+
+    if (existingToken) {
+      return existingToken;
+    }
+
+    // Token doesn't exist, fetch metadata and create it
+    const [decimal] = await this.getDecimals([normalizedAddress], deployment);
+    const [symbol] = await this.getSymbols([normalizedAddress], deployment);
+    const [name] = await this.getNames([normalizedAddress], deployment);
+
+    // Create and save the new token
+    const newToken = this.token.create({
+      address: address, // Store original case instead of normalizedAddress
+      symbol,
+      decimals: decimal,
+      name,
+      blockchainType: deployment.blockchainType,
+      exchangeId: deployment.exchangeId,
+    });
+
+    await this.token.save(newToken);
+    return newToken;
   }
 }

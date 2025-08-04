@@ -14,10 +14,11 @@ import { PairTradingFeePpmUpdatedEventService } from '../events/pair-trading-fee
 import { TradingFeePpmUpdatedEventService } from '../events/trading-fee-ppm-updated-event/trading-fee-ppm-updated-event.service';
 import { VoucherTransferEventService } from '../events/voucher-transfer-event/voucher-transfer-event.service';
 import { AnalyticsService } from '../v1/analytics/analytics.service';
-import { DexScreenerService } from '../v1/dex-screener/dex-screener.service';
+import { DexScreenerV2Service } from '../v1/dex-screener/dex-screener-v2.service';
 import { TvlService } from '../tvl/tvl.service';
 import { Deployment, DeploymentService } from '../deployment/deployment.service';
 import { ArbitrageExecutedEventService } from '../events/arbitrage-executed-event/arbitrage-executed-event.service';
+import { ArbitrageExecutedEventServiceV2 } from '../events/arbitrage-executed-event-v2/arbitrage-executed-event-v2.service';
 import { VortexTokensTradedEventService } from '../events/vortex-tokens-traded-event/vortex-tokens-traded-event.service';
 import { VortexTradingResetEventService } from '../events/vortex-trading-reset-event/vortex-trading-reset-event.service';
 import { VortexFundsWithdrawnEventService } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.service';
@@ -25,6 +26,9 @@ import { NotificationService } from '../notification/notification.service';
 import { ActivityV2Service } from '../activity/activity-v2.service';
 import { ProtectionRemovedEventService } from '../events/protection-removed-event/protection-removed-event.service';
 import { CarbonPriceService } from '../carbon-price/carbon-price.service';
+import { QuoteService } from '../quote/quote.service';
+import { HistoricQuoteService } from '../historic-quote/historic-quote.service';
+import { MerklProcessorService } from '../merkl/services/merkl-processor.service';
 export const CARBON_IS_UPDATING = 'carbon:isUpdating';
 export const CARBON_IS_UPDATING_ANALYTICS = 'carbon:isUpdatingAnalytics';
 
@@ -47,10 +51,11 @@ export class UpdaterService {
     private pairTradingFeePpmUpdatedEventService: PairTradingFeePpmUpdatedEventService,
     private voucherTransferEventService: VoucherTransferEventService,
     private analyticsService: AnalyticsService,
-    private dexScreenerService: DexScreenerService,
+    private dexScreenerV2Service: DexScreenerV2Service,
     private tvlService: TvlService,
     private deploymentService: DeploymentService,
     private arbitrageExecutedEventService: ArbitrageExecutedEventService,
+    private arbitrageExecutedEventServiceV2: ArbitrageExecutedEventServiceV2,
     private vortexTokensTradedEventService: VortexTokensTradedEventService,
     private vortexTradingResetEventService: VortexTradingResetEventService,
     private vortexFundsWithdrawnEventService: VortexFundsWithdrawnEventService,
@@ -58,6 +63,9 @@ export class UpdaterService {
     private protectionRemovedEventService: ProtectionRemovedEventService,
     private activityV2Service: ActivityV2Service,
     private carbonPriceService: CarbonPriceService,
+    private quoteService: QuoteService,
+    private historicQuoteService: HistoricQuoteService,
+    private merklProcessorService: MerklProcessorService,
     @Inject('REDIS') private redis: any,
   ) {
     const shouldHarvest = this.configService.get('SHOULD_HARVEST');
@@ -112,6 +120,10 @@ export class UpdaterService {
       await this.arbitrageExecutedEventService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished updating arbitrage executed events for ${deployment.exchangeId}`);
 
+      // handle ArbitrageExecuted V2 events
+      await this.arbitrageExecutedEventServiceV2.update(endBlock, deployment);
+      console.log(`CARBON SERVICE - Finished updating arbitrage executed V2 events for ${deployment.exchangeId}`);
+
       // handle VortexTradingReset events
       await this.vortexTradingResetEventService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished updating vortex trading reset events for ${deployment.exchangeId}`);
@@ -147,9 +159,14 @@ export class UpdaterService {
       await this.carbonPriceService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished updating carbon price for ${deployment.exchangeId}`);
 
-      // coingecko tickers
-      await this.coingeckoService.update(deployment);
+      // coingecko tickers - fetch quotes first and pass them to update method
+      const quotesCTE = await this.quoteService.prepareQuotesForQuery(deployment);
+      await this.coingeckoService.update(deployment, quotesCTE);
       console.log(`CARBON SERVICE - Finished updating coingecko tickers for ${deployment.exchangeId}`);
+
+      // DexScreener V2 - incremental processing
+      await this.dexScreenerV2Service.update(endBlock, deployment, tokens);
+      console.log(`CARBON SERVICE - Finished updating DexScreener V2 for ${deployment.exchangeId}`);
 
       // trading fee events
       await this.tradingFeePpmUpdatedEventService.update(endBlock, deployment);
@@ -164,6 +181,10 @@ export class UpdaterService {
 
       await this.activityV2Service.update(endBlock, deployment, tokens);
       console.log(`CARBON SERVICE - Finished updating activities for ${deployment.exchangeId}`);
+
+      // update merkl rewards
+      await this.merklProcessorService.update(endBlock, deployment);
+      console.log(`CARBON SERVICE - Finished updating merkl rewards for ${deployment.exchangeId}`);
 
       await this.tvlService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished updating tvl for ${deployment.exchangeId}`);
@@ -207,15 +228,24 @@ export class UpdaterService {
       await this.redis.client.setex(`${CARBON_IS_UPDATING_ANALYTICS}:${deploymentKey}`, lockDuration, 1);
 
       // ROI
-      await this.roiService.update(deployment);
+      const allQuotes = await this.quoteService.allByAddress(deployment);
+      const quotes = Object.values(allQuotes);
+      await this.roiService.update(deployment, quotes);
       console.log(`CARBON SERVICE - Finished updating ROI for ${deployment.exchangeId}`);
 
       // analytics
-      await this.analyticsService.update(deployment);
+      const quotesCTE = await this.quoteService.prepareQuotesForQuery(deployment);
+      const tokens = await this.tokenService.allByAddress(deployment);
+      const historicQuotesCTE = await this.historicQuoteService.prepareHistoricQuotesForQuery(deployment, tokens);
+      await this.analyticsService.update(deployment, quotesCTE, historicQuotesCTE);
 
-      // DexScreener
-      await this.dexScreenerService.update(deployment);
-      console.log(`CARBON SERVICE - Finished updating DexScreener for ${deployment.exchangeId}`);
+      // coingecko tickers
+      await this.coingeckoService.update(deployment, quotesCTE);
+      console.log(`CARBON SERVICE - Finished updating coingecko tickers for ${deployment.exchangeId}`);
+
+      // total tvl
+      await this.tvlService.updateTotalTvl(deployment);
+      console.log(`CARBON SERVICE - Finished updating total tvl for ${deployment.exchangeId}`);
 
       console.log(`CARBON SERVICE - Finished updating analytics for ${deploymentKey} in:`, Date.now() - t, 'ms');
       this.isUpdatingAnalytics[deploymentKey] = false;

@@ -17,6 +17,7 @@ export enum BlockchainType {
   Berachain = 'berachain',
   // Coti = 'coti',
   Iota = 'iota',
+  Tac = 'tac',
 }
 
 export enum ExchangeId {
@@ -119,6 +120,9 @@ export class DeploymentService {
           BancorArbitrage: {
             address: '0x41Eeba3355d7D6FF628B7982F3F9D055c39488cB',
           },
+          BancorArbitrageV2: {
+            address: '0x0f54099D787e26c90c487625B4dE819eC5A9BDAA',
+          },
           LiquidityProtectionStore: {
             address: '0xf5FAB5DBD2f3bf675dE4cB76517d4767013cfB55',
           },
@@ -138,6 +142,9 @@ export class DeploymentService {
               bancorProtectionId: this.configService.get('ETHEREUM_BANCOR_PROTECTION_THREAD_ID'),
             },
           },
+        },
+        mapEthereumTokens: {
+          '0xfc60fc0145d7330e5abcfc52af7b043a1ce18e7d': '0xfc60fc0145d7330e5abcfc52af7b043a1ce18e7d', // governer self mapping
         },
       },
       // {
@@ -294,6 +301,9 @@ export class DeploymentService {
           BancorArbitrage: {
             address: '0x2ae2404cd44c830d278f51f053a08f54b3756e1c',
           },
+          BancorArbitrageV2: {
+            address: '0x31548B11d685a358de7f52978e099e04116B2Db0',
+          },
           CarbonVortex: {
             address: '0xA4682A2A5Fe02feFF8Bd200240A41AD0E6EaF8d5',
           },
@@ -377,6 +387,9 @@ export class DeploymentService {
           },
           BancorArbitrage: {
             address: '0xC7Dd38e64822108446872c5C2105308058c5C55C',
+          },
+          BancorArbitrageV2: {
+            address: '0x63e353AE90f95C72bf1E78e45456fb78B0c97525',
           },
           CarbonVortex: {
             address: '0x59f21012B2E9BA67ce6a7605E74F945D0D4C84EA',
@@ -532,6 +545,23 @@ export class DeploymentService {
           CarbonVoucher: {
             address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
           },
+          BancorArbitrage: {
+            address: '0xC7Dd38e64822108446872c5C2105308058c5C55C',
+          },
+          BancorArbitrageV2: {
+            address: '0x773B75CfB146bd5d1095fa9d6d45637f02B05119',
+          },
+        },
+        notifications: {
+          explorerUrl: this.configService.get('BERACHAIN_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('BERACHAIN_WALLET_URL'),
+          title: 'Berachain',
+          telegram: {
+            botToken: this.configService.get('BERACHAIN_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              fastlaneId: this.configService.get('BERACHAIN_FASTLANE_THREAD_ID'),
+            },
+          },
         },
       },
       // {
@@ -601,6 +631,9 @@ export class DeploymentService {
           BancorArbitrage: {
             address: '0xC7Dd38e64822108446872c5C2105308058c5C55C',
           },
+          BancorArbitrageV2: {
+            address: '0xeAA4368A09E5e7889C6Ae3D44A7F5eb8587a456c',
+          },
           Vortex: {
             address: '0xe4816658ad10bF215053C533cceAe3f59e1f1087',
           },
@@ -613,6 +646,58 @@ export class DeploymentService {
             botToken: this.configService.get('IOTA_TELEGRAM_BOT_TOKEN'),
             threads: {
               fastlaneId: this.configService.get('IOTA_FASTLANE_THREAD_ID'),
+            },
+          },
+        },
+      },
+      {
+        exchangeId: ExchangeId.OGTac,
+        blockchainType: BlockchainType.Tac,
+        rpcEndpoint: this.configService.get('TAC_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 1000,
+        harvestConcurrency: 1,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 975648,
+        gasToken: {
+          name: 'TAC',
+          symbol: 'TAC',
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        },
+        nativeTokenAlias: '0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9',
+        contracts: {
+          CarbonController: {
+            address: '0xA4682A2A5Fe02feFF8Bd200240A41AD0E6EaF8d5',
+          },
+          CarbonVoucher: {
+            address: '0xb0d39990E1C38B50D0b7f6911525535Fbacb4C26',
+          },
+          BancorArbitrageV2: {
+            address: '0x51aA24A9230e62CfaF259c47DE3133578cE36317',
+          },
+        },
+        mapEthereumTokens: {
+          '0xb76d91340f5ce3577f0a056d29f6e3eb4e88b140': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // ton -> wtoncoin
+          '0xaf988c3f7cb2aceabb15f96b19388a259b6c438f': '0xdac17f958d2ee523a2206206994597c13d831ec7', // usdt
+          '0xecAc9C5F704e954931349Da37F60E39f515c11c1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // lbtc
+          '0xe82dbD543FD729418613d68Cd1E8FC67b0f46E31': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // mbtc
+          '0x51A30E647D33A044967FA3DBb04d6ED6F45455F6': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usn
+          '0x9bB6983Ca454320BD8691409690B4FCCD489EE96': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usd0
+          '0x6bedE1c6009a78c222D9BDb7974bb67847fdB68c': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // busd
+          '0xb1b385542B6E80F77B94393Ba8342c3Af699f15c': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usdr
+          '0x61D66bC21fED820938021B06e9b2291f3FB91945': '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // weth oft
+          '0xD44F691aeD69fe43180B95b6F82f89c18Fb93094': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // tsTON
+          '0x20512cF15E60242aB5237E0A76c873a338281397': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // bmTON
+          '0x7048c9e4aBD0cf0219E95a17A8C6908dfC4f0Ee4': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // cbBTC
+        },
+        notifications: {
+          explorerUrl: this.configService.get('TAC_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('TAC_CARBON_WALLET_URL'),
+          title: 'TAC',
+          telegram: {
+            botToken: this.configService.get('TAC_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              carbonThreadId: this.configService.get('TAC_CARBON_THREAD_ID'),
+              fastlaneId: this.configService.get('TAC_FASTLANE_THREAD_ID'),
             },
           },
         },
