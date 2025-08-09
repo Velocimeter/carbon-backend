@@ -457,6 +457,12 @@ export class DeploymentService {
           CarbonVortex: {
             address: '0x59f21012B2E9BA67ce6a7605E74F945D0D4C84EA',
           },
+          ReferralStorage: {
+            address: '0x188FDAD68e32341d81d6E03fdF766ae645b78030',
+          },
+          ReferralReader: {
+            address: '0xcc0Ff2e396864bAD3261e5766c4AAC8e2cf7A9c8',
+          }, 
         },
         notifications: {
           explorerUrl: this.configService.get('MANTLE_EXPLORER_URL'),
