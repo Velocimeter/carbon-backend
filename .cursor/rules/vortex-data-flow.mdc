@@ -1,0 +1,69 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Vortex Rewards Data Flow
+
+This document outlines the data flow for the Vortex rewards system, specifically focusing on how data moves from contracts and APIs to the UI.
+
+## Data Sources
+
+### Contract Data
+- [useVortexContract.ts](mdc:src/components/rewards/vortex/useVortexContract.ts)
+- Sources: Vortex smart contract
+- Data types: 
+  - Available tokens
+  - Claimable amounts
+  - Target tokens
+  - Trading status
+
+### Analytics Data
+- [useVortexAnalytics.ts](mdc:src/components/rewards/vortex/useVortexAnalytics.ts)
+- Sources: Carbon API endpoints
+- Endpoints:
+  - `/api/v1/analytics/volume/tokens/aggregate` - For token volume and fees
+  - `/api/v1/analytics/volume/pairs/aggregate` - For pair volume and fees
+- Data types:
+  - Token volumes and fees
+  - Pair volumes and fees
+  - Fee distributions across pairs
+
+## Visualization Types
+
+### Token Allocation View
+- Shows distribution of tokens in the Vortex pool
+- Data source: Contract data (token amounts, values)
+- Shows percentage of total value for each token
+
+### Fee Distribution View
+- Shows distribution of fees across trading pairs
+- Data source: Analytics API data
+- Two modes:
+  1. Global fee distribution (all pairs)
+  2. Token-specific fee distribution (pairs for selected token)
+
+## Data Transformation
+
+### Contract Data Processing
+- Format raw BigNumber values to human-readable form
+- Calculate USD values using price data
+- Determine claimable status
+
+### Analytics Data Processing
+- Aggregate volumes and fees by token and pair
+- Calculate percentages for pie chart
+- Match pairs with tokens for contextual display
+
+## UI Update Flow
+
+1. User selects a token in the table → Updates selected token state
+2. User toggles between allocation/fee view → Updates display mode
+3. Chart data is regenerated based on selected token and view mode
+4. Chart component rerenders with new data configuration
+
+## Error Handling
+
+- Contract data errors should not break analytics display
+- API data errors should fall back to token allocation view
+- Network errors should be displayed with retry options

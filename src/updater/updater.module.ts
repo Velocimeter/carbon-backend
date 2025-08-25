@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { BlockModule } from '../block/block.module';
 import { RedisModule } from '../redis/redis.module';
-import { UpdaterService } from './updater.service';
 import { HarvesterModule } from '../harvester/harvester.module';
 import { LastProcessedBlockModule } from '../last-processed-block/last-processed-block.module';
 import { QuoteModule } from '../quote/quote.module';
@@ -32,11 +32,23 @@ import { VortexTradingResetEventModule } from '../events/vortex-trading-reset-ev
 import { VortexFundsWithdrawnEventModule } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.module';
 import { NotificationModule } from '../notification/notification.module';
 import { ProtectionRemovedEventModule } from '../events/protection-removed-event/protection-removed-event.module';
+import { RegisterCodeEventModule } from '../events/register-code-event/register-code-event.module';
+import { GovSetCodeOwnerEventModule } from '../events/gov-set-code-owner-event/gov-set-code-owner-event.module';
+import { SetReferrerTierEventModule } from '../events/set-referrer-tier-event/set-referrer-tier-event.module';
+import { SetTierEventModule } from '../events/set-tier-event/set-tier-event.module';
+import { SetTraderReferralCodeEventModule } from '../events/set-trader-referral-code-event/set-trader-referral-code-event.module';
+import { SetHandlerEventModule } from '../events/set-handler-event/set-handler-event.module';
+import { SetReferrerDiscountShareEventModule } from '../events/set-referrer-discount-share-event/set-referrer-discount-share-event.module';
+import { SetCodeOwnerEventModule } from '../events/set-code-owner-event/set-code-owner-event.module';
+import { ReferralModule } from '../referral/referral.module';
+import { ReferralV2Module } from '../referral/referral-v2.module';
+import { UpdaterService } from './updater.service';
 import { CarbonPriceModule } from '../carbon-price/carbon-price.module';
 import { MerklModule } from '../merkl/merkl.module';
 
 @Module({
   imports: [
+    ConfigModule,
     BlockModule,
     RedisModule,
     HarvesterModule,
@@ -69,10 +81,21 @@ import { MerklModule } from '../merkl/merkl.module';
     VortexFundsWithdrawnEventModule,
     NotificationModule,
     ProtectionRemovedEventModule,
+    RegisterCodeEventModule,
+    GovSetCodeOwnerEventModule,
+    SetReferrerTierEventModule,
+    SetTierEventModule,
+    SetTraderReferralCodeEventModule,
+    SetHandlerEventModule,
+    SetReferrerDiscountShareEventModule,
+    SetCodeOwnerEventModule,
+    ReferralModule,
+    ReferralV2Module,
     CarbonPriceModule,
     MerklModule,
     HistoricQuoteModule,
   ],
   providers: [UpdaterService],
+  exports: [UpdaterService],
 })
 export class UpdaterModule {}

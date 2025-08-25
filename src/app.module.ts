@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -23,7 +23,8 @@ import { DeploymentModule } from './deployment/deployment.module';
 import { CodexService } from './codex/codex.service';
 import { CodexModule } from './codex/codex.module';
 import { SubdomainCacheInterceptor } from './cache.interceptor';
-import { CarbonPriceModule } from './carbon-price/carbon-price.module';
+import { ReferralModule } from './referral/referral.module';
+import { LoggingMiddleware } from './logging.middleware';
 import { MerklModule } from './merkl/merkl.module';
 
 @Module({
@@ -108,7 +109,7 @@ import { MerklModule } from './merkl/merkl.module';
     TvlModule,
     DeploymentModule,
     CodexModule,
-    CarbonPriceModule,
+    ReferralModule,
     MerklModule,
   ],
 
@@ -117,7 +118,12 @@ import { MerklModule } from './merkl/merkl.module';
       provide: APP_INTERCEPTOR,
       useClass: SubdomainCacheInterceptor, // Use custom interceptor
     },
-    CodexService,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LoggingMiddleware)
+      .forRoutes('*');
+  }
+}

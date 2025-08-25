@@ -1,8 +1,8 @@
-import { BadRequestException, Controller, Get, Header, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Header, Param, Query } from '@nestjs/common';
 import { SimulatorDto } from './simulator.dto';
 import { CacheTTL } from '@nestjs/cache-manager';
 import { SimulatorService } from './simulator.service';
-
+import moment from 'moment';
 import { HistoricQuoteService } from '../../historic-quote/historic-quote.service';
 import Decimal from 'decimal.js';
 import { Deployment, DeploymentService, ExchangeId } from '../../deployment/deployment.service';
@@ -23,6 +23,14 @@ export class SimulatorController {
   async simulator(@ExchangeIdParam() exchangeId: ExchangeId, @Query() params: SimulatorDto) {
     const deployment: Deployment = await this.deploymentService.getDeploymentByExchangeId(exchangeId);
 
+    if (!isValidStart(params.start)) {
+      throw new BadRequestException({
+        message: ['start must be within the last 12 months'],
+        error: 'Bad Request',
+        statusCode: 400,
+      });
+    }
+
     if (params.end < params.start) {
       throw new BadRequestException({
         message: ['End date must be after the start date'],
@@ -31,15 +39,9 @@ export class SimulatorController {
       });
     }
 
-    // Convert tokens to lowercase once
-    const baseTokenAddress = params.baseToken.toLowerCase();
-    const quoteTokenAddress = params.quoteToken.toLowerCase();
+    params.baseToken = params.baseToken.toLowerCase();
+    params.quoteToken = params.quoteToken.toLowerCase();
 
-    // Always set lowercase token values in params
-    params.baseToken = baseTokenAddress;
-    params.quoteToken = quoteTokenAddress;
-
-    // Get price data - the historic-quote service now handles token mapping internally
     const usdPrices = await this.historicQuoteService.getUsdBuckets(
       deployment.blockchainType,
       deployment.blockchainType,
@@ -49,30 +51,22 @@ export class SimulatorController {
       params.end,
     );
 
-    const data = await this.simulatorService.generateSimulation(
-      params,
-      usdPrices,
-      deployment, // Both base token and quote token use the same deployment now
-      deployment,
-      deployment,
-    );
-
-    const resultData = data.dates.map((d, i) => ({
-      date: d,
-      price: data.prices[i],
-      sell: data.ask[i],
-      buy: data.bid[i],
-      baseBalance: data.RISK.balance[i],
-      basePortion: data.portfolio_risk[i],
-      quoteBalance: data.CASH.balance[i],
-      quotePortion: data.portfolio_cash[i],
-      portfolioValueInQuote: data.portfolio_value[i],
-      hodlValueInQuote: data.hodl_value[i],
-      portfolioOverHodlInPercent: data.portfolio_over_hodl[i],
-    }));
+    const data = await this.simulatorService.generateSimulation(params, usdPrices, deployment);
 
     return {
-      data: resultData,
+      data: data.dates.map((d, i) => ({
+        date: d,
+        price: data.prices[i],
+        sell: data.ask[i],
+        buy: data.bid[i],
+        baseBalance: data.RISK.balance[i],
+        basePortion: data.portfolio_risk[i],
+        quoteBalance: data.CASH.balance[i],
+        quotePortion: data.portfolio_cash[i],
+        portfolioValueInQuote: data.portfolio_value[i],
+        hodlValueInQuote: data.hodl_value[i],
+        portfolioOverHodlInPercent: data.portfolio_over_hodl[i],
+      })),
       roiInPercent: data.portfolio_over_hodl[data.portfolio_over_hodl.length - 1],
       gainsInQuote: new Decimal(
         new Decimal(data.portfolio_value[data.portfolio_value.length - 1]).minus(
@@ -89,3 +83,8 @@ export class SimulatorController {
     };
   }
 }
+
+const isValidStart = async (start: number): Promise<boolean> => {
+  const twelveMonthsAgo = moment().subtract(12, 'months').startOf('day').unix();
+  return start >= twelveMonthsAgo;
+};

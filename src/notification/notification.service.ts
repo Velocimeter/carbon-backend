@@ -99,7 +99,7 @@ export class NotificationService {
       const tasks = events.map((event) => ({
         httpRequest: {
           httpMethod: 'POST',
-          url: `${this.configService.get('TELEGRAM_CALLBACK_URL')}`,
+          url: `${this.configService.get('API_URL')}/notifications/telegram`,
           body: Buffer.from(
             JSON.stringify({
               eventType,
@@ -130,9 +130,7 @@ export class NotificationService {
           };
           try {
             await client.createTask(request);
-          } catch (error) {
-            console.error('Error creating task:', error);
-          }
+          } catch (error) {}
         }),
       );
     }

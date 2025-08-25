@@ -11,17 +11,16 @@ export function extractExchangeId(request: Request, exchangeIdParam?: string): E
   } else {
     let subdomain = request.hostname.split('.')[0];
     // Handle localhost case
-    // Default for localhost -> use Ethereum unless overridden
     if (request.hostname === 'localhost') {
-      return ExchangeId.OGEthereum;
+      return ExchangeId.BerachainGraphene; // Default for localhost
     }
     if (subdomain.endsWith('-automate-api')) {
       subdomain = subdomain.slice(0, -13); // Remove '-automate-api' suffix
     }
     if (subdomain === 'automate-api') {
-      subdomain = ExchangeId.OGEthereum;
+      subdomain = ExchangeId.IotaGraphene; // Adjust to your preferred default network
     }
-    exchangeId = subdomain ? (subdomain as ExchangeId) : (ExchangeId.OGEthereum as ExchangeId);
+    exchangeId = subdomain ? (subdomain as ExchangeId) : (ExchangeId.IotaGraphene as ExchangeId);
   }
 
   if (!Object.values(ExchangeId).includes(exchangeId)) {

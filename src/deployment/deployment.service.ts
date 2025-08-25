@@ -12,9 +12,17 @@ export enum BlockchainType {
   // Blast = 'blast',
    Base = 'base',
   // Fantom = 'fantom',
+   Ethereum = 'ethereum',
+  // Sei = 'sei-network',
+  // Celo = 'celo',
+  // Blast = 'blast',
+   Base = 'base',
+  // Fantom = 'fantom',
   Mantle = 'mantle',
   // Linea = 'linea',
+  // Linea = 'linea',
   Berachain = 'berachain',
+  // Coti = 'coti',
   // Coti = 'coti',
   Iota = 'iota',
   Tac = 'tac',
@@ -86,6 +94,7 @@ export type LowercaseTokenMap = { [lowercaseAddress: string]: string };
 @Injectable()
 export class DeploymentService {
   private deployments: Deployment[];
+
   constructor(private configService: ConfigService) {
     this.deployments = this.initializeDeployments();
   }
@@ -282,8 +291,8 @@ export class DeploymentService {
         exchangeId: ExchangeId.BaseGraphene,
         blockchainType: BlockchainType.Base,
         rpcEndpoint: this.configService.get('BASE_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
-        harvestConcurrency: 10,
+        harvestEventsBatchSize: 10000,
+        harvestConcurrency: 5,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 5314500,
         gasToken: {
@@ -308,21 +317,53 @@ export class DeploymentService {
           CarbonVortex: {
             address: '0xA4682A2A5Fe02feFF8Bd200240A41AD0E6EaF8d5',
           },
-        },
-        notifications: {
-          explorerUrl: this.configService.get('BASE_EXPLORER_URL'),
-          carbonWalletUrl: this.configService.get('BASE_GRAPHENE_WALLET_URL'),
-          title: 'Graphene on Base',
-          telegram: {
-            botToken: this.configService.get('BASE_TELEGRAM_BOT_TOKEN'),
-            threads: {
-              carbonThreadId: this.configService.get('BASE_CARBON_THREAD_ID'),
-              fastlaneId: this.configService.get('BASE_FASTLANE_THREAD_ID'),
-              vortexId: this.configService.get('BASE_VORTEX_THREAD_ID'),
-            },
+          ReferralReader: {
+            address: '0x48Ec31130E3A1eFD4DaC4eb0273863eD047C3334',
           },
         },
       },
+      // {
+      //   exchangeId: ExchangeId.FantomGraphene,
+      //   blockchainType: BlockchainType.Fantom,
+      //   rpcEndpoint: this.configService.get('FANTOM_RPC_ENDPOINT'),
+      //   harvestEventsBatchSize: 20000,
+      //   harvestConcurrency: 10,
+      //   multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      //   startBlock: 69969086,
+      //   gasToken: {
+      //     name: 'Fantom',
+      //     symbol: 'FTM',
+      //     address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      //   },
+      //   nativeTokenAlias: '0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83',
+      //   contracts: {
+      //     CarbonController: {
+      //       address: '0xf37102e11E06276ac9D393277BD7b63b3393b361',
+      //     },
+      //     CarbonVoucher: {
+      //       address: '0xf779D71178d96b5151D25DE608ac2Ab0558F6aA2',
+      //     },
+      //     BancorArbitrage: {
+      //       address: '0xFe19CbA3aB1A189B7FC17cAa798Df64Ad2b54d4D',
+      //     },
+      //     CarbonVortex: {
+      //       address: '0x4A0c4eF72e0BA9d6A2d34dAD6E794378d9Ad4130',
+      //     },
+      //   },
+      //   notifications: {
+      //     explorerUrl: this.configService.get('FANTOM_EXPLORER_URL'),
+      //     carbonWalletUrl: this.configService.get('FANTOM_GRAPHENE_WALLET_URL'),
+      //     title: 'Graphene on Fantom',
+      //     telegram: {
+      //       botToken: this.configService.get('FANTOM_TELEGRAM_BOT_TOKEN'),
+      //       threads: {
+      //         carbonThreadId: this.configService.get('FANTOM_CARBON_THREAD_ID'),
+      //         fastlaneId: this.configService.get('FANTOM_FASTLANE_THREAD_ID'),
+      //         vortexId: this.configService.get('FANTOM_VORTEX_THREAD_ID'),
+      //       },
+      //     },
+      //   },
+      // },
       // {
       //   exchangeId: ExchangeId.FantomGraphene,
       //   blockchainType: BlockchainType.Fantom,
@@ -369,8 +410,8 @@ export class DeploymentService {
         exchangeId: ExchangeId.MantleGraphene,
         blockchainType: BlockchainType.Mantle,
         rpcEndpoint: this.configService.get('MANTLE_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 20000,
-        harvestConcurrency: 10,
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 3,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 18438182,
         gasToken: {
@@ -394,6 +435,12 @@ export class DeploymentService {
           },
           CarbonVortex: {
             address: '0x59f21012B2E9BA67ce6a7605E74F945D0D4C84EA',
+          },
+          ReferralStorage: {
+            address: '0x188FDAD68e32341d81d6E03fdF766ae645b78030',
+          },
+          ReferralReader: {
+            address: '0xcc0Ff2e396864bAD3261e5766c4AAC8e2cf7A9c8',
           },
         },
         notifications: {
@@ -525,12 +572,127 @@ export class DeploymentService {
       //     },
       //   },
       // },
+      // {
+      //   exchangeId: ExchangeId.MantleSupernova,
+      //   blockchainType: BlockchainType.Mantle,
+      //   rpcEndpoint: this.configService.get('MANTLE_RPC_ENDPOINT'),
+      //   harvestEventsBatchSize: 20000,
+      //   harvestConcurrency: 10,
+      //   multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      //   startBlock: 61955463,
+      //   gasToken: {
+      //     name: 'Mantle',
+      //     symbol: 'MNT',
+      //     address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      //   },
+      //   nativeTokenAlias: '0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8',
+      //   contracts: {
+      //     CarbonController: {
+      //       address: '0x04FBC7f949326fFf7Fe4D6aE96BAfa3D8e8A8c0a',
+      //     },
+      //     CarbonVoucher: {
+      //       address: '0x6ed7042cc1ef691ef64d8dcf3764b004d62590dd',
+      //     },
+      //   },
+      //   notifications: {
+      //     explorerUrl: this.configService.get('MANTLE_EXPLORER_URL'),
+      //     carbonWalletUrl: this.configService.get('MANTLE_SUPERNOVA_WALLET_URL'),
+      //     title: 'Supernova on Mantle',
+      //     telegram: {
+      //       botToken: this.configService.get('MANTLE_TELEGRAM_BOT_TOKEN'),
+      //       threads: {
+      //         carbonThreadId: this.configService.get('MANTLE_CARBON_THREAD_ID'),
+      //         fastlaneId: this.configService.get('MANTLE_FASTLANE_THREAD_ID'),
+      //         vortexId: this.configService.get('MANTLE_VORTEX_THREAD_ID'),
+      //       },
+      //     },
+      //   },
+      // },
+      // {
+      //   exchangeId: ExchangeId.LineaXFai,
+      //   blockchainType: BlockchainType.Linea,
+      //   rpcEndpoint: this.configService.get('LINEA_RPC_ENDPOINT'),
+      //   harvestEventsBatchSize: 20000,
+      //   harvestConcurrency: 10,
+      //   multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      //   startBlock: 5242975,
+      //   gasToken: {
+      //     name: 'ETH',
+      //     symbol: 'ETH',
+      //     address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      //   },
+      //   nativeTokenAlias: '0xe5D7C2a44FfDDf6b295A15c148167daaAf5Cf34f',
+      //   contracts: {
+      //     CarbonController: {
+      //       address: '0xdebc64044cd911b0cc90dcc94bf97f440eb5e503',
+      //     },
+      //     CarbonVoucher: {
+      //       address: '0x3dae488DcB2835c43E71557E7745b838Dc7e46DD',
+      //     },
+      //     BancorArbitrage: {
+      //       address: '0xC7Dd38e64822108446872c5C2105308058c5C55C',
+      //     },
+      //     CarbonVortex: {
+      //       address: '0x5bCA3389786385a35bca14C2D0582adC6cb2482e',
+      //     },
+      //   },
+      //   notifications: {
+      //     explorerUrl: this.configService.get('LINEA_EXPLORER_URL'),
+      //     carbonWalletUrl: this.configService.get('LINEA_XFAI_WALLET_URL'),
+      //     disabledEvents: [EventTypes.TokensTradedEvent, EventTypes.StrategyCreatedEvent],
+      //     title: 'XFai on Linea',
+      //     telegram: {
+      //       botToken: this.configService.get('LINEA_TELEGRAM_BOT_TOKEN'),
+      //       threads: {
+      //         carbonThreadId: this.configService.get('LINEA_CARBON_THREAD_ID'),
+      //         fastlaneId: this.configService.get('LINEA_FASTLANE_THREAD_ID'),
+      //         vortexId: this.configService.get('LINEA_VORTEX_THREAD_ID'),
+      //       },
+      //     },
+      //   },
+      // },
+      // {
+      //   exchangeId: ExchangeId.BaseAlienBase,
+      //   blockchainType: BlockchainType.Base,
+      //   rpcEndpoint: this.configService.get('BASE_RPC_ENDPOINT'),
+      //   harvestEventsBatchSize: 20000,
+      //   harvestConcurrency: 10,
+      //   multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      //   startBlock: 18342064,
+      //   gasToken: {
+      //     name: 'Ether',
+      //     symbol: 'ETH',
+      //     address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      //   },
+      //   nativeTokenAlias: '0x4200000000000000000000000000000000000006',
+      //   contracts: {
+      //     CarbonController: {
+      //       address: '0x0D6E297A73016b437CaAE65BFe32c59803B215D0',
+      //     },
+      //     CarbonVoucher: {
+      //       address: '0x2f3B0d35830B921FE7FcD08401C6CBBe29a72DC9',
+      //     },
+      //   },
+      //   notifications: {
+      //     explorerUrl: this.configService.get('BASE_EXPLORER_URL'),
+      //     carbonWalletUrl: '',
+      //     title: 'AlienBase',
+      //     telegram: {
+      //       botToken: this.configService.get('BASE_TELEGRAM_BOT_TOKEN'),
+      //       threads: {
+      //         carbonThreadId: this.configService.get('BASE_CARBON_THREAD_ID'),
+      //         fastlaneId: this.configService.get('BASE_FASTLANE_THREAD_ID'),
+      //         vortexId: this.configService.get('BASE_VORTEX_THREAD_ID'),
+      //       },
+      //     },
+      //   },
+      // },
       {
         exchangeId: ExchangeId.BerachainGraphene,
         blockchainType: BlockchainType.Berachain,
         rpcEndpoint: this.configService.get('BERACHAIN_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 1000,
-        harvestConcurrency: 3,
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 4,
         multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 1377587,
         gasToken: {
@@ -646,6 +808,7 @@ export class DeploymentService {
           telegram: {
             botToken: this.configService.get('IOTA_TELEGRAM_BOT_TOKEN'),
             threads: {
+              carbonThreadId: this.configService.get('IOTA_CARBON_THREAD_ID'),
               fastlaneId: this.configService.get('IOTA_FASTLANE_THREAD_ID'),
             },
           },

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LastProcessedBlockModule } from '../last-processed-block/last-processed-block.module';
 import { RedisModule } from '../redis/redis.module';
@@ -30,6 +30,7 @@ import { DeploymentModule } from '../deployment/deployment.module';
     ProtectionRemovedEventModule,
     CodexModule,
     DeploymentModule,
+    forwardRef(() => CodexModule),
   ],
   providers: [TokenService],
   exports: [TokenService, TypeOrmModule.forFeature([Token])],

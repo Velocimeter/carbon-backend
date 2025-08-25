@@ -60,7 +60,7 @@ export class HistoricQuoteService implements OnModuleInit {
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
    [BlockchainType.Iota]: [],
-   [BlockchainType.Tac]: [{ name: 'codex', enabled: true }],
+   [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
@@ -85,12 +85,21 @@ export class HistoricQuoteService implements OnModuleInit {
       const interval = setInterval(callback, this.intervalDuration);
       this.schedulerRegistry.addInterval('pollForUpdates', interval);
     }
+
+    // Delay Codex seeding
+    if (this.configService.get('SEED_CODEX_ON_STARTUP') === '1') {
+      this.logger.log('Will seed Codex data after 1 minute delay...');
+      setTimeout(async () => {
+        try {
+          this.logger.log('Starting delayed Codex seeding...');
+          await this.seedCodex(BlockchainType.Berachain);
+        } catch (error) {
+          this.logger.error('Error during delayed Codex seeding:', error);
+        }
+      }, 10000); // 1 minute delay
+    }
   }
 
-  /**
-   * Seeds price history data for all Ethereum mapped tokens across all deployments.
-   * This method is called during the polling process to ensure all mapped tokens have historical data.
-   */
   private async seedAllEthereumMappedTokens() {
     try {
       const deployments = this.deploymentService.getDeployments();
@@ -111,21 +120,29 @@ export class HistoricQuoteService implements OnModuleInit {
    * This method is called periodically based on the configured interval.
    */
   async pollForUpdates(): Promise<void> {
-    if (this.isPolling) return;
+    if (this.isPolling) {
+      this.logger.log('Already polling for updates, skipping...');
+      return;
+    }
+    this.logger.log('Starting price update polling cycle...');
     this.isPolling = true;
 
     try {
       // Process Ethereum token mappings for all deployments
+      this.logger.log('Processing Ethereum token mappings...');
       await this.seedAllEthereumMappedTokens();
 
+      this.logger.log('Starting parallel quote updates...');
       await Promise.all([
-        await this.updateCoinMarketCapQuotes(),
-        // await this.updateCodexQuotes(BlockchainType.Sei),
+        // await this.updateCoinMarketCapQuotes(),
+        await this.updateCodexQuotes(BlockchainType.Berachain),
         // await this.updateCodexQuotes(BlockchainType.Celo),
-        // await this.updateCodexQuotes(BlockchainType.Base, BASE_NETWORK_ID),
+        await this.updateCodexQuotes(BlockchainType.Base),
+        await this.updateCodexQuotes(BlockchainType.Mantle),
       ]);
 
       // Update any mapped Ethereum tokens that might not have been updated
+      this.logger.log('Updating mapped Ethereum tokens...');
       await this.updateMappedEthereumTokens();
     } catch (error) {
       this.logger.error('Error updating historic quotes:', error);
@@ -133,7 +150,7 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     this.isPolling = false;
-    this.logger.log('Historic quotes updated');
+    this.logger.log('Historic quotes update cycle completed');
   }
 
   /**
@@ -171,9 +188,16 @@ export class HistoricQuoteService implements OnModuleInit {
    * @param blockchainType - The blockchain type to update quotes for
    */
   private async updateCodexQuotes(blockchainType: BlockchainType): Promise<void> {
+    this.logger.log(`Starting Codex quotes update for ${blockchainType}...`);
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const latest = await this.getLatest(blockchainType);
+    this.logger.log(`Found ${Object.keys(latest).length} existing quotes for ${blockchainType}`);
+    
+    this.logger.log(`Fetching token addresses for ${blockchainType}...`);
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
+    this.logger.log(`Found ${addresses.length} token addresses for ${blockchainType}`);
+    
+    this.logger.log(`Fetching latest prices from Codex for ${blockchainType}...`);
     const quotes = await this.codexService.getLatestPrices(deployment, addresses);
     const newQuotes = [];
 
@@ -181,11 +205,9 @@ export class HistoricQuoteService implements OnModuleInit {
       const quote = quotes[address];
       const price = `${quote.usd}`;
 
-      // Use Decimal for proper numeric comparison
-      if (latest[address] && latest[address].usd) {
-        const existingUsdDecimal = new Decimal(latest[address].usd);
-        const newUsdDecimal = new Decimal(price);
-        if (existingUsdDecimal.equals(newUsdDecimal)) continue;
+      if (latest[address] && latest[address].usd === price) {
+        this.logger.debug(`Skipping unchanged price for ${address} on ${blockchainType}: ${price}`);
+        continue;
       }
 
       newQuotes.push(
@@ -212,15 +234,47 @@ export class HistoricQuoteService implements OnModuleInit {
       );
     }
 
-    const batches = _.chunk(newQuotes, 1000);
-    await Promise.all(batches.map((batch) => this.repository.save(batch)));
-    this.logger.log('Codex quotes updated');
+    if (newQuotes.length > 0) {
+      this.logger.log(`Saving ${newQuotes.length} new quotes for ${blockchainType}`);
+      const batches = _.chunk(newQuotes, 1000);
+      this.logger.log(`Split into ${batches.length} batches of up to 1000 quotes each`);
+
+      try {
+        let savedCount = 0;
+        for (let i = 0; i < batches.length; i++) {
+          const batch = batches[i];
+          try {
+            this.logger.log(`Saving batch ${i + 1}/${batches.length} (${batch.length} quotes) for ${blockchainType}...`);
+            await this.repository.save(batch);
+            savedCount += batch.length;
+            this.logger.log(`Successfully saved batch ${i + 1}/${batches.length} for ${blockchainType}. Progress: ${savedCount}/${newQuotes.length} quotes`);
+          } catch (batchError) {
+            this.logger.error(`Error saving batch ${i + 1}/${batches.length} for ${blockchainType}:`, {
+              error: batchError.message,
+              stack: batchError.stack,
+              batchSize: batch.length,
+              firstQuoteInBatch: batch[0]?.tokenAddress,
+              lastQuoteInBatch: batch[batch.length - 1]?.tokenAddress
+            });
+            // Continue with next batch despite error
+            continue;
+          }
+        }
+        this.logger.log(`Completed saving all quotes for ${blockchainType}. Successfully saved ${savedCount}/${newQuotes.length} quotes`);
+      } catch (error) {
+        this.logger.error(`Fatal error while saving quotes for ${blockchainType}:`, {
+          error: error.message,
+          stack: error.stack,
+          totalQuotes: newQuotes.length,
+          batchCount: batches.length
+        });
+        throw error; // Re-throw to be caught by the caller
+      }
+    } else {
+      this.logger.log(`No new quotes to save for ${blockchainType}`);
+    }
   }
 
-  /**
-   * Seeds historical price data for all tokens from CoinMarketCap.
-   * Fetches one year of historical data for each token in batches.
-   */
   async seed(): Promise<void> {
     const start = moment().subtract(1, 'year').unix();
     const end = moment().unix();
@@ -257,24 +311,27 @@ export class HistoricQuoteService implements OnModuleInit {
     }
   }
 
-  /**
-   * Seeds historical price data for tokens from Codex for a specific blockchain.
-   * Fetches one year of historical data for each token in batches.
-   * @param blockchainType - The blockchain type to seed data for
-   */
-  async seedCodex(blockchainType: BlockchainType): Promise<void> {
+  async seedCodex(blockchainType: BlockchainType, addresses?: string[]): Promise<void> {
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
-    const start = moment().subtract(1, 'year').unix();
+    const start = moment().subtract(3, 'months').unix();
     const end = moment().unix();
     let i = 0;
 
-    const addresses = await this.codexService.getAllTokenAddresses(deployment);
+    this.logger.log(`Starting to seed ${blockchainType} price history for last 3 months...`);
+    const tokensToSeed = addresses || await this.codexService.getKnownTokenAddresses(deployment);
+    this.logger.log(`Found ${tokensToSeed.length} tokens to seed for ${blockchainType}`);
+    
+    // Delete existing data for these tokens before seeding
+    this.logger.log(`Deleting existing price data for ${tokensToSeed.length} tokens...`);
+    await this.deleteQuotes(blockchainType, tokensToSeed);
+    this.logger.log('Existing price data deleted');
+    
     const batchSize = 100;
-
     const nativeTokenAlias = deployment.nativeTokenAlias ? deployment.nativeTokenAlias : null;
 
-    for (let startIndex = 0; startIndex < addresses.length; startIndex += batchSize) {
-      const batchAddresses = addresses.slice(startIndex, startIndex + batchSize);
+    for (let startIndex = 0; startIndex < tokensToSeed.length; startIndex += batchSize) {
+      const batchAddresses = tokensToSeed.slice(startIndex, startIndex + batchSize);
+      this.logger.log(`Processing batch ${Math.floor(startIndex/batchSize) + 1} of ${Math.ceil(tokensToSeed.length/batchSize)} for ${blockchainType}`);
 
       // Fetch historical quotes for the current batch of addresses
       const quotesByAddress = await this.codexService.getHistoricalQuotes(deployment, batchAddresses, start, end);
@@ -283,7 +340,12 @@ export class HistoricQuoteService implements OnModuleInit {
 
       for (const address of batchAddresses) {
         const quotes = quotesByAddress[address];
+        if (!quotes || quotes.length === 0) {
+          this.logger.debug(`No price data found for token ${address} on ${blockchainType}`);
+          continue;
+        }
 
+        this.logger.debug(`Processing ${quotes.length} price points for token ${address}`);
         quotes.forEach((q: any) => {
           if (q.usd && q.timestamp) {
             const quote = this.repository.create({
@@ -299,6 +361,7 @@ export class HistoricQuoteService implements OnModuleInit {
 
         // If this is the native token alias, also create an entry for the native token
         if (nativeTokenAlias && address.toLowerCase() === nativeTokenAlias.toLowerCase()) {
+          this.logger.debug(`Adding native token entries for ${NATIVE_TOKEN} using ${nativeTokenAlias} prices`);
           quotes.forEach((q: any) => {
             if (q.usd && q.timestamp) {
               const nativeTokenQuote = this.repository.create({
@@ -314,17 +377,18 @@ export class HistoricQuoteService implements OnModuleInit {
         }
       }
 
-      const batches = _.chunk(newQuotes, 1000);
-      await Promise.all(batches.map((batch) => this.repository.save(batch)));
-      this.logger.log(`History quote seeding, finished ${++i} of ${addresses.length}`, new Date());
+      if (newQuotes.length > 0) {
+        this.logger.log(`Saving ${newQuotes.length} quotes for batch ${Math.floor(startIndex/batchSize) + 1}`);
+        const batches = _.chunk(newQuotes, 1000);
+        await Promise.all(batches.map((batch) => this.repository.save(batch)));
+      }
+      
+      this.logger.log(`Completed ${++i} of ${Math.ceil(tokensToSeed.length/batchSize)} batches for ${blockchainType}`);
     }
+    
+    this.logger.log(`Completed seeding historical prices for ${blockchainType}`);
   }
 
-  /**
-   * Seeds historical price data for tokens that are mapped to Ethereum tokens.
-   * Fetches data from Codex for the mapped Ethereum tokens and stores it.
-   * @param deployment - The deployment containing token mappings
-   */
   async seedFromEthereumTokens(deployment: Deployment): Promise<void> {
     if (!deployment.mapEthereumTokens || Object.keys(deployment.mapEthereumTokens).length === 0) {
       this.logger.log(`No Ethereum token mappings found for ${deployment.exchangeId}, skipping.`);
@@ -554,112 +618,79 @@ export class HistoricQuoteService implements OnModuleInit {
       .map((p) => `'${p.name}'`)
       .join(',');
 
-    const query = `WITH raw_counts AS (
-      SELECT 
-        "tokenAddress",
-        provider,
-        COUNT(*) AS data_points
-      FROM "historic-quotes"
-      WHERE
-        timestamp >= '${startPaddedQ}'
-        AND timestamp <= '${endQ}'
-        AND "tokenAddress" IN (${addresses.map((a) => `'${a}'`).join(',')})
-        AND "blockchainType" = '${blockchainType}'
-        AND provider = ANY (ARRAY[${enabledProviders}]::text[])
-      GROUP BY "tokenAddress", provider
-    ),
-
-    token_stats AS (
+    const query = `
+      WITH RawCounts AS (
+        SELECT 
+          "tokenAddress",
+          provider,
+          COUNT(*) as data_points
+        FROM "historic-quotes"
+        WHERE
+          timestamp >= '${startPaddedQ}'
+          AND timestamp <= '${endQ}'
+          AND "tokenAddress" IN (${addresses.map((a) => `'${a.toLowerCase()}'`).join(',')})
+          AND "blockchainType" = '${blockchainType}'
+          AND provider = ANY(ARRAY[${enabledProviders}]::text[])
+        GROUP BY "tokenAddress", provider
+      ),
+      TokenStats AS (
+        SELECT
+          "tokenAddress",
+          MAX(data_points) as max_points,
+          MIN(CASE WHEN data_points > 0 THEN data_points ELSE NULL END) as min_nonzero_points
+        FROM RawCounts
+        GROUP BY "tokenAddress"
+      ),
+      TokenProviders AS (
+        SELECT 
+          rc."tokenAddress",
+          rc.provider,
+          rc.data_points,
+          ROW_NUMBER() OVER (
+            PARTITION BY rc."tokenAddress"
+            ORDER BY 
+              CASE WHEN rc.data_points > 0 THEN 1 ELSE 0 END DESC,
+              -- If one provider has significantly more data (>5x), prioritize it
+              -- Otherwise use the configured provider order
+              CASE 
+                WHEN ts.max_points > 5 * COALESCE(ts.min_nonzero_points, 0) AND ts.max_points = rc.data_points
+                THEN 0  -- Provider with most data comes first when significant difference exists
+                ELSE array_position(ARRAY[${enabledProviders}]::text[], rc.provider)
+              END
+          ) as provider_rank
+        FROM RawCounts rc
+        JOIN TokenStats ts ON rc."tokenAddress" = ts."tokenAddress"
+      ),
+      BestProviderQuotes AS (
+        SELECT hq.*
+        FROM "historic-quotes" hq
+        JOIN TokenProviders tp ON 
+          hq."tokenAddress" = tp."tokenAddress" 
+          AND hq.provider = tp.provider
+          AND tp.provider_rank = 1
+        WHERE
+          hq.timestamp >= '${startPaddedQ}'
+          AND hq.timestamp <= '${endQ}'
+          AND hq."blockchainType" = '${blockchainType}'
+      )
       SELECT
-        "tokenAddress",
-        MAX(data_points) AS max_points,
-        MIN(NULLIF(data_points, 0)) AS min_nonzero_points
-      FROM raw_counts
-      GROUP BY "tokenAddress"
-    ),
+        bpq."tokenAddress",
+        time_bucket_gapfill('${bucket}', timestamp) AS bucket,
+        locf(first(usd, timestamp)) as open,
+        locf(last(usd, timestamp)) as close,
+        locf(max(usd::numeric)) as high,
+        locf(min(usd::numeric)) as low,
+        sp.provider as selected_provider
+      FROM BestProviderQuotes bpq
+      JOIN TokenProviders sp ON 
+        bpq."tokenAddress" = sp."tokenAddress" 
+        AND sp.provider_rank = 1
+      GROUP BY bpq."tokenAddress", bucket, sp.provider
+      ORDER BY bpq."tokenAddress"`;
 
-    token_providers AS (
-      SELECT 
-        rc."tokenAddress",
-        rc.provider,
-        rc.data_points,
-        ROW_NUMBER() OVER (
-          PARTITION BY rc."tokenAddress"
-          ORDER BY 
-            CASE WHEN rc.data_points > 0 THEN 1 ELSE 0 END DESC,
-            CASE 
-              WHEN ts.max_points > 5 * COALESCE(ts.min_nonzero_points, 0) 
-                   AND ts.max_points = rc.data_points
-              THEN 0
-              ELSE array_position(ARRAY[${enabledProviders}]::text[], rc.provider)
-            END
-        ) AS provider_rank
-      FROM raw_counts rc
-      JOIN token_stats ts ON rc."tokenAddress" = ts."tokenAddress"
-    ),
+    const result = await this.repository.query(query);
 
-    top_providers AS (
-      SELECT "tokenAddress", provider
-      FROM token_providers
-      WHERE provider_rank = 1
-    )
-
-    SELECT 
-      hq."tokenAddress",
-      time_bucket_gapfill('${bucket}', hq.timestamp, '${startPaddedQ}', '${endQ}') AS bucket,
-      locf(first(hq.usd::numeric, hq.timestamp)) AS open,
-      locf(last(hq.usd::numeric, hq.timestamp)) AS close,
-      locf(max(hq.usd::numeric)) AS high,
-      locf(min(hq.usd::numeric)) AS low,
-      tp.provider AS selected_provider
-    FROM "historic-quotes" hq
-    JOIN top_providers tp 
-      ON hq."tokenAddress" = tp."tokenAddress" AND hq.provider = tp.provider
-    WHERE
-      hq.timestamp >= '${startPaddedQ}'
-      AND hq.timestamp <= '${endQ}'
-      AND hq."blockchainType" = '${blockchainType}'
-    GROUP BY hq."tokenAddress", bucket, tp.provider
-    ORDER BY "tokenAddress", bucket;`;
-
-    return await this.repository.query(query);
-  }
-
-  /**
-   * Retrieves historical price data in time buckets for multiple tokens.
-   * Handles both direct blockchain quotes and mapped Ethereum token quotes.
-   * @param blockchainType - The blockchain type to fetch data for
-   * @param addresses - Array of token addresses to fetch data for
-   * @param start - Start timestamp (Unix timestamp)
-   * @param end - End timestamp (Unix timestamp)
-   * @param bucket - Time bucket size (e.g., '1 day')
-   * @returns Object mapping token addresses to arrays of candlestick data
-   */
-  async getHistoryQuotesBuckets(
-    blockchainType: BlockchainType,
-    addresses: string[],
-    start: number,
-    end: number,
-    bucket = '1 day',
-  ): Promise<{ [key: string]: Candlestick[] }> {
-    // Get information about Ethereum tokens potentially mapped from this blockchain type
-    const deployment = this.deploymentService.getDeployments().find((d) => d.blockchainType === blockchainType);
-    const tokenMap = deployment?.mapEthereumTokens ? this.deploymentService.getLowercaseTokenMap(deployment) : {};
-
-    // Check if any of our requested addresses are mapped to Ethereum tokens
-    const lowercaseAddresses = addresses.map((addr) => addr.toLowerCase());
-    const mappedAddresses = lowercaseAddresses.filter((addr) => tokenMap[addr]);
-    const unmappedAddresses = lowercaseAddresses.filter((addr) => !tokenMap[addr]);
-
-    // Format time values
-    const today = moment().utc().startOf('day');
-    const startQ = moment.unix(start).utc().startOf('day');
-    const startPaddedQ = moment.unix(start).utc().startOf('day').subtract('1', 'day').toISOString();
-    let endQ: any = moment.unix(end).utc().endOf('day');
-    endQ = endQ.isAfter(today) ? today.toISOString() : endQ.toISOString();
-
-    // Store results
-    const candlesByAddress: { [key: string]: Candlestick[] } = {};
+    let candlesByAddress = {} as { [key: string]: Candlestick[] };
 
     // If we have addresses that need to be fetched from their original blockchain
     if (unmappedAddresses.length > 0) {
@@ -752,18 +783,70 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     // Check if tokens exist at all in candlesByAddress
-    // This check may need to be relaxed if pagination can result in empty token results
-    const nonExistentTokens = addresses.filter((address) => !candlesByAddress[address.toLowerCase()]);
+    const nonExistentTokens = addresses.filter((address) => !candlesByAddress[address]);
     if (nonExistentTokens.length > 0) {
-      throw new BadRequestException({
-        message: [
-          `No price data available for token${nonExistentTokens.length > 1 ? 's' : ''}: ${nonExistentTokens.join(
-            ', ',
-          )}`,
-        ],
-        error: 'Bad Request',
-        statusCode: 400,
-      });
+      this.logger.log(`No price data found for tokens: ${nonExistentTokens.join(', ')}. Attempting to fetch from Codex...`);
+      
+      // Try to seed just the missing tokens using our existing seedCodex function
+      try {
+        await this.seedCodex(blockchainType, nonExistentTokens);
+        this.logger.log('Successfully seeded data from Codex. Querying buckets again...');
+        
+        // Try getting the buckets again after seeding
+        const result = await this.repository.query(query);
+        candlesByAddress = {} as { [key: string]: Candlestick[] };
+        
+        result.forEach((row: any) => {
+          if (!row.open) {
+            return;
+          }
+
+          const timestamp = moment(row.bucket).utc();
+
+          if (timestamp.isSameOrAfter(startQ)) {
+            const tokenAddress = row.tokenAddress;
+            const candle = {
+              timestamp: timestamp.unix(),
+              open: row.open,
+              close: row.close,
+              high: row.high,
+              low: row.low,
+              provider: row.selected_provider,
+            };
+
+            if (!candlesByAddress[tokenAddress]) {
+              candlesByAddress[tokenAddress] = [];
+            }
+
+            candlesByAddress[tokenAddress].push(candle);
+          }
+        });
+        
+        // Check if we still have missing tokens after seeding
+        const stillMissingTokens = addresses.filter((address) => !candlesByAddress[address]);
+        if (stillMissingTokens.length > 0) {
+          throw new BadRequestException({
+            message: [
+              `No price data available for token${stillMissingTokens.length > 1 ? 's' : ''}: ${stillMissingTokens.join(
+                ', ',
+              )} even after attempting to fetch from Codex`,
+            ],
+            error: 'Bad Request',
+            statusCode: 400,
+          });
+        }
+      } catch (error) {
+        this.logger.error('Error seeding data from Codex:', error);
+        throw new BadRequestException({
+          message: [
+            `Failed to fetch price data for token${nonExistentTokens.length > 1 ? 's' : ''}: ${nonExistentTokens.join(
+              ', ',
+            )}. Error: ${error.message}`,
+          ],
+          error: 'Bad Request',
+          statusCode: 400,
+        });
+      }
     }
 
     return candlesByAddress;
@@ -1264,58 +1347,13 @@ export class HistoricQuoteService implements OnModuleInit {
     }
   }
 
-  async prepareHistoricQuotesForQuery(deployment: Deployment, tokens: TokensByAddress): Promise<string> {
-    // Calculate timestamps for 5 years ago and now
-    const end = Math.floor(Date.now() / 1000);
-    const start = end - 5 * 365.25 * 24 * 60 * 60; // 5 years in seconds
-    const lowercaseTokens = Object.keys(tokens).map((token) => token.toLowerCase());
-
-    // Get the latest quotes for each token
-    const buckets = await this.fetchHistoryQuotesBucketsData(
-      deployment.blockchainType,
-      lowercaseTokens,
-      moment.unix(start).format('YYYY-MM-DD'),
-      moment.unix(end).format('YYYY-MM-DD'),
-      '1 day',
-    );
-
-    // Build the CTE
-    let historicQuotesCTE = '';
-    if (buckets && buckets.length > 0) {
-      const validBuckets = buckets.filter((bucket) => {
-        // Only include buckets with valid close prices and defined token addresses
-        return bucket.high && bucket.tokenAddress && bucket.tokenAddress !== 'undefined';
-      });
-
-      const quoteValues = validBuckets
-        .map(
-          (bucket) =>
-            `('${bucket.tokenAddress}', '${bucket.close}', '${deployment.blockchainType}', '${moment
-              .utc(bucket.bucket)
-              .format('YYYY-MM-DD')}')`,
-        )
-        .join(',');
-
-      if (validBuckets.length < buckets.length) {
-        this.logger.warn(
-          `Filtered out ${buckets.length - validBuckets.length} historic quotes with invalid data for ${
-            deployment.blockchainType
-          }:${deployment.exchangeId}`,
-        );
-      }
-
-      if (quoteValues) {
-        historicQuotesCTE = `
-        historic_quotes as (
-          SELECT 
-            CAST("tokenAddress" AS text) as "tokenAddress", 
-            CAST(usd AS double precision) as max_usd, 
-            "blockchainType", 
-            timestamp_day
-          FROM (VALUES ${quoteValues}) AS t("tokenAddress", usd, "blockchainType", timestamp_day)
-        ),`;
-      }
-    }
-    return historicQuotesCTE;
+  async deleteQuotes(blockchainType: BlockchainType, tokenAddresses: string[]): Promise<void> {
+    await this.repository
+      .createQueryBuilder()
+      .delete()
+      .from('historic-quotes')
+      .where('blockchainType = :blockchainType', { blockchainType })
+      .andWhere('tokenAddress IN (:...tokenAddresses)', { tokenAddresses })
+      .execute();
   }
 }

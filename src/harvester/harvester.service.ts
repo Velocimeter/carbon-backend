@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import Web3 from 'web3';
 import * as _ from 'lodash';
 import { LastProcessedBlockService } from '../last-processed-block/last-processed-block.service';
@@ -13,6 +13,8 @@ import { CarbonVortex } from '../abis/CarbonVortex.abi';
 import { CarbonVoucher } from '../abis/CarbonVoucher.abi';
 import { BancorArbitrage } from '../abis/BancorArbitrage.abi';
 import { BancorArbitrageV2 } from '../abis/BancorArbitrageV2.abi';
+import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
+import { ReferralStorage } from '../abis/ReferralStorage.abi';
 import moment from 'moment';
 import { MulticallAbiEthereum } from '../abis/multicall.abi';
 import { multicallAbiSei } from '../abis/multicall.abi';
@@ -22,7 +24,6 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { BlockchainType, Deployment } from '../deployment/deployment.service';
 import { ConfigService } from '@nestjs/config';
 import { sleep } from '../utilities';
-import { LiquidityProtectionStore } from '../abis/LiquidityProtectionStore.abi';
 export const VERSIONS = {
   // PoolMigrator: [{ terminatesAt: 14830503, version: 1 }, { version: 2 }],
 };
@@ -36,6 +37,7 @@ export enum ContractsNames {
   BancorArbitrage = 'BancorArbitrage',
   BancorArbitrageV2 = 'BancorArbitrageV2',
   LiquidityProtectionStore = 'LiquidityProtectionStore',
+  ReferralStorage = 'ReferralStorage',
 }
 
 const Contracts = {
@@ -47,6 +49,7 @@ const Contracts = {
   [ContractsNames.BancorArbitrage]: BancorArbitrage,
   [ContractsNames.BancorArbitrageV2]: BancorArbitrageV2,
   [ContractsNames.LiquidityProtectionStore]: LiquidityProtectionStore,
+  [ContractsNames.ReferralStorage]: ReferralStorage,
 };
 
 export interface ConstantField {
@@ -125,6 +128,14 @@ export interface CustomFnArgs {
 
 @Injectable()
 export class HarvesterService {
+  private readonly logger = new Logger(HarvesterService.name);
+  private readonly logDelay = 3000; // 3 second delay between logs
+
+  private async logWithDelay(level: 'log' | 'debug' | 'error', message: string, ...args: any[]) {
+    await sleep(this.logDelay);
+    this.logger[level](message, ...args);
+  }
+
   constructor(
     private lastProcessedBlockService: LastProcessedBlockService,
     private blockService: BlockService,
@@ -137,11 +148,20 @@ export class HarvesterService {
     fromBlock: number,
     toBlock: number,
     address?: string,
-    deployment?: Deployment, // Accept deployment directly
+    deployment?: Deployment,
   ): Promise<any[]> {
-    if (fromBlock > toBlock) {
+    if (!deployment?.blockchainType) {
       return [];
     }
+
+    if (fromBlock > toBlock) {
+      await this.logWithDelay('debug', `[${deployment.blockchainType}] No blocks to process: fromBlock (${fromBlock}) > toBlock (${toBlock})`);
+      return [];
+    }
+
+    await this.logWithDelay('log', '='.repeat(80));
+    await this.logWithDelay('log', `[${deployment.blockchainType}] Starting event fetch for ${contractName}.${eventName}`);
+    await this.logWithDelay('log', `[${deployment.blockchainType}] Block range: ${fromBlock} to ${toBlock}`);
 
     const events = [];
     const tasks = [];
@@ -163,6 +183,7 @@ export class HarvesterService {
 
     for (const range of ranges) {
       const contract = this.getContract(contractName, range.version, address, deployment);
+      await this.logWithDelay('debug', `[${deployment.blockchainType}] Processing range ${range.rangeStart} to ${range.rangeEnd} with version ${range.version}`);
 
       for (
         let startBlock = range.rangeStart;
@@ -172,19 +193,34 @@ export class HarvesterService {
         const endBlock = Math.min(startBlock + deployment.harvestEventsBatchSize - 1, range.rangeEnd, toBlock);
         tasks.push(
           concurrency(async () => {
-            const _events = await contract.getPastEvents(eventName, {
-              fromBlock: startBlock,
-              toBlock: endBlock,
-            });
-            if (_events.length > 0) {
-              _events.forEach((e) => events.push(e));
+            try {
+              const _events = await contract.getPastEvents(eventName, {
+                fromBlock: startBlock,
+                toBlock: endBlock,
+              });
+              if (_events.length > 0) {
+                await this.logWithDelay('debug', `[${deployment.blockchainType}] Found ${_events.length} events in blocks ${startBlock}-${endBlock}`);
+                _events.forEach((e) => events.push(e));
+              }
+            } catch (error) {
+              await this.logWithDelay('error',
+                `[${deployment.blockchainType}] Error fetching events for ${eventName} from block ${startBlock} to ${endBlock}: ${error.message}`,
+                error.stack,
+              );
+              throw error;
             }
           }),
         );
       }
     }
 
-    await Promise.all(tasks);
+    try {
+      await Promise.all(tasks);
+      await this.logWithDelay('log', `[${deployment.blockchainType}] Completed fetching ${events.length} total events for ${contractName}.${eventName}`);
+    } catch (error) {
+      await this.logWithDelay('error', `[${deployment.blockchainType}] Error in Promise.all(tasks) during event fetching:`, error.stack);
+      throw error;
+    }
     return events;
   }
 
@@ -203,11 +239,22 @@ export class HarvesterService {
 
   async processEvents(args: ProcessEventsArgs): Promise<any[]> {
     const { deployment } = args;
+    if (!deployment?.blockchainType) {
+      return [];
+    }
+
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-${args.entity}`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
+    
+    await this.logWithDelay('log', '='.repeat(80));
+    await this.logWithDelay('log', `[${deployment.blockchainType}] Processing events for ${args.entity}`);
+    await this.logWithDelay('log', `[${deployment.blockchainType}] Starting from block ${lastProcessedBlock}`);
+    await this.logWithDelay('debug', `[${deployment.blockchainType}] Deployment: ${deployment.exchangeId}`);
+
     const result = [];
 
     if (args.skipPreClearing !== true) {
+      await this.logWithDelay('debug', `[${deployment.blockchainType}] Pre-clearing data for ${args.entity} from block ${lastProcessedBlock}`);
       await this.preClear(args.repository, lastProcessedBlock, deployment);
     }
 
@@ -343,7 +390,7 @@ export class HarvesterService {
           }),
         );
 
-        const batches = _.chunk(newEvents, 1000);
+        const batches = _.chunk(newEvents, 100);
         await Promise.all(batches.map((batch) => args.repository.save(batch)));
 
         result.push(newEvents);
@@ -358,12 +405,18 @@ export class HarvesterService {
   }
 
   async latestBlock(deployment: Deployment): Promise<number> {
+    if (!deployment?.blockchainType) {
+      return 0;
+    }
     const web3 = new Web3(deployment.rpcEndpoint);
     const blockNumber = (await web3.eth.getBlockNumber()).toString();
     return parseInt(blockNumber);
   }
 
   async preClear(repository: Repository<any>, lastProcessedBlock: number, deployment: Deployment): Promise<void> {
+    if (!deployment?.blockchainType) {
+      return;
+    }
     await repository
       .createQueryBuilder()
       .delete()

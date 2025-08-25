@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
 import { ActivityV2 } from './activity-v2.entity';
@@ -18,10 +18,15 @@ import { StrategyState, StrategyStatesMap } from './activity.types';
 import { createActivityFromEvent, ordersEqual, parseOrder, processOrders } from './activity.utils';
 import { TokensByAddress } from '../token/token.service';
 import { Decimal } from 'decimal.js';
+import { sleep } from '../utilities';
+
 @Injectable()
 export class ActivityV2Service {
   private readonly BATCH_SIZE = 30000; // Number of blocks per batch
   private readonly SAVE_BATCH_SIZE = 1000; // Number of activities to save at once
+  private readonly logger = new Logger(ActivityV2Service.name);
+  private activityUpdateDelayMs = 180000; // 3 minutes delay
+  private lastActivityUpdateTime: { [key: string]: number } = {};
 
   constructor(
     @InjectRepository(ActivityV2)
@@ -31,16 +36,31 @@ export class ActivityV2Service {
     private strategyDeletedEventService: StrategyDeletedEventService,
     private voucherTransferEventService: VoucherTransferEventService,
     private lastProcessedBlockService: LastProcessedBlockService,
-  ) {}
+  ) {
+    this.logger.log(`Initialized with activity update delay of ${this.activityUpdateDelayMs/1000}s (3 minutes)`);
+  }
 
   async update(endBlock: number, deployment: Deployment, tokens: TokensByAddress): Promise<void> {
-    console.log(`[actdunks][${deployment.blockchainType}] Starting activity update from block ${deployment.startBlock} to ${endBlock}`);
+    const deploymentKey = `${deployment.blockchainType}-${deployment.exchangeId}`;
+    const now = Date.now();
+    
+    // If this deployment was updated too recently, delay
+    if (this.lastActivityUpdateTime[deploymentKey] && (now - this.lastActivityUpdateTime[deploymentKey]) < this.activityUpdateDelayMs) {
+      const waitTime = this.activityUpdateDelayMs - (now - this.lastActivityUpdateTime[deploymentKey]);
+      const waitTimeSeconds = (waitTime / 1000).toFixed(1);
+      this.logger.log(`Throttling activity update for ${deploymentKey} - waiting ${waitTimeSeconds}s before next update.`);
+      await sleep(waitTime);
+    }
+    
+    // Set the last update time
+    this.lastActivityUpdateTime[deploymentKey] = Date.now();
+    
     const strategyStates: StrategyStatesMap = new Map<string, StrategyState>();
     const key = `${deployment.blockchainType}-${deployment.exchangeId}-activities-v2`;
     const lastProcessedBlock = await this.lastProcessedBlockService.getOrInit(key, deployment.startBlock);
     console.log(`[actdunks][${deployment.blockchainType}] Last processed block: ${lastProcessedBlock}`);
 
-    // Clean up existing activities for this batch range
+    // Clean up existing activities for this batch range.
     const deleteResult = await this.activityRepository
       .createQueryBuilder()
       .delete()
@@ -66,10 +86,10 @@ export class ActivityV2Service {
         this.voucherTransferEventService.get(batchStart, batchEnd, deployment),
       ]);
 
-      console.log(`[actdunks][${deployment.blockchainType}] Found events in batch: created=${createdEvents.length}, updated=${updatedEvents.length}, deleted=${deletedEvents.length}, transfer=${transferEvents.length}`);
+      this.logger.log(`Fetched ${createdEvents.length} StrategyCreatedEvents for blocks ${batchStart}-${batchEnd}`);
 
       // Process events into activities
-      const activities = this.processEvents(
+      const activities = await this.processEvents(
         createdEvents,
         updatedEvents,
         deletedEvents,
@@ -85,11 +105,11 @@ export class ActivityV2Service {
       for (let i = 0; i < activities.length; i += this.SAVE_BATCH_SIZE) {
         const activityBatch = activities.slice(i, i + this.SAVE_BATCH_SIZE);
         await this.activityRepository.save(activityBatch);
+        this.logger.log(`Saved ${activityBatch.length} activities to DB (batch ${i / this.SAVE_BATCH_SIZE + 1})`);
         savedCount += activityBatch.length;
-        console.log(`[actdunks][${deployment.blockchainType}] Saved batch of ${activityBatch.length} activities (${savedCount}/${activities.length})`);
       }
 
-      // Update the last processed block for this batch
+      // Update the last processed block for this batch.
       await this.lastProcessedBlockService.update(key, batchEnd);
       console.log(`[actdunks][${deployment.blockchainType}] Updated last processed block to ${batchEnd}`);
     }
@@ -303,7 +323,7 @@ export class ActivityV2Service {
     };
   }
 
-  processEvents(
+  private async processEvents(
     createdEvents: StrategyCreatedEvent[],
     updatedEvents: StrategyUpdatedEvent[],
     deletedEvents: StrategyDeletedEvent[],
@@ -311,8 +331,7 @@ export class ActivityV2Service {
     deployment: Deployment,
     tokens: TokensByAddress,
     strategyStates: StrategyStatesMap,
-  ): ActivityV2[] {
-    console.log(`[actdunks][${deployment.blockchainType}] Processing events`);
+  ): Promise<ActivityV2[]> {
     const activities: ActivityV2[] = [];
 
     // Process all events in chronological order
@@ -323,8 +342,11 @@ export class ActivityV2Service {
       switch (type) {
         case 'created': {
           const createdEvent = event as StrategyCreatedEvent;
-          console.log(`[actdunks][${deployment.blockchainType}] Processing create event for strategy ${createdEvent.strategyId}`);
+          this.logger.log(`Processing StrategyCreatedEvent: strategyId=${createdEvent.strategyId}, owner=${createdEvent.owner}, block=${createdEvent.block.id}, tx=${createdEvent.transactionHash}`);
+
           const activity = createActivityFromEvent(createdEvent, 'create_strategy', deployment, tokens, strategyStates);
+          this.logger.log(`Created ActivityV2 for StrategyCreatedEvent: strategyId=${createdEvent.strategyId}, activityId=${activity.id}, block=${activity.blockNumber}, tx=${activity.txhash}`);
+
           activities.push(activity);
           strategyStates.set(createdEvent.strategyId, {
             currentOwner: createdEvent.owner,
@@ -341,13 +363,20 @@ export class ActivityV2Service {
           const state = strategyStates.get(event.strategyId);
           if (state) {
             const updatedEvent = event as StrategyUpdatedEvent;
-            console.log(`[actdunks][${deployment.blockchainType}] Processing update event for strategy ${updatedEvent.strategyId}`);
+
+            // Calculate fees for trade events
+            let fees = null;
+            if (updatedEvent.reason === 1) {
+              fees = await this.strategyUpdatedEventService.calculateFees(updatedEvent, strategyStates);
+            }
+
             const activity = createActivityFromEvent(
               updatedEvent,
               this.determineUpdateType(updatedEvent, state),
               deployment,
               tokens,
               strategyStates,
+              fees,
             );
             activities.push(activity);
             state.order0 = updatedEvent.order0;
@@ -358,7 +387,7 @@ export class ActivityV2Service {
         }
         case 'deleted': {
           const deletedEvent = event as StrategyDeletedEvent;
-          console.log(`[actdunks][${deployment.blockchainType}] Processing delete event for strategy ${deletedEvent.strategyId}`);
+
           const activity = createActivityFromEvent(deletedEvent, 'deleted', deployment, tokens, strategyStates);
           activities.push(activity);
           strategyStates.delete(deletedEvent.strategyId);
@@ -366,7 +395,7 @@ export class ActivityV2Service {
         }
         case 'transfer': {
           const transferEvent = event as VoucherTransferEvent;
-          console.log(`[actdunks][${deployment.blockchainType}] Processing transfer event for strategy ${transferEvent.strategyId}`);
+
           // Filter out events with a zero address in either the 'from' or 'to' field
           if (
             transferEvent.to.toLowerCase() === '0x0000000000000000000000000000000000000000' ||
@@ -607,7 +636,6 @@ export class ActivityV2Service {
 
     // Get all creation events using the all() method
     const creationEvents = await this.strategyCreatedEventService.all(deployment);
-    console.log(`[actdunks][${deployment.blockchainType}] Found ${creationEvents.length} total creation events`);
 
     // Get the last events for each strategy
     const lastEvents = await this.activityRepository

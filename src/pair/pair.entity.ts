@@ -48,4 +48,15 @@ export class Pair {
 
   @OneToMany(() => TokensTradedEvent, (tokenTradedEvent) => tokenTradedEvent.pair)
   tokensTradedEvents: TokensTradedEvent[];
+
+  // Virtual fields from aggregation (not stored in DB)
+  activityCount?: number;
+  uniqueTraders?: number;
+  lastActivityTime?: Date;
+  token0_bought?: string;
+  token0_sold?: string;
+  token0_fees?: string;
+  token1_bought?: string;
+  token1_sold?: string;
+  token1_fees?: string;
 }

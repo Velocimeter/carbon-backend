@@ -85,6 +85,8 @@ export class StrategyService {
     deployment: Deployment,
     deletionEvent = false,
   ) {
+    console.log(`[Strategy Service] Processing ${events.length} events for ${deployment.blockchainType}-${deployment.exchangeId}`);
+
     // Fetch existing strategies in the current block range
     const existingStrategies = await this.strategyRepository.find({
       where: {
@@ -93,15 +95,62 @@ export class StrategyService {
       },
     });
 
+    console.log(`[Strategy Service] Found ${existingStrategies.length} existing strategies for ${deployment.blockchainType}-${deployment.exchangeId}`);
+    
+
+
+    // Double check for specific strategy if it exists
+    // const problematicId = '340282366920938463463374607431768211459';
+    // const doubleCheck = await this.strategyRepository.findOne({
+    //   where: {
+    //     blockchainType: deployment.blockchainType,
+    //     exchangeId: deployment.exchangeId,
+    //     strategyId: problematicId
+    //   }
+    // });
+    // if (doubleCheck) {
+    //   console.log(`[Strategy Service] Double check found strategy ${problematicId} exists:`, {
+    //     id: doubleCheck.id,
+    //     blockchainType: doubleCheck.blockchainType,
+    //     exchangeId: doubleCheck.exchangeId,
+    //     strategyId: doubleCheck.strategyId
+    //   });
+    // }
+
     const strategies = [];
+    const processedStrategyIds = new Set(); // Track strategies we've processed in this batch
+
     events.forEach((e) => {
+      // Log the exact values we're processing
+      console.log(`[Strategy Service] Processing event for strategy:`, {
+        blockchainType: deployment.blockchainType,
+        exchangeId: deployment.exchangeId,
+        strategyId: e.strategyId,
+        eventType: e.constructor.name
+      });
+
+      // Check if we've already processed this strategy in current batch
+      if (processedStrategyIds.has(e.strategyId)) {
+        console.log(`[Strategy Service] WARNING: Duplicate strategy ID ${e.strategyId} found in current batch`);
+        return; // Skip this one
+      }
+
       const order0 = this.decodeOrder(JSON.parse(e.order0));
       const order1 = this.decodeOrder(JSON.parse(e.order1));
       const strategyIndex = existingStrategies.findIndex((s) => s.strategyId === e.strategyId);
 
+      // Log the lookup result
+      console.log(`[Strategy Service] Strategy lookup for ${e.strategyId}:`, {
+        found: strategyIndex >= 0,
+        eventType: e.constructor.name,
+        existingStrategiesCount: existingStrategies.length,
+        processedCount: processedStrategyIds.size
+      });
+
       let newStrategy;
       if (strategyIndex >= 0) {
         // Update existing strategy
+        console.log(`[Strategy Service] Updating strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${e.pair?.id}, Deleted: ${deletionEvent})`);
         newStrategy = existingStrategies[strategyIndex];
         newStrategy.token0 = e.token0;
         newStrategy.token1 = e.token1;
@@ -118,6 +167,7 @@ export class StrategyService {
         newStrategy.deleted = deletionEvent;
       } else {
         // Create new strategy
+        console.log(`[Strategy Service] Creating new strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${e.pair?.id}, Deleted: ${deletionEvent}, Event Type: ${e.constructor.name})`);
         newStrategy = this.strategyRepository.create({
           token0: e.token0,
           token1: e.token1,
@@ -138,13 +188,36 @@ export class StrategyService {
         });
       }
 
+      processedStrategyIds.add(e.strategyId);
       strategies.push(newStrategy);
     });
 
     const BATCH_SIZE = 1000;
     for (let i = 0; i < strategies.length; i += BATCH_SIZE) {
       const batch = strategies.slice(i, i + BATCH_SIZE);
-      await this.strategyRepository.save(batch);
+      console.log(`[Strategy Service] Saving batch ${Math.floor(i/BATCH_SIZE) + 1} of ${Math.ceil(strategies.length/BATCH_SIZE)} (${batch.length} strategies) for ${deployment.blockchainType}-${deployment.exchangeId}`);
+      try {
+        await this.strategyRepository.save(batch);
+        console.log(`[Strategy Service] Successfully saved batch ${Math.floor(i/BATCH_SIZE) + 1}`);
+      } catch (error) {
+        // Enhanced error logging
+        if (error.code === '23505') { // Unique constraint violation
+          console.error(`[Strategy Service] Unique constraint violation details:`, {
+            constraint: error.constraint,
+            detail: error.detail,
+            table: error.table,
+            // Log the actual data that caused the violation
+            batch: batch.map(s => ({
+              blockchainType: s.blockchainType,
+              exchangeId: s.exchangeId,
+              strategyId: s.strategyId,
+              eventType: s.constructor.name
+            }))
+          });
+        }
+        console.error(`[Strategy Service] Error saving batch ${Math.floor(i/BATCH_SIZE) + 1}:`, error);
+        throw error;
+      }
     }
   }
 

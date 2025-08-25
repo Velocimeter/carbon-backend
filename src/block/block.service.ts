@@ -36,7 +36,7 @@ export class BlockService {
   }
 
   private async fetchAndStore(blocks: Array<number>, deployment: Deployment): Promise<void> {
-    const batches = _.chunk(blocks, 100);
+    const batches = _.chunk(blocks, 10000);
     const limit = (await import('p-limit')).default;
     const concurrencyLimit = limit(deployment.harvestConcurrency);
 
@@ -56,9 +56,7 @@ export class BlockService {
               newBlocks.push(newBlock);
 
               await sleep(deployment.harvestSleep || 0);
-            } catch (error) {
-              console.log('error detected:', error);
-            }
+            } catch (error) {}
           }),
         ),
       );

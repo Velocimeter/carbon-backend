@@ -1,3 +1,13 @@
 {
-  "cSpell.words": ["Multicall", "setex"]
+  "cSpell.words": ["Multicall", "setex"],
+  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  "debug.terminal.clearBeforeReusing": true,
+  "debug.javascript.terminalOptions": {
+    "skipFiles": [
+      "<node_internals>/**"
+    ]
+  },
+  "debug.javascript.autoAttachFilter": "disabled",
+  "debug.javascript.usePreview": false,
+  "window.menuBarVisibility": "classic"
 }

@@ -1,0 +1,32 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Windows Environment Configuration
+
+## Docker Networking on Windows
+When running Docker containers on Windows, there are important networking considerations:
+
+1. Container-to-Container Communication:
+   - Use service names (e.g., `timescaledb`) for inter-container communication
+   - Use internal container ports (e.g., `5432`) not host-mapped ports
+
+2. Host-to-Container Communication:
+   - Use `localhost` with mapped ports (e.g., `5433`)
+   - Example: TimescaleDB is mapped as `5433:5432`, so host uses `5433`
+
+## MCP Server Configuration
+The MCP server configuration in [docker-compose.yml](mdc:docker-compose.yml) requires special attention:
+
+1. Connection String Format:
+   - From container to TimescaleDB: `postgresql://postgres:postgres@timescaledb:5432/postgres`
+   - From host to TimescaleDB: `postgresql://postgres:postgres@localhost:5433/postgres`
+
+2. Path Considerations:
+   - Windows paths in configuration files should use forward slashes
+   - Example: `C:/Users/Windows/.cursor/mcp.json` not `C:\Users\Windows\.cursor\mcp.json`
+
+## Important Files
+- [docker-compose.yml](mdc:docker-compose.yml) - Container orchestration
+- [mcp.json](mdc:mcp.json) - MCP server configuration

@@ -1,0 +1,45 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Windows Path and Docker Rules
+
+## Docker Container Networking
+When working with Docker on Windows, container networking follows these rules:
+
+1. Container-to-Container:
+   ```yaml
+   # CORRECT - Use service name and internal port
+   postgresql://postgres:postgres@timescaledb:5432/postgres
+   ```
+
+2. Host-to-Container:
+   ```yaml
+   # CORRECT - Use localhost and mapped port
+   postgresql://postgres:postgres@localhost:5433/postgres
+   ```
+
+## Windows Path Formats
+When working with paths on Windows:
+
+1. In Docker volumes and mounts:
+   ```yaml
+   # CORRECT
+   - ./data:/data
+   
+   # WRONG
+   - .\data:/data
+   ```
+
+2. In configuration files:
+   ```json
+   # CORRECT
+   "path": "C:/Users/Windows/.cursor/mcp.json"
+   
+   # WRONG
+   "path": "C:\\Users\\Windows\\.cursor\\mcp.json"
+   ```
+
+## Current Configuration
+The Docker setup in [docker-compose.yml](mdc:docker-compose.yml) uses container-to-container networking with `timescaledb:5432` which is correct for Windows.

@@ -1,4 +1,4 @@
-import { IsOptional, IsNumber, Min, Max, IsString, IsArray, ValidateNested, ArrayMinSize } from 'class-validator';
+import { IsOptional, IsNumber, Min, Max, IsString, IsArray, ValidateNested, IsBoolean } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 import { formatEthereumAddress, IsAddress } from '../../isAddress.validator';
@@ -54,7 +54,6 @@ export class VolumePairsDto {
   limit?: number;
 
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => VolumePair)
   @Transform(({ value }) => {
@@ -71,8 +70,10 @@ export class VolumePairsDto {
   })
   @ApiProperty({
     type: String, // Display as a string in Swagger
-    description: 'Comma-separated list of token pairs in the format address1_address2, address3_address4',
+    description: 'Comma-separated list of token pairs in the format address1_address2, address3_address4. For /volume/pairs/aggregate endpoint, this is optional - if not provided, all pairs will be used.',
+    required: false
   })
+  @IsOptional()
   pairs: VolumePair[]; // Internally processed as an array of TokenPair objects
 
   @IsOptional()
@@ -82,4 +83,13 @@ export class VolumePairsDto {
     description: 'Wallet or contract address. Filters results by this address.',
   })
   ownerId?: string;
+  
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'Whether to aggregate results without timestamp segmentation. Only needed for the /volume/pairs endpoint, not needed for /volume/pairs/aggregate which is always non-timestamped.',
+  })
+  aggregateTotal?: boolean;
 }

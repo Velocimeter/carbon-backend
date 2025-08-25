@@ -1,0 +1,65 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Windows Command Line Rules
+
+## Directory Navigation
+On Windows, always use:
+```bash
+# CORRECT
+cd ../folder_name
+cd C:/Users/Windows/path
+
+# WRONG
+cd ..\folder_name
+cd C:\Users\Windows\path
+```
+
+## Path Separators in Commands
+When running commands on Windows:
+```bash
+# CORRECT
+docker run -v C:/Users/Windows/data:/data
+python C:/path/to/script.py
+
+# WRONG
+docker run -v C:\Users\Windows\data:/data
+python C:\path\to\script.py
+```
+
+## Current Working Directory
+When running commands, check your location:
+```bash
+# Show current directory
+pwd
+
+# If in wrong directory, use absolute path
+cd C:/Users/Windows/Documents/GitHub/carbon-backend
+
+# Or relative path from current location
+cd ../carbon-backend
+```
+
+## Docker Commands on Windows
+Docker commands should use forward slashes:
+```bash
+# CORRECT
+docker-compose -f ./docker-compose.yml up
+docker run -v ./local:/container
+
+# WRONG
+docker-compose -f .\docker-compose.yml up
+docker run -v .\local:/container
+```
+
+## Environment Variables
+Setting environment variables on Windows cmd:
+```bash
+# CORRECT
+set PATH=C:/path/to/bin;%PATH%
+
+# WRONG
+set PATH=C:\path\to\bin;%PATH%
+```
