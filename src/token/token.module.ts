@@ -13,6 +13,7 @@ import { VortexTradingResetEventModule } from '../events/vortex-trading-reset-ev
 import { VortexFundsWithdrawnEventModule } from '../events/vortex-funds-withdrawn-event/vortex-funds-withdrawn-event.module';
 import { ProtectionRemovedEventModule } from '../events/protection-removed-event/protection-removed-event.module';
 import { CodexModule } from '../codex/codex.module';
+import { DeploymentModule } from '../deployment/deployment.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { CodexModule } from '../codex/codex.module';
     VortexFundsWithdrawnEventModule,
     ProtectionRemovedEventModule,
     CodexModule,
+    DeploymentModule,
   ],
   providers: [TokenService],
   exports: [TokenService, TypeOrmModule.forFeature([Token])],

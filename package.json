@@ -28,7 +28,8 @@
     "cleanup:duplicates": "TZ=UTC ts-node -r tsconfig-paths/register src/scripts/cleanup-duplicates.ts",
     "generate-erd": "ts-node -r tsconfig-paths/register --compilerOptions '{\"module\":\"CommonJS\"}' src/scripts/generate-erd.ts && npm run generate-erd-svg",
     "generate-erd-svg": "mmdc -i erd.mmd -o erd.svg",
-    "db:seed": "node src/scripts/seed.js"
+    "db:seed": "node src/scripts/seed.js",
+    "merkl:create-campaign": "ts-node -r tsconfig-paths/register src/scripts/create-merkl-campaign.ts"
   },
   "dependencies": {
     "@codex-data/sdk": "^0.6.2",

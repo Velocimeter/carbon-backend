@@ -34,6 +34,7 @@ export enum ExchangeId {
   BerachainGraphene = 'berachain',
   // OGCoti = 'coti',
    IotaGraphene = 'iota',
+   OGTac = 'tac',
 }
 
 export interface GasToken {

@@ -1,4 +1,4 @@
-import { Interval } from '@nestjs/schedule';
+// removed Interval decorator due to runtime util.isString incompatibility with current Node version
 import { ConfigService } from '@nestjs/config';
 import { Inject, Injectable } from '@nestjs/common';
 import * as _ from 'lodash';
@@ -75,6 +75,14 @@ export class UpdaterService {
         const updateInterval = 5000; // Customize the interval as needed
         this.scheduleDeploymentUpdate(deployment, updateInterval);
       });
+    }
+
+    // Schedule analytics updates without using @Interval decorator
+    const shouldUpdateAnalytics = this.configService.get('SHOULD_UPDATE_ANALYTICS');
+    if (shouldUpdateAnalytics === '1') {
+      setInterval(async () => {
+        await this.updateAnalytics();
+      }, 5000);
     }
   }
 
@@ -203,7 +211,6 @@ export class UpdaterService {
     }
   }
 
-  @Interval(5000)
   async updateAnalytics(): Promise<any> {
     const shouldUpdateAnalytics = this.configService.get('SHOULD_UPDATE_ANALYTICS');
     if (shouldUpdateAnalytics !== '1') return;

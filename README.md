@@ -110,6 +110,44 @@ Access the API documentation by navigating to [http://localhost:3000](http://loc
 
 Manually run the `seed` function in `src/historic-quote/historic-quote.service.ts` to populate the database with historic quotes for history-dependent functionalities such as the simulator.
 
+## Merkl: Create Campaign (CLI)
+
+Use the built-in CLI to create a Merkl campaign record in the database. Requires `DATABASE_URL` and entities configured.
+
+```bash
+# Required envs
+export DATABASE_URL=postgres://user:pass@host:5432/db
+
+# Required app env
+export MERKL_SNAPSHOT_SALT=your-secret-salt
+
+# Create a campaign (example for Ethereum mainnet)
+npm run merkl:create-campaign -- \
+  --blockchainType=ethereum \
+  --exchangeId=ethereum \
+  --pair=ETH_USDC \
+  --rewardAmount="1000000000000000000000" \
+  --rewardTokenAddress=0xdAC17F958D2ee523a2206206994597C13D831ec7 \
+  --start=2025-01-01T00:00:00.000Z \
+  --end=2025-01-31T23:59:59.000Z \
+  --opportunityName="ETH/USDC Liquidity Incentives" \
+  --active=true
+
+# Alternatively provide --pairId instead of --pair
+```
+
+Arguments:
+- `--blockchainType`: one of `ethereum`, `sei-network`, etc. (must match `BlockchainType`)
+- `--exchangeId`: one of `ethereum`, `sei`, etc. (must match `ExchangeId`)
+- `--pair` or `--pairId`: pair name like `ETH_USDC` or numeric ID
+- `--rewardAmount`: total token amount as a string (wei-style if needed)
+- `--rewardTokenAddress`: ERC-20 address
+- `--start` / `--end`: ISO-8601 timestamps
+- `--opportunityName`: human-readable label
+- `--active`: true/false (default true)
+
+The script prevents overlapping active campaigns for the same pair.
+
 ## Change Network
 
 To switch Carbon Backend's network for different deployments, follow these steps:

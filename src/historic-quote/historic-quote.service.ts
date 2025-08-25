@@ -60,6 +60,7 @@ export class HistoricQuoteService implements OnModuleInit {
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
    [BlockchainType.Iota]: [],
+   [BlockchainType.Tac]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
