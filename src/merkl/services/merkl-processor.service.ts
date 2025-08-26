@@ -175,6 +175,14 @@ export class MerklProcessorService {
       whitelistedAssets: [],
       defaultWeighting: 1, // Default weighting for unlisted tokens
     },
+    [ExchangeId.OGSei]: {
+      tokenWeightings: {
+        '0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8': 1, // WETH
+        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 99, // SEI
+      },
+      whitelistedAssets: [],
+      defaultWeighting: 0,
+    },
     // Removed OGSei weighting for this setup
     [ExchangeId.OGTac]: {
       tokenWeightings: {
@@ -706,9 +714,7 @@ export class MerklProcessorService {
   private async getBlockForTimestamp(timestamp: number, deployment: Deployment, maxBlock: number): Promise<number> {
     try {
       const targetDate = new Date(timestamp);
-      // Fallback to using the first block at or before timestamp via binary search is not available in this BlockService.
-      // Use deployment.startBlock when not found.
-      const block = await this.blockService.getBlock(await this.blockService.getLastBlockFromBlockchain(deployment), deployment);
+      const block = await this.blockService.getBlockAtOrBeforeTimestamp(targetDate, deployment);
 
       if (!block) {
         this.logger.warn(`No block found for timestamp ${targetDate.toISOString()}, using deployment start block`);

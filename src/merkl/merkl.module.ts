@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Campaign } from './entities/campaign.entity';
 import { SubEpoch } from './entities/sub-epoch.entity';
-import { EpochReward } from './entities/epoch-reward.entity';
 import { SubEpochService } from './services/sub-epoch.service';
 import { CampaignService } from './services/campaign.service';
 import { MerklProcessorService } from './services/merkl-processor.service';
@@ -16,7 +15,7 @@ import { VoucherTransferEventModule } from '../events/voucher-transfer-event/vou
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Campaign, SubEpoch, EpochReward]),
+    TypeOrmModule.forFeature([Campaign, SubEpoch]),
     LastProcessedBlockModule,
     BlockModule,
     HistoricQuoteModule,
@@ -26,11 +25,6 @@ import { VoucherTransferEventModule } from '../events/voucher-transfer-event/vou
     VoucherTransferEventModule,
   ],
   providers: [CampaignService, MerklProcessorService, SubEpochService],
-  exports: [
-    CampaignService,
-    MerklProcessorService,
-    SubEpochService,
-    TypeOrmModule.forFeature([Campaign, SubEpoch, EpochReward]),
-  ],
+  exports: [CampaignService, MerklProcessorService, SubEpochService, TypeOrmModule.forFeature([Campaign, SubEpoch])],
 })
 export class MerklModule {}

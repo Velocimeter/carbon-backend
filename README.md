@@ -110,44 +110,6 @@ Access the API documentation by navigating to [http://localhost:3000](http://loc
 
 Manually run the `seed` function in `src/historic-quote/historic-quote.service.ts` to populate the database with historic quotes for history-dependent functionalities such as the simulator.
 
-## Merkl: Create Campaign (CLI)
-
-Use the built-in CLI to create a Merkl campaign record in the database. Requires `DATABASE_URL` and entities configured.
-
-```bash
-# Required envs
-export DATABASE_URL=postgres://user:pass@host:5432/db
-
-# Required app env
-export MERKL_SNAPSHOT_SALT=your-secret-salt
-
-# Create a campaign (example for Ethereum mainnet)
-npm run merkl:create-campaign -- \
-  --blockchainType=ethereum \
-  --exchangeId=ethereum \
-  --pair=ETH_USDC \
-  --rewardAmount="1000000000000000000000" \
-  --rewardTokenAddress=0xdAC17F958D2ee523a2206206994597C13D831ec7 \
-  --start=2025-01-01T00:00:00.000Z \
-  --end=2025-01-31T23:59:59.000Z \
-  --opportunityName="ETH/USDC Liquidity Incentives" \
-  --active=true
-
-# Alternatively provide --pairId instead of --pair
-```
-
-Arguments:
-- `--blockchainType`: one of `ethereum`, `sei-network`, etc. (must match `BlockchainType`)
-- `--exchangeId`: one of `ethereum`, `sei`, etc. (must match `ExchangeId`)
-- `--pair` or `--pairId`: pair name like `ETH_USDC` or numeric ID
-- `--rewardAmount`: total token amount as a string (wei-style if needed)
-- `--rewardTokenAddress`: ERC-20 address
-- `--start` / `--end`: ISO-8601 timestamps
-- `--opportunityName`: human-readable label
-- `--active`: true/false (default true)
-
-The script prevents overlapping active campaigns for the same pair.
-
 ## Change Network
 
 To switch Carbon Backend's network for different deployments, follow these steps:
@@ -420,34 +382,222 @@ ETHEREUM_WALLET_URL=https://app.carbondefi.xyz/wallet/
 
 This system ensures reliable delivery of notifications even with high event volumes and provides network-specific configuration options.
 
-## Referral Data
+## Merkl Rewards System
 
-The referral system processes events directly as part of the application lifecycle. To enable automatic referral event processing, set the following environment variables:
+Carbon Backend includes a sophisticated Merkl rewards processing system that distributes incentives to liquidity providers based on their strategy positions and market conditions. This system is designed to handle financial reward distribution with strict accuracy and temporal consistency requirements.
+
+### Overview
+
+The Merkl rewards system implements an epoch-based reward distribution algorithm that:
+
+- **Processes campaigns in chronological epochs** to ensure temporal consistency
+- **Maintains strategy state isolation** to prevent cross-contamination between time periods
+- **Calculates reward eligibility** based on liquidity proximity to market prices
+- **Applies configurable token weightings** to incentivize specific assets
+- **Enforces campaign budget limits** with automatic proportional scaling
+- **Uses deterministic processing** for reproducible results
+
+### Environment Variables
+
+#### Required for Production
 
 ```bash
-# Enable referral event processing
-SHOULD_PROCESS_REFERRALS=1
-
-# Set the interval for processing (in milliseconds, default: 300000 - 5 minutes)
-PROCESS_REFERRALS_INTERVAL=300000
-
-# Process referrals immediately on application startup
-PROCESS_REFERRALS_ON_STARTUP=1
+# REQUIRED: Security salt for deterministic seed generation
+MERKL_SNAPSHOT_SALT=your-secret-salt-for-merkl-seed-generation
 ```
 
-You can also manually process referral events by running:
+**⚠️ Critical**: The `MERKL_SNAPSHOT_SALT` is required for secure seed generation in production. This salt ensures:
+
+- **Deterministic results**: Same input data always produces the same rewards
+- **Security**: Prevents manipulation of reward calculations through predictable randomness
+- **Reproducibility**: Enables audit and verification of reward distributions
+
+#### Optional for Testing/Development
 
 ```bash
-npx ts-node -r tsconfig-paths/register src/scripts/run-referral-harvester.ts
+# OPTIONAL: Fixed seed for testing environments
+MERKL_SNAPSHOT_SEED=fixed-test-seed-12345
 ```
 
-MCP connection: docker run -i --rm mcp/postgres postgresql://postgres:postgres@host.docker.internal:5433/postgres
+**Use Cases for Environment Variables:**
 
-This script can be scheduled via cron if you prefer not to enable the automatic processing.
+| Variable              | Environment             | Purpose                              | When to Use                       |
+| --------------------- | ----------------------- | ------------------------------------ | --------------------------------- |
+| `MERKL_SNAPSHOT_SALT` | **Production**          | Secure deterministic seed generation | **Always required in production** |
+| `MERKL_SNAPSHOT_SEED` | **Testing/Development** | Fixed seed for reproducible tests    | Only for testing and development  |
+
+**⚠️ Important**: Never use `MERKL_SNAPSHOT_SEED` in production as it overrides the secure transaction-based seed generation.
+
+### Campaign Management
+
+#### Creating Campaigns
+
+**⚠️ Critical**: Campaigns must be created directly in the database using SQL. There is no API endpoint for campaign creation to ensure data integrity.
+
+Example campaign creation:
+
+```sql
+INSERT INTO merkl_campaigns (
+    "blockchainType",
+    "exchangeId",
+    "pairId",
+    "rewardAmount",
+    "rewardTokenAddress",
+    "startDate",
+    "endDate",
+    "opportunityName",
+    "isActive"
+) VALUES (
+    'ethereum',
+    'ethereum',
+    123,
+    '1000', -- 1000 USDT tokens
+    '0xdAC17F958D2ee523a2206206994597C13D831ec7', -- USDT token
+    '2024-01-01 00:00:00',
+    '2024-01-31 23:59:59',
+    'Ethereum Liquidity Incentives',
+    true
+);
+```
+
+**Required Campaign Fields:**
+
+- `blockchainType`: Must match deployment configuration
+- `exchangeId`: Must match deployment configuration
+- `pairId`: Valid pair ID from the pairs table
+- `rewardAmount`: Total reward budget in token units (e.g., "100" for 100 tokens)
+- `rewardTokenAddress`: Contract address of the reward token
+- `startDate`/`endDate`: Campaign duration (must not overlap with existing campaigns for same pair)
+- `opportunityName`: Human-readable campaign description
+- `isActive`: Should be `true` for active campaigns
+
+#### Campaign Lifecycle Rules
+
+**⚠️ Critical Merkl Requirements:**
+
+1. **Never Cancel Active Campaigns**: Once a campaign has started processing, it must not be cancelled or modified as per Merkl's requirements
+2. **Complete Campaign Duration**: Allow campaigns to run their full scheduled duration
+3. **No Overlapping Campaigns**: Ensure only one active campaign per pair at any time
+4. **Budget Enforcement**: The system automatically enforces campaign budget limits
+
+### Token Weighting Configuration
+
+The system uses configurable token weightings to control reward distribution:
+
+```typescript
+// Example configuration in merkl-processor.service.ts
+DEPLOYMENT_TOKEN_WEIGHTINGS: {
+  [ExchangeId.OGEthereum]: {
+    tokenWeightings: {
+      '0xdAC17F958D2ee523a2206206994597C13D831ec7': 0.7, // USDT - 70% weighting
+      '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 1.8, // ETH - 180% weighting
+    },
+    whitelistedAssets: [], // Standard weighting tokens
+    defaultWeighting: 1, // Default for unlisted tokens
+  }
+}
+```
+
+**Weighting Effects:**
+
+- `0`: No rewards for this token
+- `0.5`: Half rewards compared to baseline
+- `1.0`: Standard reward amount
+- `2.0`: Double rewards compared to baseline
+
+### Reward Processing Flow
+
+1. **Campaign Detection**: System identifies active campaigns requiring processing
+2. **Price Cache Creation**: Builds comprehensive USD price cache for consistent rates
+3. **Epoch Calculation**: Determines which epochs need processing (unprocessed + recent updates)
+4. **Temporal Isolation**: Each epoch processes with its own isolated state
+5. **Sub-Epoch Generation**: Creates time-based snapshots within epochs
+6. **Reward Distribution**: Calculates rewards based on liquidity proximity to market prices
+7. **Budget Enforcement**: Applies proportional scaling if rewards exceed campaign limits
+
+### Key Features
+
+#### Temporal Isolation
+
+- Each epoch maintains completely isolated strategy states
+- Prevents future events from affecting past reward calculations
+- Ensures reproducible and auditable results
+
+#### Price-Based Eligibility
+
+- Rewards distributed based on proximity to market price
+- Closer to market price = higher reward eligibility
+- Uses 2% tolerance zone around market prices
+
+#### Budget Management
+
+- Automatic tracking of distributed vs. total campaign amounts
+- Proportional scaling when rewards would exceed budget
+- Real-time budget enforcement prevents over-distribution
+
+#### Deterministic Processing
+
+- Transaction-based seed generation for reproducible randomness
+- Chronological event processing ensures consistent results
+- All calculations use high-precision Decimal arithmetic
+
+### Monitoring and Troubleshooting
+
+#### Key Log Messages
+
+- `Processing merkl with epoch-based batching up to block X`: Processing started
+- `Found X epoch batches to process`: Number of epochs to process
+- `Processing epoch batch: campaign-X-epoch-Y`: Individual epoch processing
+- `Saved X sub-epoch records for epoch Y`: Successful epoch completion
+
+#### Common Issues
+
+**No Active Campaigns Found**
+
+```
+No active campaigns found for blockchain-exchangeId
+```
+
+- **Solution**: Verify campaigns exist in database and are marked as active
+- **Check**: Campaign start/end dates are valid for current time
+
+**Missing Environment Variables**
+
+```
+MERKL_SNAPSHOT_SALT environment variable is required for secure seed generation
+```
+
+- **Solution**: Add required environment variable to `.env` file
+- **Critical**: Never skip this in production environments
+
+**Budget Exceeded**
+
+```
+Campaign X: Capping rewards from Y to Z
+```
+
+- **Expected**: System automatically scales rewards to fit budget
+- **Action**: Monitor for frequent capping which may indicate configuration issues
+
+### Security Considerations
+
+⚠️ **Financial Critical System**: The Merkl rewards system handles real financial distributions:
+
+1. **Environment Security**: Protect `MERKL_SNAPSHOT_SALT` as a secret
+2. **Database Access**: Restrict campaign creation to authorized personnel only
+3. **Audit Trail**: All reward calculations are logged and traceable
+4. **Precision Requirements**: Never modify Decimal arithmetic operations
+5. **Temporal Integrity**: Never bypass temporal isolation mechanisms
+
+### API Endpoints
+
+The system provides read-only API endpoints for reward data:
+
+- `GET /:exchangeId/merkle/data` - Campaign and configuration data
+- `GET /:exchangeId/merkle/rewards` - Reward distribution data
+
+**Note**: No write endpoints are provided for security. All campaign management must be done via direct database access.
 
 ## License
 
 Carbon Backend is licensed under the [MIT License](LICENSE).
-
-
-
