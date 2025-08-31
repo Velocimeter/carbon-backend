@@ -6,6 +6,7 @@ import { ContractsNames, CustomFnArgs, HarvesterService } from '../../harvester/
 import { PairsDictionary } from '../../pair/pair.service';
 import { TokensByAddress } from '../../token/token.service';
 import { Deployment } from '../../deployment/deployment.service';
+import { Logger } from '@nestjs/common';
 
 export interface PairTradingFeePpmDictionary {
   [address: string]: number;
@@ -13,6 +14,7 @@ export interface PairTradingFeePpmDictionary {
 
 @Injectable()
 export class PairTradingFeePpmUpdatedEventService {
+  private readonly logger = new Logger(PairTradingFeePpmUpdatedEventService.name);
   constructor(
     @InjectRepository(PairTradingFeePpmUpdatedEvent)
     private repository: Repository<PairTradingFeePpmUpdatedEvent>,
@@ -25,7 +27,7 @@ export class PairTradingFeePpmUpdatedEventService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<any> {
-    return this.harvesterService.processEvents({
+    const res = await this.harvesterService.processEvents({
       entity: 'pair-trading-fee-ppm-updated-events',
       contractName: ContractsNames.CarbonController,
       eventName: 'PairTradingFeePPMUpdated',
@@ -38,6 +40,10 @@ export class PairTradingFeePpmUpdatedEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed pair-trading-fee-ppm-updated-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async parseEvent(args: CustomFnArgs): Promise<any> {

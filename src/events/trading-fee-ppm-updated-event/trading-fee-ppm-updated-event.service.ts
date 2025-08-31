@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { TradingFeePpmUpdatedEvent } from './trading-fee-ppm-updated-event.entity';
 import { ContractsNames, HarvesterService } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class TradingFeePpmUpdatedEventService {
+  private readonly logger = new Logger(TradingFeePpmUpdatedEventService.name);
   constructor(
     @InjectRepository(TradingFeePpmUpdatedEvent)
     private repository: Repository<TradingFeePpmUpdatedEvent>,
@@ -29,7 +30,7 @@ export class TradingFeePpmUpdatedEventService {
   }
 
   async update(endBlock: number, deployment: Deployment): Promise<any> {
-    return this.harvesterService.processEvents({
+    const res = await this.harvesterService.processEvents({
       entity: 'trading-fee-ppm-updated-events',
       contractName: ContractsNames.CarbonController,
       eventName: 'TradingFeePPMUpdated',
@@ -39,6 +40,10 @@ export class TradingFeePpmUpdatedEventService {
       tagTimestampFromBlock: true,
       deployment: deployment, // Pass deployment
     });
+    this.logger.log(
+      `[update] Completed trading-fee-ppm-updated-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<TradingFeePpmUpdatedEvent[]> {

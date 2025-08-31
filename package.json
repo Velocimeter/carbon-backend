@@ -11,7 +11,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "TZ=UTC nest start --watch --debug",
     "start:dev": "nest start --watch",
-    "start:debug": "TZ=UTC nest start --debug --watch",
+    "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "start:prod:local": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
@@ -37,7 +37,7 @@
     "calculate-csv-totals": "TZ=UTC ts-node -r tsconfig-paths/register src/scripts/calculate-totals.ts"
   },
   "dependencies": {
-    "@codex-data/sdk": "^0.6.2",
+    "@codex-data/sdk": "^1.0.26",
     "@ethersproject/bignumber": "^5.7.0",
     "@google-cloud/secret-manager": "^5.3.0",
     "@google-cloud/tasks": "^5.5.1",

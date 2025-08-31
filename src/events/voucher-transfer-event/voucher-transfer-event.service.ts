@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { VoucherTransferEvent } from './voucher-transfer-event.entity';
 import { ContractsNames, CustomFnArgs, HarvesterService } from '../../harvester/harvester.service';
 import { BigNumber } from '@ethersproject/bignumber';
@@ -8,6 +8,7 @@ import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class VoucherTransferEventService {
+  private readonly logger = new Logger(VoucherTransferEventService.name);
   constructor(
     @InjectRepository(VoucherTransferEvent)
     private repository: Repository<VoucherTransferEvent>,
@@ -25,7 +26,7 @@ export class VoucherTransferEventService {
   }
 
   async update(endBlock: number, deployment: Deployment): Promise<any> {
-    return this.harvesterService.processEvents({
+    const res = await this.harvesterService.processEvents({
       entity: 'voucher-transfer-events',
       contractName: ContractsNames.CarbonVoucher,
       eventName: 'Transfer',
@@ -36,6 +37,10 @@ export class VoucherTransferEventService {
       stringFields: ['from', 'to'],
       deployment, // Include deployment for blockchainType and exchangeId
     });
+    this.logger.log(
+      `[update] Completed voucher-transfer-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<VoucherTransferEvent[]> {

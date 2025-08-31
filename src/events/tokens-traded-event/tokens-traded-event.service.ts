@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { TokensTradedEvent } from './tokens-traded-event.entity';
 import { ContractsNames, CustomFnArgs, HarvesterService } from '../../harvester/harvester.service';
 import { PairsDictionary } from '../../pair/pair.service';
@@ -25,6 +25,7 @@ type QueryOrder = 'ASC' | 'DESC';
 
 @Injectable()
 export class TokensTradedEventService {
+  private readonly logger = new Logger(TokensTradedEventService.name);
   constructor(
     @InjectRepository(TokensTradedEvent)
     private repository: Repository<TokensTradedEvent>,
@@ -37,7 +38,10 @@ export class TokensTradedEventService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<any> {
-    return this.harvesterService.processEvents({
+    this.logger.log(
+      `[update] Start tokens-traded-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
+    const result = await this.harvesterService.processEvents({
       entity: 'tokens-traded-events',
       contractName: ContractsNames.CarbonController,
       eventName: 'TokensTraded',
@@ -53,6 +57,10 @@ export class TokensTradedEventService {
       fetchCallerId: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed tokens-traded-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return result;
   }
 
   async parseEvent(args: CustomFnArgs): Promise<any> {

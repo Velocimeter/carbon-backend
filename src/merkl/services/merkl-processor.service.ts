@@ -175,15 +175,30 @@ export class MerklProcessorService {
       whitelistedAssets: [],
       defaultWeighting: 1, // Default weighting for unlisted tokens
     },
-    [ExchangeId.OGSei]: {
-      tokenWeightings: {
-        '0x160345fC359604fC6e70E3c5fAcbdE5F7A9342d8': 1, // WETH
-        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 99, // SEI
-      },
+    // Base (Graphene)
+    [ExchangeId.BaseGraphene]: {
+      tokenWeightings: {},
       whitelistedAssets: [],
-      defaultWeighting: 0,
+      defaultWeighting: 1,
     },
-    // Removed OGSei weighting for this setup
+    // Mantle (Graphene)
+    // [ExchangeId.MantleGraphene]: {
+    //   tokenWeightings: {},
+    //   whitelistedAssets: [],
+    //   defaultWeighting: 1,
+    // },
+    // Berachain (Graphene)
+    // [ExchangeId.BerachainGraphene]: {
+    //   tokenWeightings: {},
+    //   whitelistedAssets: [],
+    //   defaultWeighting: 1,
+    // },
+    // Iota (Graphene)
+    // [ExchangeId.IotaGraphene]: {
+    //   tokenWeightings: {},
+    //   whitelistedAssets: [],
+    //   defaultWeighting: 1,
+    // },
     [ExchangeId.OGTac]: {
       tokenWeightings: {
         '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE': 0.75, // TAC
@@ -226,6 +241,81 @@ export class MerklProcessorService {
     private voucherTransferEventService: VoucherTransferEventService,
     private configService: ConfigService,
   ) {}
+
+  // In-memory store for per-epoch relative volumes and fee splits (non-persistent)
+  private epochRelativeShares: Map<
+    string,
+    Map<
+      number,
+      {
+        unitTokenAddress: string; // canonical unit for volumes (campaign.pair.token0)
+        perStrategy: Map<
+          string,
+          {
+            strategyVolume: Decimal;
+            feeByToken: Map<string, Decimal>;
+          }
+        >;
+      }
+    >
+  > = new Map();
+
+  // In-memory store to compare Merkl rewards vs volume-based rewards per epoch
+  private epochRewardComparisons: Map<
+    string,
+    Map<
+      number,
+      {
+        merklTotalByStrategy: Map<string, Decimal>;
+        volumeTotalByStrategy: Map<string, Decimal>;
+        unitTokenAddress: string;
+        epochTotalReward: Decimal;
+      }
+    >
+  > = new Map();
+
+  /**
+   * Public getter for last computed epoch relative shares (if available).
+   * This is a non-persistent cache meant for diagnostics and ad-hoc reads.
+   */
+  public getEpochRelativeShares(campaignId: number, epochNumber: number):
+    | {
+        unitTokenAddress: string;
+        perStrategy: Array<{ strategyId: string; strategyVolume: string; feeByToken: Record<string, string> }>;
+      }
+    | null {
+    const byCampaign = this.epochRelativeShares.get(String(campaignId));
+    if (!byCampaign) return null;
+    const payload = byCampaign.get(epochNumber);
+    if (!payload) return null;
+
+    return {
+      unitTokenAddress: payload.unitTokenAddress,
+      perStrategy: Array.from(payload.perStrategy.entries()).map(([strategyId, v]) => ({
+        strategyId,
+        strategyVolume: v.strategyVolume.toFixed(),
+        feeByToken: Object.fromEntries(Array.from(v.feeByToken.entries()).map(([t, d]) => [t, d.toFixed()])),
+      })),
+    };
+  }
+
+  /**
+   * Getter for side-by-side comparison of Merkl vs Volume-based rewards for an epoch.
+   */
+  public getEpochRewardComparison(campaignId: number, epochNumber: number):
+    | { merkl: Record<string, string>; volume: Record<string, string>; unitTokenAddress: string; epochTotalReward: string }
+    | null {
+    const byCampaign = this.epochRewardComparisons.get(String(campaignId));
+    if (!byCampaign) return null;
+    const payload = byCampaign.get(epochNumber);
+    if (!payload) return null;
+    return {
+      merkl: Object.fromEntries(Array.from(payload.merklTotalByStrategy.entries()).map(([k, v]) => [k, v.toFixed()])),
+      volume: Object.fromEntries(Array.from(payload.volumeTotalByStrategy.entries()).map(([k, v]) => [k, v.toFixed()])),
+      unitTokenAddress: payload.unitTokenAddress,
+      epochTotalReward: payload.epochTotalReward.toFixed(),
+    };
+  }
 
   /**
    * Processes Merkl reward campaigns for the specified deployment up to the given block.
@@ -1099,6 +1189,7 @@ export class MerklProcessorService {
     if (subEpochs.length === 0) return;
 
     const subEpochsToSave: Partial<SubEpoch>[] = [];
+    const merklTotalsByStrategy: Map<string, Decimal> = new Map();
     const rewardPerSubEpoch = epoch.totalRewards.div(subEpochs.length);
     const currentBatchEndBlock = Math.max(
       0,
@@ -1199,12 +1290,221 @@ export class MerklProcessorService {
           lastProcessedBlock: currentBatchEndBlock,
           ownerAddress: strategy.currentOwner,
         });
+
+        // Accumulate Merkl total reward per strategy for epoch-level comparison
+        merklTotalsByStrategy.set(
+          strategyId,
+          (merklTotalsByStrategy.get(strategyId) || new Decimal(0)).add(totalStrategyReward),
+        );
       }
     }
 
     // Persist sub-epoch data with automatic sequential numbering
     await this.subEpochService.saveSubEpochs(subEpochsToSave);
     this.logger.log(`Saved ${subEpochsToSave.length} sub-epoch records for epoch ${epoch.epochNumber}`);
+
+    // Additionally compute per-epoch relative volumes and fee splits (rewarder-compatible, in-memory only)
+    try {
+      await this.computeAndStoreEpochRelativeVolumesAndFees(campaign, epoch, batchEvents, strategyStates);
+    } catch (err) {
+      this.logger.warn(`Relative share computation failed for epoch ${epoch.epochNumber}: ${err}`);
+    }
+
+    // After volumes are computed, build volume-based reward allocation for side-by-side comparison
+    try {
+      const byCampaign = this.epochRelativeShares.get(String(campaign.id));
+      const relPayload = byCampaign?.get(epoch.epochNumber);
+      if (relPayload) {
+        const { unitTokenAddress, perStrategy } = relPayload;
+        let totalVolume = new Decimal(0);
+        for (const [, v] of perStrategy) totalVolume = totalVolume.add(v.strategyVolume);
+
+        const volumeTotalsByStrategy: Map<string, Decimal> = new Map();
+        if (totalVolume.gt(0)) {
+          for (const [strategyId, v] of perStrategy) {
+            const share = v.strategyVolume.div(totalVolume);
+            const alloc = epoch.totalRewards.mul(share);
+            volumeTotalsByStrategy.set(strategyId, alloc);
+          }
+        }
+
+        if (!this.epochRewardComparisons.has(String(campaign.id))) {
+          this.epochRewardComparisons.set(String(campaign.id), new Map());
+        }
+        const cmpByCampaign = this.epochRewardComparisons.get(String(campaign.id))!;
+        cmpByCampaign.set(epoch.epochNumber, {
+          merklTotalByStrategy: merklTotalsByStrategy,
+          volumeTotalByStrategy: volumeTotalsByStrategy,
+          unitTokenAddress,
+          epochTotalReward: epoch.totalRewards,
+        });
+
+        // Log a concise comparison summary (top by Merkl reward)
+        const merklArray = Array.from(merklTotalsByStrategy.entries()).map(([k, v]) => ({ k, v }));
+        merklArray.sort((a, b) => (b.v.gt(a.v) ? 1 : b.v.lt(a.v) ? -1 : 0));
+        const top = merklArray.slice(0, Math.min(10, merklArray.length));
+        const summary = top
+          .map(({ k, v }) => {
+            const vol = volumeTotalsByStrategy.get(k) || new Decimal(0);
+            return `${k}: merkl=${v.toFixed()} vs volume=${vol.toFixed()}`;
+          })
+          .join(', ');
+        this.logger.log(
+          `Epoch ${epoch.epochNumber} reward comparison (top ${top.length}/${merklArray.length}) [rewardToken=${campaign.rewardTokenAddress}, unit=${unitTokenAddress}]: ${summary}`,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to compute/log volume-based reward comparison for epoch ${epoch.epochNumber}: ${e}`);
+    }
+  }
+
+  /**
+   * Computes per-epoch strategy volumes and fee splits exactly as in graphene-rewarder (without persistence):
+   * - Unit token: campaign.pair.token0 (canonical unit for volumes)
+   * - strategy_volume: |delta of normalized liquidity in unit token| between prev state and current trade
+   * - total_trade: fee-adjusted trade size in the same unit
+   * - relative_share = strategy_volume / total_trade
+   * - fee split: strategy_fee = tradingFeeAmount(normalized) * relative_share, accounted under the actual fee token
+   */
+  private async computeAndStoreEpochRelativeVolumesAndFees(
+    campaign: Campaign,
+    epoch: EpochInfo,
+    batchEvents: BatchEvents,
+    epochStartStates: StrategyStatesMap,
+  ): Promise<void> {
+    const unitTokenAddress = campaign.pair.token0.address.toLowerCase();
+
+    // Initialize prev normalized liquidities from epoch start states
+    const prevNormLiquidity: Map<string, { l0: Decimal; l1: Decimal; d0: number; d1: number }> = new Map();
+    for (const [strategyId, s] of epochStartStates) {
+      prevNormLiquidity.set(strategyId, {
+        l0: new Decimal(s.liquidity0 || 0).div(new Decimal(10).pow(s.token0Decimals)),
+        l1: new Decimal(s.liquidity1 || 0).div(new Decimal(10).pow(s.token1Decimals)),
+        d0: s.token0Decimals,
+        d1: s.token1Decimals,
+      });
+    }
+
+    // Accumulator per strategy
+    const perStrategy: Map<string, { strategyVolume: Decimal; feeByToken: Map<string, Decimal> }> = new Map();
+
+    // Iterate updated events in chronological order within this epoch
+    const startTs = epoch.startTimestamp.getTime();
+    const endTs = epoch.endTimestamp.getTime();
+    const chronologicalEvents = this.sortBatchEventsChronologically(batchEvents);
+
+    for (const te of chronologicalEvents) {
+      if (te.type !== 'updated') continue;
+      const ev = te.event as StrategyUpdatedEvent;
+      if (ev.reason !== 1) continue; // trade events only
+      const ts = ev.timestamp.getTime();
+      if (ts < startTs || ts > endTs) continue;
+
+      const prev = prevNormLiquidity.get(ev.strategyId);
+      if (!prev) continue;
+
+      try {
+        const order0 = JSON.parse(ev.order0 || '{}');
+        const order1 = JSON.parse(ev.order1 || '{}');
+
+        const eventToken0 = ev.token0.address.toLowerCase();
+        const eventToken1 = ev.token1.address.toLowerCase();
+        const eventL0 = new Decimal(order0?.y || 0).div(new Decimal(10).pow(ev.token0.decimals));
+        const eventL1 = new Decimal(order1?.y || 0).div(new Decimal(10).pow(ev.token1.decimals));
+
+        const relevantIsEventSide0 = eventToken0 === unitTokenAddress;
+        const prevRelevant = relevantIsEventSide0 ? prev.l0 : prev.l1;
+        const newRelevant = relevantIsEventSide0 ? eventL0 : eventL1;
+        const strategyVolume = newRelevant.sub(prevRelevant).abs();
+
+        if (!perStrategy.has(ev.strategyId)) {
+          perStrategy.set(ev.strategyId, { strategyVolume: new Decimal(0), feeByToken: new Map() });
+        }
+        const agg = perStrategy.get(ev.strategyId)!;
+        agg.strategyVolume = agg.strategyVolume.add(strategyVolume);
+
+        // Attempt fee split using TokensTradedEvent matched by transaction hash
+        try {
+          const traded = await this.strategyUpdatedEventService.findTokensTradedEvent(ev);
+          if (traded && traded.tradingFeeAmount) {
+            const byTarget = traded.byTargetAmount;
+            const sourceDen = new Decimal(10).pow(traded.sourceToken.decimals);
+            const targetDen = new Decimal(10).pow(traded.targetToken.decimals);
+            const sourceAmount = new Decimal(traded.sourceAmount || 0).div(sourceDen);
+            const targetAmount = new Decimal(traded.targetAmount || 0).div(targetDen);
+            const feeAmount = new Decimal(traded.tradingFeeAmount || 0).div(
+              byTarget ? sourceDen : targetDen,
+            );
+
+            const relevantIsSource = traded.sourceToken.address.toLowerCase() === unitTokenAddress;
+            let totalTrade: Decimal;
+            if (relevantIsSource) {
+              totalTrade = byTarget ? sourceAmount.sub(feeAmount) : sourceAmount;
+            } else {
+              totalTrade = byTarget ? targetAmount : targetAmount.add(feeAmount);
+            }
+
+            if (totalTrade.gt(0)) {
+              const relativeShare = strategyVolume.div(totalTrade);
+              const feeTokenAddress = byTarget
+                ? traded.sourceToken.address.toLowerCase()
+                : traded.targetToken.address.toLowerCase();
+              const strategyFee = feeAmount.mul(relativeShare);
+
+              const curr = agg.feeByToken.get(feeTokenAddress) || new Decimal(0);
+              agg.feeByToken.set(feeTokenAddress, curr.add(strategyFee));
+            }
+          }
+        } catch (feeErr) {
+          // Non-fatal; keep volumes
+        }
+
+        // Update previous snapshot
+        prev.l0 = eventL0;
+        prev.l1 = eventL1;
+        prevNormLiquidity.set(ev.strategyId, prev);
+      } catch (e) {
+        this.logger.warn(`Failed to compute strategy volume for strategy ${ev.strategyId}: ${e}`);
+      }
+    }
+
+    if (!this.epochRelativeShares.has(String(campaign.id))) {
+      this.epochRelativeShares.set(String(campaign.id), new Map());
+    }
+    const byCampaign = this.epochRelativeShares.get(String(campaign.id))!;
+    byCampaign.set(epoch.epochNumber, { unitTokenAddress, perStrategy });
+
+    this.logger.log(
+      `Computed relative volumes (unit=${unitTokenAddress}) for epoch ${epoch.epochNumber}: ${perStrategy.size} strategies`,
+    );
+
+    // Compute and log relative volumes (share) alongside final Merkl calc results
+    try {
+      let totalVolume = new Decimal(0);
+      for (const [, v] of perStrategy) totalVolume = totalVolume.add(v.strategyVolume);
+
+      if (totalVolume.gt(0)) {
+        const shares = Array.from(perStrategy.entries()).map(([strategyId, v]) => ({
+          strategyId,
+          volume: v.strategyVolume,
+          share: v.strategyVolume.div(totalVolume),
+        }));
+
+        // Sort by share desc and log top few to reduce noise
+        shares.sort((a, b) => (b.share.gt(a.share) ? 1 : b.share.lt(a.share) ? -1 : 0));
+        const top = shares.slice(0, Math.min(10, shares.length));
+        const summary = top
+          .map((s) => `${s.strategyId}:${s.share.toFixed(6)} (${s.volume.toFixed()})`)
+          .join(', ');
+        this.logger.log(
+          `Epoch ${epoch.epochNumber} relative volume (top ${top.length}/${shares.length}): ${summary} | totalVolume=${totalVolume.toFixed()}`,
+        );
+      } else {
+        this.logger.log(`Epoch ${epoch.epochNumber} relative volume: total volume is 0`);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to log relative volumes for epoch ${epoch.epochNumber}: ${e}`);
+    }
   }
 
   /**

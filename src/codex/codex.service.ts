@@ -11,11 +11,12 @@ export const NETWORK_IDS = {
   [BlockchainType.Ethereum]: 1,
   [BlockchainType.Base]: 8453,
   // [BlockchainType.Fantom]: 250,
-   [BlockchainType.Mantle]: 5000,
+  //  [BlockchainType.Mantle]: 5000,
   // [BlockchainType.Blast]: 81457,
   // [BlockchainType.Linea]: 59144,
-  [BlockchainType.Berachain]: 80094,
-  [BlockchainType.Sonic]: 146,
+  // [BlockchainType.Berachain]: 80094,
+  // [BlockchainType.Sonic]: 146,
+  [BlockchainType.Tac]: 239,
 };
 
 @Injectable()
@@ -55,7 +56,9 @@ export class CodexService {
       return null;
     }
 
-    this.logger.log(`Fetching latest prices for ${addresses.length} tokens on ${deployment.blockchainType} (Network ID: ${networkId})`);
+    this.logger.log(
+      `CODEX latestPrices: start fetch for ${addresses.length} tokens on ${deployment.blockchainType} (networkId=${networkId})`,
+    );
 
     // Replace only if targetAddress (NATIVE_TOKEN) is present in addresses
     if (deployment.nativeTokenAlias) {
@@ -71,8 +74,12 @@ export class CodexService {
 
     const result = {};
     this.logger.log(`Calling Codex API to fetch token data...`);
+    const t0 = Date.now();
     const tokens = await this.fetchTokens(networkId, addresses);
-    this.logger.log(`Received data for ${tokens.length} tokens from Codex`);
+    const dt = Date.now() - t0;
+    this.logger.log(
+      `CODEX latestPrices: received ${tokens.length} tokens from Codex in ${dt}ms (requested=${addresses.length})`,
+    );
 
     tokens.forEach((t) => {
       const address = t.token.address.toLowerCase();
@@ -96,7 +103,11 @@ export class CodexService {
       };
     }
 
-    this.logger.log(`Returning price data for ${Object.keys(result).length} tokens`);
+    this.logger.log(
+      `CODEX latestPrices: mapped result count=${Object.keys(result).length} (missing=${
+        addresses.length - Object.keys(result).length
+      })`,
+    );
     return result;
   }
 
@@ -133,17 +144,61 @@ export class CodexService {
         return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
       }
       
-      console.log(`Requesting Codex API: ${tokenAddress}:${networkId} (attempt ${retryCount+1})`);
-      
-      const response = await this.sdk.queries.bars({
-        symbol: `${tokenAddress}:${networkId}`,
-        from: batchFrom,
-        to: batchTo,
-        resolution: `${resolution}`,
-        removeLeadingNullValues: true,
-      });
-      
-      return { ...(response?.getBars || { t: [], c: [], o: [], h: [], l: [], v: [] }), address: tokenAddress };
+      this.logger.debug(
+        `CODEX getHistoricalQuotes: request ${tokenAddress}:${networkId} from=${batchFrom} to=${batchTo} res=${resolution} (attempt ${
+          retryCount + 1
+        })`,
+      );
+
+      // Use a custom query via send to avoid requesting the problematic `v` field
+      const GET_BARS_MIN = `
+        query GetBars($symbol: String!, $from: Int!, $to: Int!, $resolution: String!, $removeLeadingNullValues: Boolean) {
+          getBars(
+            symbol: $symbol
+            from: $from
+            to: $to
+            resolution: $resolution
+            removeLeadingNullValues: $removeLeadingNullValues
+          ) {
+            t
+            o
+            h
+            l
+            c
+            volume
+          }
+        }
+      `;
+
+      try {
+        const t0 = Date.now();
+        const response = await this.sdk.send<{
+          getBars?: { t?: number[]; c?: number[]; o?: number[]; h?: number[]; l?: number[]; volume?: string[] };
+        }>(GET_BARS_MIN, {
+          symbol: `${tokenAddress}:${networkId}`,
+          from: batchFrom,
+          to: batchTo,
+          resolution: `${resolution}`,
+          removeLeadingNullValues: true,
+        });
+        const dt = Date.now() - t0;
+        const tCount = response?.getBars?.t?.length || 0;
+        this.logger.debug(
+          `CODEX getHistoricalQuotes: response ${tokenAddress}:${networkId} bars=${tCount} in ${dt}ms`,
+        );
+        return { ...(response?.getBars || { t: [], c: [], o: [], h: [], l: [], v: [] }), address: tokenAddress };
+      } catch (err) {
+        this.logger.warn(
+          `CODEX getHistoricalQuotes: error for ${tokenAddress}:${networkId} attempt=${retryCount + 1}: ${
+            (err as any)?.message || err
+          }`,
+        );
+        if (retryCount < MAX_RETRIES) {
+          return fetchWithRetry(tokenAddress, batchFrom, batchTo, retryCount + 1);
+        }
+        failedTokens.add(tokenAddress);
+        return { t: [], c: [], o: [], h: [], l: [], v: [], address: tokenAddress };
+      }
     };
 
     const fetchAllBatches = async (tokenAddress: string): Promise<any> => {
@@ -192,6 +247,11 @@ export class CodexService {
       })) || [];
     });
 
+    this.logger.log(
+      `CODEX getHistoricalQuotes: combined results for ${mappedTokenAddresses.length} tokens; with data=${
+        Object.values(quotesByAddress).filter((arr: any) => Array.isArray(arr) && arr.length > 0).length
+      }`,
+    );
     return quotesByAddress;
   }
 
@@ -199,10 +259,14 @@ export class CodexService {
     const networkId = NETWORK_IDS[deployment.blockchainType];
     this.logger.log(`Fetching all token addresses for ${deployment.blockchainType} (Network ID: ${networkId})`);
     
+    const t0 = Date.now();
     const tokens = await this.fetchTokens(networkId);
+    const dt = Date.now() - t0;
     const uniqueAddresses = Array.from(new Set(tokens.map((t) => t.token.address.toLowerCase())));
     
-    this.logger.log(`Found ${uniqueAddresses.length} unique token addresses for ${deployment.blockchainType}`);
+    this.logger.log(
+      `CODEX getAllTokenAddresses: ${uniqueAddresses.length} unique on ${deployment.blockchainType} in ${dt}ms`,
+    );
     return uniqueAddresses;
   }
 
@@ -256,7 +320,7 @@ export class CodexService {
         this.logger.debug(`Fetched ${fetched.length} tokens, total so far: ${allTokens.length}`);
       } while (fetched.length === limit);
 
-      this.logger.log(`Successfully fetched all ${allTokens.length} tokens`);
+      this.logger.log(`CODEX fetchTokens(all): fetched total=${allTokens.length} tokens for networkId=${networkId}`);
       return allTokens;
     }
   }

@@ -47,6 +47,7 @@ export class StrategyService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<void> {
+    console.log(`[Strategy Service] update start for ${deployment.blockchainType}-${deployment.exchangeId}, endBlock=${endBlock}`);
     // Process events to update
     await this.strategyCreatedEventService.update(endBlock, pairs, tokens, deployment);
     await this.strategyUpdatedEventService.update(endBlock, pairs, tokens, deployment);
@@ -57,15 +58,24 @@ export class StrategyService {
       `${deployment.blockchainType}-${deployment.exchangeId}-strategies`,
       deployment.startBlock,
     );
+    console.log(`[Strategy Service] last-processed strategies startBlock=${startBlock} for ${deployment.blockchainType}-${deployment.exchangeId}`);
 
     // Process the events in ranges
     for (let block = startBlock + 1; block <= endBlock; block += deployment.harvestEventsBatchSize * 10) {
       const rangeEnd = Math.min(block + deployment.harvestEventsBatchSize * 10 - 1, endBlock);
+      console.log(`[Strategy Service] processing block range ${block}-${rangeEnd} for ${deployment.blockchainType}-${deployment.exchangeId}`);
 
       // Fetch the events from the current block range
       const createdEvents = await this.strategyCreatedEventService.get(block, rangeEnd, deployment);
       const updatedEvents = await this.strategyUpdatedEventService.get(block, rangeEnd, deployment);
       const deletedEvents = await this.strategyDeletedEventService.get(block, rangeEnd, deployment);
+      const minBlock = (arr: any[]) => (arr.length ? Math.min(...arr.map((e: any) => e.block?.id || Number.MAX_SAFE_INTEGER)) : null);
+      const maxBlock = (arr: any[]) => (arr.length ? Math.max(...arr.map((e: any) => e.block?.id || 0)) : null);
+      console.log(
+        `[Strategy Service] fetched events c=${createdEvents.length} (min=${minBlock(createdEvents)} max=${maxBlock(createdEvents)}), ` +
+          `u=${updatedEvents.length} (min=${minBlock(updatedEvents)} max=${maxBlock(updatedEvents)}), ` +
+          `d=${deletedEvents.length} (min=${minBlock(deletedEvents)} max=${maxBlock(deletedEvents)}) for ${deployment.blockchainType}-${deployment.exchangeId}`,
+      );
 
       // Process the events
       await this.createOrUpdateFromEvents(createdEvents, deployment);
@@ -77,6 +87,7 @@ export class StrategyService {
         `${deployment.blockchainType}-${deployment.exchangeId}-strategies`,
         rangeEnd,
       );
+      console.log(`[Strategy Service] last-processed updated to ${rangeEnd} for ${deployment.blockchainType}-${deployment.exchangeId}`);
     }
   }
 
@@ -126,7 +137,11 @@ export class StrategyService {
         blockchainType: deployment.blockchainType,
         exchangeId: deployment.exchangeId,
         strategyId: e.strategyId,
-        eventType: e.constructor.name
+        eventType: e.constructor.name,
+        blockId: e.block?.id,
+        pairId: (e as any).pair?.id,
+        token0: (e as any).token0?.address,
+        token1: (e as any).token1?.address,
       });
 
       // Check if we've already processed this strategy in current batch
@@ -135,8 +150,24 @@ export class StrategyService {
         return; // Skip this one
       }
 
-      const order0 = this.decodeOrder(JSON.parse(e.order0));
-      const order1 = this.decodeOrder(JSON.parse(e.order1));
+      let parsed0: any;
+      let parsed1: any;
+      try {
+        parsed0 = JSON.parse((e as any).order0);
+        parsed1 = JSON.parse((e as any).order1);
+      } catch (err) {
+        console.error(`[Strategy Service] ERROR parsing orders for strategy ${e.strategyId}:`, err, {
+          order0: (e as any).order0,
+          order1: (e as any).order1,
+        });
+        return;
+      }
+      console.log(`[Strategy Service] Decoded raw orders for ${e.strategyId}:`, {
+        order0: parsed0,
+        order1: parsed1,
+      });
+      const order0 = this.decodeOrder(parsed0);
+      const order1 = this.decodeOrder(parsed1);
       const strategyIndex = existingStrategies.findIndex((s) => s.strategyId === e.strategyId);
 
       // Log the lookup result
@@ -150,12 +181,12 @@ export class StrategyService {
       let newStrategy;
       if (strategyIndex >= 0) {
         // Update existing strategy
-        console.log(`[Strategy Service] Updating strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${e.pair?.id}, Deleted: ${deletionEvent})`);
+        console.log(`[Strategy Service] Updating strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${(e as any).pair?.id}, Deleted: ${deletionEvent})`);
         newStrategy = existingStrategies[strategyIndex];
         newStrategy.token0 = e.token0;
         newStrategy.token1 = e.token1;
         newStrategy.block = e.block;
-        newStrategy.pair = e.pair;
+        newStrategy.pair = (e as any).pair;
         newStrategy.liquidity0 = order0.liquidity;
         newStrategy.lowestRate0 = order0.lowestRate;
         newStrategy.highestRate0 = order0.highestRate;
@@ -167,12 +198,12 @@ export class StrategyService {
         newStrategy.deleted = deletionEvent;
       } else {
         // Create new strategy
-        console.log(`[Strategy Service] Creating new strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${e.pair?.id}, Deleted: ${deletionEvent}, Event Type: ${e.constructor.name})`);
+        console.log(`[Strategy Service] Creating new strategy ${e.strategyId} for ${deployment.blockchainType}-${deployment.exchangeId} (Block: ${e.block?.id}, Pair: ${(e as any).pair?.id}, Deleted: ${deletionEvent}, Event Type: ${e.constructor.name})`);
         newStrategy = this.strategyRepository.create({
           token0: e.token0,
           token1: e.token1,
           block: e.block,
-          pair: e.pair,
+          pair: (e as any).pair,
           liquidity0: order0.liquidity,
           lowestRate0: order0.lowestRate,
           highestRate0: order0.highestRate,
@@ -215,9 +246,23 @@ export class StrategyService {
             }))
           });
         }
+        console.error(`[Strategy Service] Batch save error details (sample):`, {
+          sample: batch[0] ? {
+            blockchainType: batch[0].blockchainType,
+            exchangeId: batch[0].exchangeId,
+            strategyId: batch[0].strategyId,
+            hasBlock: !!(batch[0] as any).block,
+            hasPair: !!(batch[0] as any).pair,
+            token0: (batch[0] as any).token0?.address,
+            token1: (batch[0] as any).token1?.address,
+          } : null,
+        });
         console.error(`[Strategy Service] Error saving batch ${Math.floor(i/BATCH_SIZE) + 1}:`, error);
         throw error;
       }
+    }
+    if (strategies.length === 0) {
+      console.log(`[Strategy Service] No strategies to save for ${deployment.blockchainType}-${deployment.exchangeId} in this batch`);
     }
   }
 

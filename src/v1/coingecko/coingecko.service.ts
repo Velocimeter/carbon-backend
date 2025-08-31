@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Strategy } from '../../strategy/strategy.entity';
 import { Repository } from 'typeorm';
@@ -10,17 +10,44 @@ const TICKERS_CACHE_KEY_SUFFIX = 'coingecko:tickers';
 
 @Injectable()
 export class CoingeckoService {
+  private readonly logger = new Logger(CoingeckoService.name);
   constructor(
     @InjectRepository(Strategy) private strategy: Repository<Strategy>,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   async update(deployment: Deployment, quotesCTE: string): Promise<void> {
+    const hasQuotesCTE = !!(quotesCTE && quotesCTE.trim());
+    const cacheKey = `${deployment.blockchainType}:${deployment.exchangeId}:${TICKERS_CACHE_KEY_SUFFIX}`;
+    const prev = await this.cacheManager.get(cacheKey);
+    const prevCount = Array.isArray(prev) ? prev.length : 0;
+
+    const t0 = Date.now();
     const tickers = await this.getTickers(deployment, quotesCTE);
-    await this.cacheManager.set(
-      `${deployment.blockchainType}:${deployment.exchangeId}:${TICKERS_CACHE_KEY_SUFFIX}`,
-      tickers,
-    );
+    const dt = Date.now() - t0;
+
+    const count = Array.isArray(tickers) ? tickers.length : 0;
+    const nonZeroLast = Array.isArray(tickers)
+      ? tickers.filter((t) => Number((t as any).last_price || 0) > 0).length
+      : 0;
+    const sample = Array.isArray(tickers)
+      ? tickers
+          .slice(0, 3)
+          .map((t) => (t as any).ticker_id || `${(t as any).base_currency}_${(t as any).target_currency}`)
+          .join(', ')
+      : '';
+
+    await this.cacheManager.set(cacheKey, tickers);
+
+    const msg = `[update] Coingecko tickers for ${deployment.blockchainType}:${deployment.exchangeId} ` +
+      `(quotesCTE=${hasQuotesCTE}) prev=${prevCount} new=${count} nonZeroLast=${nonZeroLast} timeMs=${dt}` +
+      (sample ? ` sample=[${sample}]` : '');
+
+    if (count === 0) {
+      this.logger.warn(msg + ' (no tickers returned)');
+    } else {
+      this.logger.log(msg);
+    }
   }
 
   async getCachedTickers(deployment: Deployment): Promise<any> {
@@ -303,14 +330,27 @@ export class CoingeckoService {
       left join plus2_min2s pl on pl.native_pair = t.ticker_id
 `;
 
-    const result = await this.strategy.query(query);
-    result.forEach((r) => {
-      for (const [key, value] of Object.entries(r)) {
-        if (value === null) {
-          r[key] = 0;
+    const t0 = Date.now();
+    try {
+      const result = await this.strategy.query(query);
+      const dt = Date.now() - t0;
+      const hasQuotesCTE = !!(quotesCTE && quotesCTE.trim());
+      this.logger.log(
+        `[getTickers] SQL returned ${Array.isArray(result) ? result.length : 0} rows for ${deployment.blockchainType}:${deployment.exchangeId} (quotesCTE=${hasQuotesCTE}) in ${dt}ms`,
+      );
+      result.forEach((r) => {
+        for (const [key, value] of Object.entries(r)) {
+          if (value === null) {
+            r[key] = 0;
+          }
         }
-      }
-    });
-    return result;
+      });
+      return result;
+    } catch (err) {
+      this.logger.error(
+        `[getTickers] Error for ${deployment.blockchainType}:${deployment.exchangeId}: ${(err as any)?.message || err}`,
+      );
+      throw err;
+    }
   }
 }

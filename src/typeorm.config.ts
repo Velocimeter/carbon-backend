@@ -34,7 +34,7 @@ export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
   entities: ['**/*.entity.ts'],
-  migrations: ['dist/migrations/*.js'],
+  migrations: [process.env.NODE_ENV === 'production' ? 'dist/migrations/*.js' : 'src/migrations/*.ts'],
   ssl,
   synchronize: false,
 });

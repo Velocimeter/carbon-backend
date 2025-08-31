@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ProtectionRemovedEvent } from './protection-removed-event.entity';
 import { ContractsNames, HarvesterService } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class ProtectionRemovedEventService {
+  private readonly logger = new Logger(ProtectionRemovedEventService.name);
   constructor(
     @InjectRepository(ProtectionRemovedEvent)
     private repository: Repository<ProtectionRemovedEvent>,
@@ -18,7 +19,7 @@ export class ProtectionRemovedEventService {
       return;
     }
 
-    return this.harvesterService.processEvents({
+    const res = await this.harvesterService.processEvents({
       entity: 'protection-removed-events',
       contractName: ContractsNames.LiquidityProtectionStore,
       eventName: 'ProtectionRemoved',
@@ -49,6 +50,10 @@ export class ProtectionRemovedEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed protection-removed-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<ProtectionRemovedEvent[]> {

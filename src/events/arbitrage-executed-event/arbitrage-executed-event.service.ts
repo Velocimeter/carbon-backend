@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ArbitrageExecutedEvent } from './arbitrage-executed-event.entity';
 import { ContractsNames, HarvesterService } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class ArbitrageExecutedEventService {
+  private readonly logger = new Logger(ArbitrageExecutedEventService.name);
   constructor(
     @InjectRepository(ArbitrageExecutedEvent)
     private repository: Repository<ArbitrageExecutedEvent>,
@@ -18,7 +19,10 @@ export class ArbitrageExecutedEventService {
       return;
     }
 
-    return this.harvesterService.processEvents({
+    this.logger.log(
+      `[update] Start arbitrage-executed-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
+    const res = await this.harvesterService.processEvents({
       entity: 'arbitrage-executed-events',
       contractName: ContractsNames.BancorArbitrage,
       eventName: 'ArbitrageExecuted',
@@ -36,6 +40,10 @@ export class ArbitrageExecutedEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed arbitrage-executed-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<ArbitrageExecutedEvent[]> {

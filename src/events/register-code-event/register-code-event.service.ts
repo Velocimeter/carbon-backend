@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames, CustomFnArgs } from '../../harvester/harvester.service';
@@ -8,6 +8,7 @@ import { NETWORK_IDS } from '../../codex/codex.service';
 
 @Injectable()
 export class RegisterCodeEventService {
+  private readonly logger = new Logger(RegisterCodeEventService.name);
   constructor(
     @InjectRepository(RegisterCodeEvent)
     private repository: Repository<RegisterCodeEvent>,
@@ -24,6 +25,9 @@ export class RegisterCodeEventService {
       return;
     }
 
+    this.logger.log(
+      `[update] Start register-code-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
     await this.harvesterService.processEvents({
       entity: 'register-code-events',
       contractName: ContractsNames.ReferralStorage,
@@ -36,6 +40,9 @@ export class RegisterCodeEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed register-code-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<RegisterCodeEvent[]> {

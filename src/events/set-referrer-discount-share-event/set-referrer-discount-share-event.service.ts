@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames } from '../../harvester/harvester.service';
@@ -8,6 +8,7 @@ import { NETWORK_IDS } from '../../codex/codex.service';
 
 @Injectable()
 export class SetReferrerDiscountShareEventService {
+  private readonly logger = new Logger(SetReferrerDiscountShareEventService.name);
   constructor(
     @InjectRepository(SetReferrerDiscountShareEvent)
     private repository: Repository<SetReferrerDiscountShareEvent>,
@@ -24,6 +25,9 @@ export class SetReferrerDiscountShareEventService {
       return;
     }
 
+    this.logger.log(
+      `[update] Start set-referrer-discount-share-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
     await this.harvesterService.processEvents({
       entity: 'set-referrer-discount-share-events',
       contractName: ContractsNames.ReferralStorage,
@@ -35,6 +39,9 @@ export class SetReferrerDiscountShareEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed set-referrer-discount-share-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<SetReferrerDiscountShareEvent[]> {

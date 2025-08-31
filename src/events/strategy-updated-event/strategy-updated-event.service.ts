@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { StrategyUpdatedEvent } from './strategy-updated-event.entity';
 import { ContractsNames, CustomFnArgs, HarvesterService } from '../../harvester/harvester.service';
 import { PairsDictionary } from '../../pair/pair.service';
@@ -14,6 +14,7 @@ import { StrategyStatesMap } from '../../activity/activity.types';
 
 @Injectable()
 export class StrategyUpdatedEventService {
+  private readonly logger = new Logger(StrategyUpdatedEventService.name);
   constructor(
     @InjectRepository(StrategyUpdatedEvent)
     private repository: Repository<StrategyUpdatedEvent>,
@@ -39,7 +40,10 @@ export class StrategyUpdatedEventService {
     tokens: TokensByAddress,
     deployment: Deployment,
   ): Promise<any> {
-    return this.harvesterService.processEvents({
+    this.logger.log(
+      `[update] Start strategy-updated-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
+    const res = await this.harvesterService.processEvents({
       entity: 'strategy-updated-events',
       contractName: ContractsNames.CarbonController,
       eventName: 'StrategyUpdated',
@@ -52,6 +56,10 @@ export class StrategyUpdatedEventService {
       numberFields: ['reason'],
       tagTimestampFromBlock: true,
     });
+    this.logger.log(
+      `[update] Completed strategy-updated-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<StrategyUpdatedEvent[]> {

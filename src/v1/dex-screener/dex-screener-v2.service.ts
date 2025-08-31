@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { DexScreenerEventV2 } from './dex-screener-event-v2.entity';
@@ -37,6 +37,7 @@ type StrategyLiquidityStatesMap = Map<string, StrategyLiquidityState>;
 
 @Injectable()
 export class DexScreenerV2Service {
+  private readonly logger = new Logger(DexScreenerV2Service.name);
   private readonly BATCH_SIZE = 100000; // Number of blocks per batch
   private readonly SAVE_BATCH_SIZE = 1000; // Number of events to save at once
 
@@ -105,6 +106,9 @@ export class DexScreenerV2Service {
 
     const pairs = await this.getPairs(deployment);
     this.cacheManager.set(`${deployment.blockchainType}:${deployment.exchangeId}:pairs`, pairs);
+    this.logger.log(
+      `[update] Completed DexScreenerV2 update for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock} (pairs cached: ${Array.isArray(pairs) ? pairs.length : 0})`,
+    );
   }
 
   async getCachedPairs(deployment: Deployment): Promise<any> {

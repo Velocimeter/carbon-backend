@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { TvlTokensDto } from '../v1/analytics/tvl.tokens.dto';
@@ -20,6 +20,7 @@ export enum GroupBy {
 
 @Injectable()
 export class TvlService {
+  private readonly logger = new Logger(TvlService.name);
   constructor(
     @InjectRepository(Tvl)
     private tvlRepository: Repository<Tvl>,
@@ -300,6 +301,9 @@ export class TvlService {
 
     // Update the last processed block number
     await this.lastProcessedBlockService.update(`${deployment.blockchainType}-${deployment.exchangeId}-tvl`, endBlock);
+    this.logger.log(
+      `[update] Completed TVL update for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
   }
 
   private async generateTvlByAddress(deployment: Deployment, params: TvlTokensDto): Promise<any[]> {

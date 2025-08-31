@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames } from '../../harvester/harvester.service';
@@ -8,6 +8,7 @@ import { NETWORK_IDS } from '../../codex/codex.service';
 
 @Injectable()
 export class SetHandlerEventService {
+  private readonly logger = new Logger(SetHandlerEventService.name);
   constructor(
     @InjectRepository(SetHandlerEvent)
     private readonly setHandlerRepository: Repository<SetHandlerEvent>,
@@ -16,6 +17,9 @@ export class SetHandlerEventService {
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
     const chainId = NETWORK_IDS[deployment.blockchainType];
+    this.logger.log(
+      `[update] Start set-handler-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
     await this.harvesterService.processEvents({
       entity: 'set-handler-events',
       contractName: ContractsNames.ReferralStorage,
@@ -28,5 +32,8 @@ export class SetHandlerEventService {
       constants: [{ key: 'chainId', value: chainId }],
       tagTimestampFromBlock: true,
     });
+    this.logger.log(
+      `[update] Completed set-handler-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
   }
 }

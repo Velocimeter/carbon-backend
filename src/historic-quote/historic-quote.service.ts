@@ -59,8 +59,9 @@ export class HistoricQuoteService implements OnModuleInit {
     // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
-   [BlockchainType.Iota]: [],
-   [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Iota]: [],
+    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Tac]: [],
   };
 
   constructor(
@@ -71,7 +72,7 @@ export class HistoricQuoteService implements OnModuleInit {
     private codexService: CodexService,
     private deploymentService: DeploymentService,
   ) {
-    this.intervalDuration = +this.configService.get('POLL_HISTORIC_QUOTES_INTERVAL') || 300000;
+    this.intervalDuration = +this.configService.get('POLL_HISTORIC_QUOTES_INTERVAL') || 300000; // [interval]
     this.shouldPollQuotes = this.configService.get('SHOULD_POLL_HISTORIC_QUOTES') === '1';
   }
 
@@ -82,21 +83,21 @@ export class HistoricQuoteService implements OnModuleInit {
   onModuleInit() {
     if (this.shouldPollQuotes) {
       const callback = () => this.pollForUpdates();
-      const interval = setInterval(callback, this.intervalDuration);
+      const interval = setInterval(callback, this.intervalDuration); // [interval]
       this.schedulerRegistry.addInterval('pollForUpdates', interval);
     }
 
     // Delay Codex seeding
     if (this.configService.get('SEED_CODEX_ON_STARTUP') === '1') {
-      this.logger.log('Will seed Codex data after 1 minute delay...');
+      this.logger.log('HISTORIC - SEED_CODEX_ON_STARTUP=1: scheduling Codex seeding');
       setTimeout(async () => {
         try {
-          this.logger.log('Starting delayed Codex seeding...');
-          await this.seedCodex(BlockchainType.Berachain);
+          this.logger.log('HISTORIC - starting delayed Codex seeding for Base');
+          await this.seedCodex(BlockchainType.Base);
         } catch (error) {
-          this.logger.error('Error during delayed Codex seeding:', error);
+          this.logger.error('HISTORIC - error during delayed Codex seeding:', error);
         }
-      }, 10000); // 1 minute delay
+      }, 10000);
     }
   }
 
@@ -124,21 +125,20 @@ export class HistoricQuoteService implements OnModuleInit {
       this.logger.log('Already polling for updates, skipping...');
       return;
     }
-    this.logger.log('Starting price update polling cycle...');
+    this.logger.log('HISTORIC - Starting price update polling cycle');
     this.isPolling = true;
 
     try {
       // Process Ethereum token mappings for all deployments
-      this.logger.log('Processing Ethereum token mappings...');
+      this.logger.log('HISTORIC - Processing Ethereum token mappings');
       await this.seedAllEthereumMappedTokens();
 
-      this.logger.log('Starting parallel quote updates...');
+      this.logger.log('HISTORIC - Starting parallel Codex updates for chains');
       await Promise.all([
-        // await this.updateCoinMarketCapQuotes(),
         await this.updateCodexQuotes(BlockchainType.Berachain),
-        // await this.updateCodexQuotes(BlockchainType.Celo),
         await this.updateCodexQuotes(BlockchainType.Base),
         await this.updateCodexQuotes(BlockchainType.Mantle),
+        await this.updateCodexQuotes(BlockchainType.Tac),
       ]);
 
       // Update any mapped Ethereum tokens that might not have been updated
@@ -150,7 +150,7 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     this.isPolling = false;
-    this.logger.log('Historic quotes update cycle completed');
+    this.logger.log('HISTORIC - Update cycle completed');
   }
 
   /**
@@ -188,17 +188,25 @@ export class HistoricQuoteService implements OnModuleInit {
    * @param blockchainType - The blockchain type to update quotes for
    */
   private async updateCodexQuotes(blockchainType: BlockchainType): Promise<void> {
-    this.logger.log(`Starting Codex quotes update for ${blockchainType}...`);
+    this.logger.log(`HISTORIC - Codex update start for ${blockchainType}`);
     const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
     const latest = await this.getLatest(blockchainType);
-    this.logger.log(`Found ${Object.keys(latest).length} existing quotes for ${blockchainType}`);
+    this.logger.log(`HISTORIC - existing quotes for ${blockchainType}: ${Object.keys(latest).length}`);
     
-    this.logger.log(`Fetching token addresses for ${blockchainType}...`);
+    this.logger.log(`HISTORIC - fetching Codex token list for ${blockchainType}`);
     const addresses = await this.codexService.getAllTokenAddresses(deployment);
-    this.logger.log(`Found ${addresses.length} token addresses for ${blockchainType}`);
+    this.logger.log(`HISTORIC - token addresses count=${addresses.length} for ${blockchainType}`);
     
-    this.logger.log(`Fetching latest prices from Codex for ${blockchainType}...`);
+    this.logger.log(`HISTORIC - fetching latest prices from Codex for ${blockchainType}`);
     const quotes = await this.codexService.getLatestPrices(deployment, addresses);
+    const missing = addresses.filter((a) => !quotes[a.toLowerCase()]);
+    if (missing.length) {
+      this.logger.warn(
+        `HISTORIC - Codex missing latest prices for ${missing.length}/${addresses.length} tokens on ${blockchainType} (sample=${missing
+          .slice(0, 5)
+          .join(',')})`,
+      );
+    }
     const newQuotes = [];
 
     for (const address of Object.keys(quotes)) {
@@ -206,7 +214,7 @@ export class HistoricQuoteService implements OnModuleInit {
       const price = `${quote.usd}`;
 
       if (latest[address] && latest[address].usd === price) {
-        this.logger.debug(`Skipping unchanged price for ${address} on ${blockchainType}: ${price}`);
+        this.logger.debug(`HISTORIC - unchanged price for ${address} on ${blockchainType}: ${price}`);
         continue;
       }
 
@@ -223,6 +231,9 @@ export class HistoricQuoteService implements OnModuleInit {
 
     if (deployment.nativeTokenAlias) {
       const quote = quotes[deployment.nativeTokenAlias];
+      if (!quote) {
+        this.logger.warn(`HISTORIC - missing nativeTokenAlias price for ${deployment.nativeTokenAlias} on ${blockchainType}`);
+      }
       newQuotes.push(
         this.repository.create({
           tokenAddress: NATIVE_TOKEN.toLowerCase(),
@@ -234,22 +245,24 @@ export class HistoricQuoteService implements OnModuleInit {
       );
     }
 
+    this.logger.log(`HISTORIC - prepared ${newQuotes.length} quotes to save for ${blockchainType}`);
     if (newQuotes.length > 0) {
-      this.logger.log(`Saving ${newQuotes.length} new quotes for ${blockchainType}`);
+      const sample = newQuotes.slice(0, 3).map((q: any) => `${q.tokenAddress}:${q.usd}`).join(', ');
+      this.logger.log(`HISTORIC - sample to save (${Math.min(3, newQuotes.length)}): ${sample}`);
       const batches = _.chunk(newQuotes, 1000);
-      this.logger.log(`Split into ${batches.length} batches of up to 1000 quotes each`);
+      this.logger.log(`HISTORIC - batching count=${batches.length}`);
 
       try {
         let savedCount = 0;
         for (let i = 0; i < batches.length; i++) {
           const batch = batches[i];
           try {
-            this.logger.log(`Saving batch ${i + 1}/${batches.length} (${batch.length} quotes) for ${blockchainType}...`);
+            this.logger.log(`HISTORIC - saving batch ${i + 1}/${batches.length} size=${batch.length} for ${blockchainType}`);
             await this.repository.save(batch);
             savedCount += batch.length;
-            this.logger.log(`Successfully saved batch ${i + 1}/${batches.length} for ${blockchainType}. Progress: ${savedCount}/${newQuotes.length} quotes`);
+            this.logger.log(`HISTORIC - saved batch ${i + 1}/${batches.length}; progress=${savedCount}/${newQuotes.length}`);
           } catch (batchError) {
-            this.logger.error(`Error saving batch ${i + 1}/${batches.length} for ${blockchainType}:`, {
+            this.logger.error(`HISTORIC - error saving batch ${i + 1}/${batches.length} for ${blockchainType}:`, {
               error: batchError.message,
               stack: batchError.stack,
               batchSize: batch.length,
@@ -260,9 +273,9 @@ export class HistoricQuoteService implements OnModuleInit {
             continue;
           }
         }
-        this.logger.log(`Completed saving all quotes for ${blockchainType}. Successfully saved ${savedCount}/${newQuotes.length} quotes`);
+        this.logger.log(`HISTORIC - completed saving for ${blockchainType}; saved=${savedCount}/${newQuotes.length}`);
       } catch (error) {
-        this.logger.error(`Fatal error while saving quotes for ${blockchainType}:`, {
+        this.logger.error(`HISTORIC - fatal error while saving quotes for ${blockchainType}:`, {
           error: error.message,
           stack: error.stack,
           totalQuotes: newQuotes.length,
@@ -271,7 +284,7 @@ export class HistoricQuoteService implements OnModuleInit {
         throw error; // Re-throw to be caught by the caller
       }
     } else {
-      this.logger.log(`No new quotes to save for ${blockchainType}`);
+      this.logger.log(`HISTORIC - no new quotes to save for ${blockchainType}`);
     }
   }
 
@@ -689,123 +702,138 @@ export class HistoricQuoteService implements OnModuleInit {
       ORDER BY bpq."tokenAddress"`;
 
     const result = await this.repository.query(query);
+    return result;
+  }
 
-    let candlesByAddress = {} as { [key: string]: Candlestick[] };
+  async getHistoryQuotesBuckets(
+    blockchainType: BlockchainType,
+    addresses: string[],
+    start: number,
+    end: number,
+    bucket: string = '1 day',
+  ): Promise<{ [key: string]: Candlestick[] }> {
+    if (!addresses || addresses.length === 0) {
+      return {};
+    }
 
-    // If we have addresses that need to be fetched from their original blockchain
+    const deployment = this.deploymentService.getDeploymentByBlockchainType(blockchainType);
+    const tokenMap = deployment.mapEthereumTokens ? this.deploymentService.getLowercaseTokenMap(deployment) : {};
+
+    const lowercaseAddresses = addresses.map((a) => a.toLowerCase());
+    const mappedAddresses = lowercaseAddresses.filter((addr) => tokenMap[addr]);
+    const unmappedAddresses = lowercaseAddresses.filter((addr) => !tokenMap[addr]);
+
+    const startQ = moment.unix(start).utc();
+    const endQ = moment.unix(end).utc();
+    const startPaddedQ = startQ.clone().subtract(1, 'day').format('YYYY-MM-DD');
+    const endPaddedQ = endQ.clone().add(1, 'day').format('YYYY-MM-DD');
+
+    const candlesByAddress: { [key: string]: Candlestick[] } = {};
+
     if (unmappedAddresses.length > 0) {
-      const result = await this.fetchHistoryQuotesBucketsData(
+      const rows = await this.fetchHistoryQuotesBucketsData(
         blockchainType,
         unmappedAddresses,
         startPaddedQ,
-        endQ,
+        endPaddedQ,
         bucket,
       );
 
-      // Process regular blockchain quotes
-      result.forEach((row: any) => {
-        if (!row.open) {
-          return;
-        }
-
+      rows.forEach((row: any) => {
+        if (!row.open) return;
         const timestamp = moment(row.bucket).utc();
+        if (!timestamp.isSameOrAfter(startQ)) return;
 
-        if (timestamp.isSameOrAfter(startQ)) {
-          const tokenAddress = row.tokenAddress;
-          const candle = {
+        const tokenAddress = row.tokenAddress.toLowerCase();
+        const candle: Candlestick = {
+          timestamp: timestamp.unix(),
+          open: row.open,
+          close: row.close,
+          high: row.high,
+          low: row.low,
+          provider: row.selected_provider,
+        };
+        if (!candlesByAddress[tokenAddress]) candlesByAddress[tokenAddress] = [];
+        candlesByAddress[tokenAddress].push(candle);
+      });
+    }
+
+    if (mappedAddresses.length > 0) {
+      const ethereumToOriginalMap: { [eth: string]: string[] } = {};
+      const uniqueEthereumAddresses = new Set<string>();
+      mappedAddresses.forEach((addr) => {
+        const ethAddr = tokenMap[addr].toLowerCase();
+        if (!ethereumToOriginalMap[ethAddr]) ethereumToOriginalMap[ethAddr] = [];
+        ethereumToOriginalMap[ethAddr].push(addr);
+        uniqueEthereumAddresses.add(ethAddr);
+      });
+
+      const ethRows = await this.fetchHistoryQuotesBucketsData(
+        BlockchainType.Ethereum,
+        Array.from(uniqueEthereumAddresses),
+        startPaddedQ,
+        endPaddedQ,
+        bucket,
+      );
+
+      ethRows.forEach((row: any) => {
+        if (!row.open) return;
+        const timestamp = moment(row.bucket).utc();
+        if (!timestamp.isSameOrAfter(startQ)) return;
+
+        const ethAddr = row.tokenAddress.toLowerCase();
+        const originalAddresses = ethereumToOriginalMap[ethAddr] || [];
+
+        originalAddresses.forEach((originalAddr) => {
+          const candle: Candlestick = {
             timestamp: timestamp.unix(),
             open: row.open,
             close: row.close,
             high: row.high,
             low: row.low,
             provider: row.selected_provider,
+            mappedFrom: ethAddr,
           };
-
-          if (!candlesByAddress[tokenAddress]) {
-            candlesByAddress[tokenAddress] = [];
-          }
-
-          candlesByAddress[tokenAddress].push(candle);
-        }
+          if (!candlesByAddress[originalAddr]) candlesByAddress[originalAddr] = [];
+          candlesByAddress[originalAddr].push(candle);
+        });
       });
     }
 
-    // If we have addresses that should be fetched from Ethereum
-    if (mappedAddresses.length > 0) {
-      // Create a mapping from Ethereum address to original address for later reconstruction
-      const ethereumToOriginalMap = {};
-      const ethereumAddresses = mappedAddresses.map((addr) => {
-        const ethereumAddr = tokenMap[addr].toLowerCase();
-        ethereumToOriginalMap[ethereumAddr] = addr;
-        return ethereumAddr;
-      });
-
-      const ethereumResult = await this.fetchHistoryQuotesBucketsData(
-        BlockchainType.Ethereum,
-        ethereumAddresses,
-        startPaddedQ,
-        endQ,
-        bucket,
+    const nonExistentTokens = lowercaseAddresses.filter((addr) => !candlesByAddress[addr]);
+    if (nonExistentTokens.length > 0) {
+      this.logger.log(
+        `No price data found for tokens: ${nonExistentTokens.join(', ')}. Attempting to fetch from Codex...`,
       );
 
-      // Process Ethereum quotes but map them back to original token addresses
-      ethereumResult.forEach((row: any) => {
-        if (!row.open) {
-          return;
-        }
+      const missingUnmapped = nonExistentTokens.filter((addr) => !tokenMap[addr]);
+      const missingMapped = nonExistentTokens.filter((addr) => tokenMap[addr]);
+      const missingMappedEth = Array.from(new Set(missingMapped.map((addr) => tokenMap[addr].toLowerCase())));
 
-        const timestamp = moment(row.bucket).utc();
-
-        if (timestamp.isSameOrAfter(startQ)) {
-          // Map Ethereum address back to original deployment address
-          const ethereumAddr = row.tokenAddress.toLowerCase();
-          const originalAddr = ethereumToOriginalMap[ethereumAddr];
-
-          if (originalAddr) {
-            const candle = {
-              timestamp: timestamp.unix(),
-              open: row.open,
-              close: row.close,
-              high: row.high,
-              low: row.low,
-              provider: row.selected_provider,
-              mappedFrom: ethereumAddr, // Mark that this is mapped from Ethereum
-            };
-
-            if (!candlesByAddress[originalAddr]) {
-              candlesByAddress[originalAddr] = [];
-            }
-
-            candlesByAddress[originalAddr].push(candle);
-          }
-        }
-      });
-    }
-
-    // Check if tokens exist at all in candlesByAddress
-    const nonExistentTokens = addresses.filter((address) => !candlesByAddress[address]);
-    if (nonExistentTokens.length > 0) {
-      this.logger.log(`No price data found for tokens: ${nonExistentTokens.join(', ')}. Attempting to fetch from Codex...`);
-      
-      // Try to seed just the missing tokens using our existing seedCodex function
       try {
-        await this.seedCodex(blockchainType, nonExistentTokens);
-        this.logger.log('Successfully seeded data from Codex. Querying buckets again...');
-        
-        // Try getting the buckets again after seeding
-        const result = await this.repository.query(query);
-        candlesByAddress = {} as { [key: string]: Candlestick[] };
-        
-        result.forEach((row: any) => {
-          if (!row.open) {
-            return;
-          }
+        if (missingUnmapped.length > 0) {
+          await this.seedCodex(blockchainType, missingUnmapped);
+        }
+        if (missingMappedEth.length > 0) {
+          await this.seedCodex(BlockchainType.Ethereum, missingMappedEth);
+        }
 
-          const timestamp = moment(row.bucket).utc();
+        const refreshed: { [key: string]: Candlestick[] } = {};
 
-          if (timestamp.isSameOrAfter(startQ)) {
-            const tokenAddress = row.tokenAddress;
-            const candle = {
+        if (unmappedAddresses.length > 0) {
+          const rows = await this.fetchHistoryQuotesBucketsData(
+            blockchainType,
+            unmappedAddresses,
+            startPaddedQ,
+            endPaddedQ,
+            bucket,
+          );
+          rows.forEach((row: any) => {
+            if (!row.open) return;
+            const timestamp = moment(row.bucket).utc();
+            if (!timestamp.isSameOrAfter(startQ)) return;
+            const tokenAddress = row.tokenAddress.toLowerCase();
+            const candle: Candlestick = {
               timestamp: timestamp.unix(),
               open: row.open,
               close: row.close,
@@ -813,21 +841,59 @@ export class HistoricQuoteService implements OnModuleInit {
               low: row.low,
               provider: row.selected_provider,
             };
+            if (!refreshed[tokenAddress]) refreshed[tokenAddress] = [];
+            refreshed[tokenAddress].push(candle);
+          });
+        }
 
-            if (!candlesByAddress[tokenAddress]) {
-              candlesByAddress[tokenAddress] = [];
-            }
+        if (mappedAddresses.length > 0) {
+          const ethereumToOriginalMap: { [eth: string]: string[] } = {};
+          const uniqueEthereumAddresses = new Set<string>();
+          mappedAddresses.forEach((addr) => {
+            const ethAddr = tokenMap[addr].toLowerCase();
+            if (!ethereumToOriginalMap[ethAddr]) ethereumToOriginalMap[ethAddr] = [];
+            ethereumToOriginalMap[ethAddr].push(addr);
+            uniqueEthereumAddresses.add(ethAddr);
+          });
 
-            candlesByAddress[tokenAddress].push(candle);
-          }
+          const rows = await this.fetchHistoryQuotesBucketsData(
+            BlockchainType.Ethereum,
+            Array.from(uniqueEthereumAddresses),
+            startPaddedQ,
+            endPaddedQ,
+            bucket,
+          );
+          rows.forEach((row: any) => {
+            if (!row.open) return;
+            const timestamp = moment(row.bucket).utc();
+            if (!timestamp.isSameOrAfter(startQ)) return;
+            const ethAddr = row.tokenAddress.toLowerCase();
+            const originalAddresses = ethereumToOriginalMap[ethAddr] || [];
+            originalAddresses.forEach((originalAddr) => {
+              const candle: Candlestick = {
+                timestamp: timestamp.unix(),
+                open: row.open,
+                close: row.close,
+                high: row.high,
+                low: row.low,
+                provider: row.selected_provider,
+                mappedFrom: ethAddr,
+              };
+              if (!refreshed[originalAddr]) refreshed[originalAddr] = [];
+              refreshed[originalAddr].push(candle);
+            });
+          });
+        }
+
+        Object.entries(refreshed).forEach(([addr, candles]) => {
+          candlesByAddress[addr] = candles;
         });
-        
-        // Check if we still have missing tokens after seeding
-        const stillMissingTokens = addresses.filter((address) => !candlesByAddress[address]);
-        if (stillMissingTokens.length > 0) {
+
+        const stillMissing = lowercaseAddresses.filter((addr) => !candlesByAddress[addr]);
+        if (stillMissing.length > 0) {
           throw new BadRequestException({
             message: [
-              `No price data available for token${stillMissingTokens.length > 1 ? 's' : ''}: ${stillMissingTokens.join(
+              `No price data available for token${stillMissing.length > 1 ? 's' : ''}: ${stillMissing.join(
                 ', ',
               )} even after attempting to fetch from Codex`,
             ],
@@ -1355,5 +1421,10 @@ export class HistoricQuoteService implements OnModuleInit {
       .where('blockchainType = :blockchainType', { blockchainType })
       .andWhere('tokenAddress IN (:...tokenAddresses)', { tokenAddresses })
       .execute();
+  }
+  
+  // Minimal CTE producer for analytics compatibility
+  async prepareHistoricQuotesForQuery(_deployment: Deployment, _tokens: TokensByAddress): Promise<string> {
+    return '';
   }
 }

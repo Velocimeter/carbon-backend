@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { VortexFundsWithdrawnEvent } from './vortex-funds-withdrawn-event.entity';
 import { ContractsNames, HarvesterService, CustomFnArgs } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class VortexFundsWithdrawnEventService {
+  private readonly logger = new Logger(VortexFundsWithdrawnEventService.name);
   constructor(
     @InjectRepository(VortexFundsWithdrawnEvent)
     private repository: Repository<VortexFundsWithdrawnEvent>,
@@ -14,7 +15,10 @@ export class VortexFundsWithdrawnEventService {
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<any> {
-    return this.harvesterService.processEvents({
+    this.logger.log(
+      `[update] Start vortex-funds-withdrawn-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
+    const res = await this.harvesterService.processEvents({
       entity: 'vortex-funds-withdrawn-events',
       contractName: ContractsNames.CarbonVortex,
       eventName: 'FundsWithdrawn',
@@ -24,6 +28,10 @@ export class VortexFundsWithdrawnEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed vortex-funds-withdrawn-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<VortexFundsWithdrawnEvent[]> {

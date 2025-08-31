@@ -10,7 +10,7 @@ import { sleep } from '../../utilities';
 @Injectable()
 export class DexScreenerService {
   private readonly logger = new Logger(DexScreenerService.name);
-  private updateDelayMs = 180000; // 3 minutes delay
+  private updateDelayMs = 10000; // 3 minutes delay
   private lastUpdateTime: { [key: string]: number } = {};
 
   constructor(

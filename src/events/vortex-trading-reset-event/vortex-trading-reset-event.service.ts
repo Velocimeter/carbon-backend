@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { VortexTradingResetEvent } from './vortex-trading-reset-event.entity';
 import { ContractsNames, CustomFnArgs, HarvesterService } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
@@ -8,6 +8,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 
 @Injectable()
 export class VortexTradingResetEventService {
+  private readonly logger = new Logger(VortexTradingResetEventService.name);
   constructor(
     @InjectRepository(VortexTradingResetEvent)
     private repository: Repository<VortexTradingResetEvent>,
@@ -19,7 +20,7 @@ export class VortexTradingResetEventService {
       return;
     }
 
-    return this.harvesterService.processEvents({
+    const res = await this.harvesterService.processEvents({
       entity: 'vortex-trading-reset-events',
       contractName: ContractsNames.CarbonVortex,
       eventName: 'TradingReset',
@@ -30,6 +31,10 @@ export class VortexTradingResetEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed vortex-trading-reset-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<VortexTradingResetEvent[]> {

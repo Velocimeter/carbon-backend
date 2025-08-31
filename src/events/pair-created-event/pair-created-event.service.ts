@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PairCreatedEvent } from './pair-created-event.entity';
 import { ContractsNames, HarvesterService } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class PairCreatedEventService {
+  private readonly logger = new Logger(PairCreatedEventService.name);
   constructor(
     @InjectRepository(PairCreatedEvent)
     private repository: Repository<PairCreatedEvent>,
@@ -14,7 +15,10 @@ export class PairCreatedEventService {
   ) {}
 
   async update(endBlock: number, deployment: Deployment): Promise<any> {
-    return this.harvesterService.processEvents({
+    this.logger.log(
+      `[update] Start pair-created-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
+    const result = await this.harvesterService.processEvents({
       entity: 'pair-created-events',
       contractName: ContractsNames.CarbonController,
       eventName: 'PairCreated',
@@ -24,6 +28,10 @@ export class PairCreatedEventService {
       tagTimestampFromBlock: true,
       deployment, // Pass deployment here
     });
+    this.logger.log(
+      `[update] Completed pair-created-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return result;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<PairCreatedEvent[]> {

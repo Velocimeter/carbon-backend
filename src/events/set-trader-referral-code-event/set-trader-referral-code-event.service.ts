@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HarvesterService, ContractsNames, CustomFnArgs } from '../../harvester/harvester.service';
@@ -8,6 +8,7 @@ import { NETWORK_IDS } from '../../codex/codex.service';
 
 @Injectable()
 export class SetTraderReferralCodeEventService {
+  private readonly logger = new Logger(SetTraderReferralCodeEventService.name);
   constructor(
     @InjectRepository(SetTraderReferralCodeEvent)
     private repository: Repository<SetTraderReferralCodeEvent>,
@@ -24,6 +25,9 @@ export class SetTraderReferralCodeEventService {
       return;
     }
 
+    this.logger.log(
+      `[update] Start set-trader-referral-code-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+    );
     await this.harvesterService.processEvents({
       entity: 'set-trader-referral-code-events',
       contractName: ContractsNames.ReferralStorage,
@@ -36,6 +40,9 @@ export class SetTraderReferralCodeEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed set-trader-referral-code-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<SetTraderReferralCodeEvent[]> {

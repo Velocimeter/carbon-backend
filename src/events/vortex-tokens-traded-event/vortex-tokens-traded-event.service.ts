@@ -1,12 +1,13 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { VortexTokensTradedEvent } from './vortex-tokens-traded-event.entity';
 import { ContractsNames, HarvesterService } from '../../harvester/harvester.service';
 import { Deployment } from '../../deployment/deployment.service';
 
 @Injectable()
 export class VortexTokensTradedEventService {
+  private readonly logger = new Logger(VortexTokensTradedEventService.name);
   constructor(
     @InjectRepository(VortexTokensTradedEvent)
     private repository: Repository<VortexTokensTradedEvent>,
@@ -18,7 +19,7 @@ export class VortexTokensTradedEventService {
       return;
     }
 
-    return this.harvesterService.processEvents({
+    const res = await this.harvesterService.processEvents({
       entity: 'vortex-tokens-traded-events',
       contractName: ContractsNames.CarbonVortex,
       eventName: 'TokenTraded',
@@ -29,6 +30,10 @@ export class VortexTokensTradedEventService {
       tagTimestampFromBlock: true,
       deployment,
     });
+    this.logger.log(
+      `[update] Completed vortex-tokens-traded-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+    );
+    return res;
   }
 
   async get(startBlock: number, endBlock: number, deployment: Deployment): Promise<VortexTokensTradedEvent[]> {

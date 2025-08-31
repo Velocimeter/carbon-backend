@@ -25,6 +25,9 @@ export class GovSetCodeOwnerEventService {
     const chainId = NETWORK_IDS[deployment.blockchainType];
 
     try {
+      this.logger.log(
+        `[update] Start gov-set-code-owner-events for ${deployment.blockchainType}:${deployment.exchangeId}, endBlock=${endBlock}`,
+      );
       await this.harvesterService.processEvents({
         entity: 'gov-set-code-owner-events',
         contractName: ContractsNames.ReferralStorage,
@@ -37,6 +40,9 @@ export class GovSetCodeOwnerEventService {
         tagTimestampFromBlock: true,
         deployment,
       });
+      this.logger.log(
+        `[update] Completed gov-set-code-owner-events for ${deployment.blockchainType}:${deployment.exchangeId} up to ${endBlock}`,
+      );
     } catch (error) {
       this.logger.error(`Error processing GovSetCodeOwner events: ${error.message}`);
       throw error;

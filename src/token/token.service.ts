@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { decimalsABI, nameABI, symbolABI } from '../abis/erc20.abi';
 import * as _ from 'lodash';
 import { Token } from './token.entity';
@@ -27,6 +27,7 @@ interface AddressData {
 
 @Injectable()
 export class TokenService implements OnModuleInit {
+  private readonly logger = new Logger(TokenService.name);
   constructor(
     @InjectRepository(Token) private token: Repository<Token>,
     private harvesterService: HarvesterService,
@@ -66,6 +67,9 @@ export class TokenService implements OnModuleInit {
   }
 
   async update(endBlock: number, deployment: Deployment): Promise<void> {
+    const deploymentKey = `${deployment.blockchainType}:${deployment.exchangeId}`;
+    const startedAt = Date.now();
+    this.logger.log(`[update] Start token update for ${deploymentKey}, endBlock=${endBlock}`);
     const lastProcessedEntity = `${deployment.blockchainType}-${deployment.exchangeId}-tokens`;
 
     // figure out start block
@@ -153,10 +157,16 @@ export class TokenService implements OnModuleInit {
 
       // create new tokens
       const addressesBatches = _.chunk(addressesData, 1000);
+      this.logger.log(
+        `[update] ${deploymentKey} blocks ${currentBlock + 1}-${nextBlock}: events(pairCreated=${newPairCreatedEvents.length}, arbV1=${newArbitrageExecutedEvents.length}, arbV2=${newArbitrageExecutedEventsV2.length}, vortexTraded=${newVortexTokensTradedEvents.length}, vortexReset=${newVortexTradingResetEvents.length}, vortexWithdrawn=${newVortexFundsWithdrawnEvents.length}, protectionRemoved=${newProtectionRemovedEvents.length}), addressBatches=${addressesBatches.length}`,
+      );
       for (const addressesBatch of addressesBatches) {
         // Extract just the addresses for token creation
         const addresses = addressesBatch.map((data) => data.address);
-        await this.createFromAddresses(addresses, deployment);
+        const created = await this.createFromAddresses(addresses, deployment);
+        this.logger.log(
+          `[update] ${deploymentKey} created ${created} tokens in batch (lastBlock=${addressesBatch[addressesBatch.length - 1].blockId})`,
+        );
 
         // Update using the last block ID from this batch
         await this.lastProcessedBlockService.update(
@@ -171,6 +181,9 @@ export class TokenService implements OnModuleInit {
 
     // update last processed block number
     await this.lastProcessedBlockService.update(lastProcessedEntity, endBlock);
+    this.logger.log(
+      `[update] Done token update for ${deploymentKey} at endBlock=${endBlock} in ${Date.now() - startedAt}ms`,
+    );
   }
 
   async allByAddress(deployment: Deployment): Promise<TokensByAddress> {
@@ -194,7 +207,7 @@ export class TokenService implements OnModuleInit {
     });
   }
 
-  private async createFromAddresses(addresses: string[], deployment: Deployment) {
+  private async createFromAddresses(addresses: string[], deployment: Deployment): Promise<number> {
     // map all token addresses in an array
     const addressesSet = new Set(addresses);
 
@@ -212,9 +225,28 @@ export class TokenService implements OnModuleInit {
     });
 
     // fetch metadata
+    const deploymentKey = `${deployment.blockchainType}:${deployment.exchangeId}`;
+    this.logger.log(
+      `[metadata] ${deploymentKey} preparing to fetch for ${newAddresses.length} new addresses; preview=${newAddresses
+        .slice(0, 5)
+        .join(',')}${newAddresses.length > 5 ? '…' : ''}`,
+    );
+    const t0 = Date.now();
     const decimals = await this.getDecimals(newAddresses, deployment);
+    const t1 = Date.now();
     const symbols = await this.getSymbols(newAddresses, deployment);
+    const t2 = Date.now();
     const names = await this.getNames(newAddresses, deployment);
+    const t3 = Date.now();
+    this.logger.log(
+      `[metadata] ${deploymentKey} fetched decimals=${decimals.length} (${t1 - t0}ms), symbols=${symbols.length} (${t2 - t1}ms), names=${names.length} (${t3 - t2}ms)`,
+    );
+    // basic sanity warnings
+    if (decimals.length !== newAddresses.length || symbols.length !== newAddresses.length || names.length !== newAddresses.length) {
+      this.logger.warn(
+        `[metadata] ${deploymentKey} length mismatch: addrs=${newAddresses.length} dec=${decimals.length} sym=${symbols.length} name=${names.length}`,
+      );
+    }
 
     // create new tokens
     const newTokens = [];
@@ -231,10 +263,20 @@ export class TokenService implements OnModuleInit {
       );
     }
     await this.token.save(newTokens);
+    if (newTokens.length > 0) {
+      this.logger.log(
+        `[update] ${deploymentKey} saved ${newTokens.length} tokens; lastAddr=${newTokens[newTokens.length - 1].address}`,
+      );
+    }
+    return newTokens.length;
   }
 
   private async getSymbols(addresses: string[], deployment: Deployment): Promise<string[]> {
+    const t0 = Date.now();
     const symbols = await this.harvesterService.stringsWithMulticall(addresses, symbolABI, 'symbol', deployment);
+    this.logger.log(
+      `[metadata] ${deployment.blockchainType}:${deployment.exchangeId} symbols fetched=${symbols.length} in ${Date.now() - t0}ms`,
+    );
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
       symbols[index] = deployment.gasToken.symbol;
@@ -243,7 +285,11 @@ export class TokenService implements OnModuleInit {
   }
 
   private async getNames(addresses: string[], deployment: Deployment): Promise<string[]> {
+    const t0 = Date.now();
     const names = await this.harvesterService.stringsWithMulticall(addresses, nameABI, 'name', deployment);
+    this.logger.log(
+      `[metadata] ${deployment.blockchainType}:${deployment.exchangeId} names fetched=${names.length} in ${Date.now() - t0}ms`,
+    );
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
       names[index] = deployment.gasToken.name;
@@ -252,7 +298,11 @@ export class TokenService implements OnModuleInit {
   }
 
   private async getDecimals(addresses: string[], deployment: Deployment): Promise<number[]> {
+    const t0 = Date.now();
     const decimals = await this.harvesterService.integersWithMulticall(addresses, decimalsABI, 'decimals', deployment);
+    this.logger.log(
+      `[metadata] ${deployment.blockchainType}:${deployment.exchangeId} decimals fetched=${decimals.length} in ${Date.now() - t0}ms`,
+    );
     const index = addresses.indexOf(deployment.gasToken.address);
     if (index >= 0) {
       decimals[index] = 18;

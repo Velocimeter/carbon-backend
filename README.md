@@ -436,6 +436,23 @@ MERKL_SNAPSHOT_SEED=fixed-test-seed-12345
 
 Example campaign creation:
 
+
+npm run merkl:create-campaign -- --blockchainType=TAC --exchangeId=OGTac --pairId=13 --rewardAmount=1000000000000000000 
+--rewardTokenAddress=0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9
+--start=2025-07-15T00:00:00.000Z 
+--end=2025-07-15T12:00:00.000Z 
+--opportunityName="Test Campaign" 
+--active=true
+
+
+// use lowercase for exID bcType (match db)
+
+powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=tac --exchangeId=tac --pairId=4 --rewardAmount=1000000000000000000 --rewardTokenAddress=0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test cbBTC-USDT Campaign (1w)' --active=true"
+
+powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=492 --rewardAmount=1000000000000000000 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test WETH-USDC Campaign (1w)' --active=true"
+
+powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=829 --rewardAmount=1000000000000000000 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test WETH-WBTC Campaign (1w)' --active=true"
+
 ```sql
 INSERT INTO merkl_campaigns (
     "blockchainType",

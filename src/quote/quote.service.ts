@@ -39,11 +39,11 @@ export class QuoteService implements OnModuleInit {
     // [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Coti]: [],
-    [BlockchainType.Iota]: [],
+    // [BlockchainType.Iota]: [],
   };
 
   constructor(
@@ -56,15 +56,27 @@ export class QuoteService implements OnModuleInit {
     private codexService: CodexService,
     @Inject('REDIS') private redis: any,
   ) {
-    this.intervalDuration = +this.configService.get('POLL_QUOTES_INTERVAL') || 60000;
+    this.intervalDuration = +this.configService.get('POLL_QUOTES_INTERVAL') || 120000; // [interval]
     this.shouldPollQuotes = this.configService.get('SHOULD_POLL_QUOTES') === '1';
+    this.logger.log(
+      `QUOTES SERVICE - init: SHOULD_POLL_QUOTES=${this.shouldPollQuotes} POLL_QUOTES_INTERVAL=${this.intervalDuration}ms`,
+    );
   }
 
   async onModuleInit() {
+    this.logger.log('QUOTES SERVICE - onModuleInit called');
     if (this.shouldPollQuotes) {
       const callback = () => this.pollForLatest();
-      const interval = setInterval(callback, this.intervalDuration);
+      const interval = setInterval(callback, this.intervalDuration); // [interval]
       this.schedulerRegistry.addInterval('pollForLatest', interval);
+      this.logger.log(
+        `QUOTES SERVICE - scheduled pollForLatest every ${this.intervalDuration}ms (interval registered)`,
+      );
+      // Trigger an immediate run so we don't wait for the first interval
+      this.logger.log('QUOTES SERVICE - triggering immediate pollForLatest run');
+      void this.pollForLatest();
+    } else {
+      this.logger.warn('QUOTES SERVICE - polling disabled: SHOULD_POLL_QUOTES!=1');
     }
   }
 
@@ -77,7 +89,9 @@ export class QuoteService implements OnModuleInit {
     this.isPolling = true;
 
     try {
+      this.logger.log('QUOTES SERVICE - pollForLatest: starting');
       const deployments = await this.deploymentService.getDeployments();
+      this.logger.log(`QUOTES SERVICE - pollForLatest: deployments=${deployments.map((d) => `${d.blockchainType}:${d.exchangeId}`).join(',')}`);
 
       // First, collect all unique Ethereum token addresses from all deployments
       const allEthereumAddresses = new Set<string>();
@@ -89,27 +103,39 @@ export class QuoteService implements OnModuleInit {
         }
       }
 
-      // If we have Ethereum token mappings, fetch their quotes first
+      // If we have Ethereum token mappings, fetch their quotes first (via Codex)
       if (allEthereumAddresses.size > 0) {
         const ethereumDeployment = this.deploymentService.getDeploymentByBlockchainType(BlockchainType.Ethereum);
         const ethereumAddressArray = Array.from(allEthereumAddresses);
+        this.logger.log(`QUOTES SERVICE - pollForLatest: fetching ethereum mapped tokens via Codex count=${ethereumAddressArray.length}`);
 
         // Note: Ethereum token creation is now handled by TokenService.onModuleInit()
         // Since token mappings are hardcoded in deployment configs and can't change at runtime,
         // we only need to ensure tokens exist once at startup, not on every quote poll.
 
-        const ethereumPrices = await this.coingeckoService.getLatestPrices(ethereumAddressArray, ethereumDeployment);
-        const gasTokenPrice = await this.coingeckoService.getLatestGasTokenPrice(ethereumDeployment);
-        const ethereumPricesWithGas = { ...ethereumPrices, ...gasTokenPrice };
+        const ethereumPrices = await this.codexService.getLatestPrices(ethereumDeployment, ethereumAddressArray);
+        Object.entries(ethereumPrices || {}).forEach(([addr, data]: any) => {
+          this.logger.log(
+            `QUOTES SERVICE - Codex result (${ethereumDeployment.blockchainType}): address=${addr} usd=${data?.usd} provider=${data?.provider}`,
+          );
+        });
         await this.updateQuotes(
           await this.tokenService.getTokensByBlockchainType(BlockchainType.Ethereum),
-          ethereumPricesWithGas,
+          ethereumPrices,
           ethereumDeployment,
         );
+        this.logger.log('QUOTES SERVICE - pollForLatest: finished ethereum mapped update (Codex)');
       }
 
       // Then process each deployment
-      await Promise.all(deployments.map((deployment) => this.pollForDeployment(deployment)));
+      this.logger.log('QUOTES SERVICE - pollForLatest: polling each deployment in parallel');
+      await Promise.all(
+        deployments.map(async (deployment) => {
+          this.logger.log(`QUOTES SERVICE - pollForDeployment: start ${deployment.blockchainType}:${deployment.exchangeId}`);
+          await this.pollForDeployment(deployment);
+          this.logger.log(`QUOTES SERVICE - pollForDeployment: done ${deployment.blockchainType}:${deployment.exchangeId}`);
+        }),
+      );
     } catch (error) {
       this.logger.error(`Error fetching and storing quotes: ${error.message}`);
     } finally {
@@ -124,20 +150,35 @@ export class QuoteService implements OnModuleInit {
     // }
 
     try {
+      this.logger.log(`QUOTES SERVICE - pollForDeployment: fetching tokens for ${deployment.blockchainType}`);
       const tokens = await this.tokenService.getTokensByBlockchainType(deployment.blockchainType);
       const addresses = tokens.map((t) => t.address);
+      this.logger.log(`QUOTES SERVICE - pollForDeployment: tokens=${tokens.length}, addresses=${addresses.length}`);
 
       let newPrices;
-      if (deployment.blockchainType === BlockchainType.Ethereum) {
-        newPrices = await this.coingeckoService.getLatestPrices(addresses, deployment);
-        const gasTokenPrice = await this.coingeckoService.getLatestGasTokenPrice(deployment);
-        newPrices = { ...newPrices, ...gasTokenPrice };
-      } else {
-        newPrices = await this.codexService.getLatestPrices(deployment, addresses);
-      }
+      this.logger.log(`QUOTES SERVICE - provider=codex for ${deployment.blockchainType}`);
+      newPrices = await this.codexService.getLatestPrices(deployment, addresses);
+      // Log per-address results returned by Codex
+      const returnedAddresses = new Set<string>(Object.keys(newPrices || {}).map((a) => a.toLowerCase()));
+      Object.entries(newPrices || {}).forEach(([addr, data]: any) => {
+        this.logger.log(
+          `QUOTES SERVICE - Codex result (${deployment.blockchainType}): address=${addr} usd=${data?.usd} provider=${data?.provider}`,
+        );
+      });
+      // Log any requested addresses that Codex did not return
+      const requestedLower = addresses.map((a) => a.toLowerCase());
+      requestedLower
+        .filter((a) => !returnedAddresses.has(a))
+        .forEach((missing) => {
+          this.logger.warn(
+            `QUOTES SERVICE - Codex missing price (${deployment.blockchainType}): address=${missing}`,
+          );
+        });
 
       if (newPrices && Object.entries(newPrices).length > 0) {
+        this.logger.log(`QUOTES SERVICE - updateQuotes: saving quotes for ${deployment.blockchainType}, count=${Object.keys(newPrices).length}`);
         await this.updateQuotes(tokens, newPrices, deployment);
+        this.logger.log(`QUOTES SERVICE - updateQuotes: saved for ${deployment.blockchainType}`);
       }
     } catch (error) {
       this.logger.error(
@@ -399,6 +440,7 @@ export class QuoteService implements OnModuleInit {
   private async updateQuotes(tokens: Token[], newPrices: Record<string, any>, deployment: Deployment): Promise<void> {
     try {
       const now = new Date();
+      this.logger.log(`QUOTES SERVICE - updateQuotes: begin ${deployment.blockchainType}, tokens=${tokens.length}, incomingPrices=${Object.keys(newPrices || {}).length}`);
 
       // If this is not Ethereum and we have token mappings, get Ethereum quotes
       let ethereumQuotesByAddress = {};
@@ -434,6 +476,7 @@ export class QuoteService implements OnModuleInit {
               .andWhere('token.id IN (:...tokenIds)', { tokenIds: tokens.map((t) => t.id) })
               .getMany()
           : [];
+      this.logger.log(`QUOTES SERVICE - updateQuotes: existingQuotes=${existingQuotes.length}`);
 
       // Create a map of existing quotes by token ID
       const existingQuotesByTokenId = existingQuotes.reduce((acc, quote) => {
@@ -450,6 +493,7 @@ export class QuoteService implements OnModuleInit {
         const existingQuote = existingQuotesByTokenId[token.id];
 
         if (!priceData) {
+          this.logger.debug(`QUOTES SERVICE - no price for ${tokenAddress}; checking mapping if any`);
           // If we have a mapping to Ethereum and an Ethereum quote exists, use that
           if (deployment.mapEthereumTokens) {
             const lowercaseTokenMap = this.deploymentService.getLowercaseTokenMap(deployment);
@@ -461,7 +505,7 @@ export class QuoteService implements OnModuleInit {
 
               if (ethereumQuote) {
                 if (ethereumQuote.usd == null || ethereumQuote.usd === '' || ethereumQuote.usd === undefined) {
-                  this.logger.warn(`Skipping quote update for token ${tokenAddress} - no valid USD price data`);
+                  this.logger.warn(`Skipping quote update for token ${tokenAddress} - no valid USD price data on blockchain ${deployment.blockchainType}`);
                   continue;
                 }
 
@@ -492,7 +536,7 @@ export class QuoteService implements OnModuleInit {
         if (existingQuote) {
           // Update existing quote
           if (priceData.usd == null || priceData.usd === '' || priceData.usd === undefined) {
-            this.logger.warn(`Skipping quote update for token ${tokenAddress} - no valid USD price data`);
+            this.logger.warn(`Skipping quote update for token ${tokenAddress} - no valid USD price data on blockchain ${deployment.blockchainType}`);
             continue;
           }
 
@@ -503,7 +547,7 @@ export class QuoteService implements OnModuleInit {
         } else {
           // Create new quote
           if (priceData.usd == null || priceData.usd === '' || priceData.usd === undefined) {
-            this.logger.warn(`Skipping quote update for token ${tokenAddress} - no valid USD price data`);
+            this.logger.warn(`Skipping quote update for token ${tokenAddress} - no valid USD price data on blockchain ${deployment.blockchainType}`);
             continue;
           }
 
@@ -519,6 +563,7 @@ export class QuoteService implements OnModuleInit {
         }
       }
 
+      this.logger.log(`QUOTES SERVICE - updateQuotes: quotesToSave=${quotesToSave.length}`);
       if (quotesToSave.length > 0) {
         await this.quoteRepository.save(quotesToSave);
       }
@@ -681,7 +726,7 @@ export class QuoteService implements OnModuleInit {
     for (const [address, quote] of Object.entries(quotes)) {
       // Skip quotes with undefined or null token IDs
       if (!quote.token || quote.token.id === undefined || quote.token.id === null) {
-        this.logger.warn(`Skipping quote for address ${address} due to undefined token ID`);
+        this.logger.warn(`Skipping quote for address ${address} due to undefined token ID on blockchain ${quote.blockchainType}`);
         continue;
       }
 

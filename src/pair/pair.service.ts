@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Pair } from './pair.entity';
 import { HarvesterService } from '../harvester/harvester.service';
 import { decimalsABI, symbolABI } from '../abis/erc20.abi';
@@ -23,6 +23,7 @@ export interface PairsDictionary {
 
 @Injectable()
 export class PairService {
+  private readonly logger = new Logger(PairService.name);
   constructor(
     @InjectRepository(Pair) private pair: Repository<Pair>,
     @InjectRepository(ActivityV2) private activityRepository: Repository<ActivityV2>,
@@ -32,6 +33,9 @@ export class PairService {
   ) {}
 
   async update(endBlock: number, tokens: TokensByAddress, deployment: Deployment): Promise<void> {
+    const deploymentKey = `${deployment.blockchainType}:${deployment.exchangeId}`;
+    const startedAt = Date.now();
+    this.logger.log(`[update] Start pair update for ${deploymentKey}, endBlock=${endBlock}`);
     const lastProcessedEntity = `${deployment.blockchainType}-${deployment.exchangeId}-pairs`;
 
     // figure out start block
@@ -39,16 +43,21 @@ export class PairService {
 
     // fetch pair created events
     const newEvents = await this.pairCreatedEventService.get(lastProcessedBlockNumber + 1, endBlock, deployment);
+    this.logger.log(`[update] ${deploymentKey} fetched PairCreated events: ${newEvents.length}`);
 
     // create new pairs
     const eventBatches = _.chunk(newEvents, 1000);
     for (const eventsBatch of eventBatches) {
-      await this.createFromEvents(eventsBatch, tokens, deployment);
+      const created = await this.createFromEvents(eventsBatch, tokens, deployment);
+      this.logger.log(
+        `[update] ${deploymentKey} created ${created} pairs in batch (lastBlock=${eventsBatch[eventsBatch.length - 1].block.id})`,
+      );
       await this.lastProcessedBlockService.update(lastProcessedEntity, eventsBatch[eventsBatch.length - 1].block.id);
     }
 
     // update last processed block number
     await this.lastProcessedBlockService.update(lastProcessedEntity, endBlock);
+    this.logger.log(`[update] Done pair update for ${deploymentKey} in ${Date.now() - startedAt}ms`);
   }
 
   async createFromEvents(events: PairCreatedEvent[], tokens: TokensByAddress, deployment: Deployment) {
@@ -69,6 +78,7 @@ export class PairService {
     });
 
     await this.pair.save(pairs);
+    return pairs.length;
   }
 
   async getSymbols(addresses: string[], deployment: Deployment): Promise<string[]> {

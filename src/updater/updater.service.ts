@@ -137,9 +137,14 @@ export class UpdaterService {
     if (shouldHarvest?.startsWith('1')) {
       const deployments = this.deploymentService.getDeployments();
       deployments.forEach((deployment) => {
-        const updateInterval = 5000; // Customize the interval as needed
+        const updateInterval = 125000; // Customize the interval as needed [interval]
+        this.logger.log(
+          `Scheduling update loop for ${deployment.blockchainType}:${deployment.exchangeId} every ${updateInterval}ms`,
+        );
         this.scheduleDeploymentUpdate(deployment, updateInterval);
       });
+    } else {
+      this.logger.warn('Updater disabled: SHOULD_HARVEST is not set to 1.');
     }
 
     // Schedule analytics updates without using @Interval decorator
@@ -147,22 +152,31 @@ export class UpdaterService {
     if (shouldUpdateAnalytics === '1') {
       setInterval(async () => {
         await this.updateAnalytics();
-      }, 5000);
+      }, 5000); // [interval]
     }
   }
 
   private scheduleDeploymentUpdate(deployment: Deployment, interval: number) {
     setInterval(async () => {
+      this.logger.log(
+        `initiating updateDeployment for ${deployment.blockchainType}:${deployment.exchangeId} at ${new Date().toISOString()}`,
+      );
       await this.updateDeployment(deployment);
-    }, interval);
+    }, interval); // [interval]
   }
 
   async updateDeployment(deployment: Deployment): Promise<void> {
     const deploymentKey = `${deployment.blockchainType}:${deployment.exchangeId}`;
-    if (this.isUpdating[deploymentKey]) return;
+    if (this.isUpdating[deploymentKey]) {
+      this.logger.log(`Skip update for ${deploymentKey}: local isUpdating flag is true`);
+      return;
+    }
 
     const isUpdating = await this.redis.client.get(`${CARBON_IS_UPDATING}:${deploymentKey}`);
-    if (isUpdating === '1' && process.env.NODE_ENV === 'production') return;
+    if (isUpdating === '1' && process.env.NODE_ENV === 'production') {
+      this.logger.log(`Skip update for ${deploymentKey}: redis lock present in production`);
+      return;
+    }
 
     this.logger.log(`CARBON SERVICE - Started update cycle for ${deploymentKey}`);
     let endBlock = -12;
@@ -170,7 +184,7 @@ export class UpdaterService {
     const t = Date.now();
     try {
       this.isUpdating[deploymentKey] = true;
-      const lockDuration = parseInt(this.configService.get('CARBON_LOCK_DURATION')) || 30;
+      const lockDuration = parseInt(this.configService.get('CARBON_LOCK_DURATION')) || 120;
       await this.redis.client.setex(`${CARBON_IS_UPDATING}:${deploymentKey}`, lockDuration, 1);
 
       if (endBlock === -12) {
@@ -180,28 +194,46 @@ export class UpdaterService {
           endBlock = (await this.harvesterService.latestBlock(deployment)) - 12;
         }
       }
+      this.logger.log(`Resolved endBlock=${endBlock} for ${deploymentKey}`);
 
       // handle PairCreated events
+      this.logger.log(`Starting PairCreatedEventService for ${deploymentKey}...`);
       await this.pairCreatedEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished pairs creation events for ${deployment.exchangeId}`);
 
       // handle VortexTokensTraded events
+      this.logger.log(`Starting VortexTokensTradedEventService for ${deploymentKey}...`);
       await this.vortexTokensTradedEventService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished Vortex tokens traded events for ${deployment.exchangeId}`);
 
       // handle ArbitrageExecuted events
+      this.logger.log(`Starting ArbitrageExecutedEventService for ${deploymentKey}...`);
       await this.arbitrageExecutedEventService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished updating arbitrage executed events for ${deployment.exchangeId}`);
 
-      // handle ArbitrageExecuted V2 events
-      await this.arbitrageExecutedEventServiceV2.update(endBlock, deployment);
-      console.log(`CARBON SERVICE - Finished updating arbitrage executed V2 events for ${deployment.exchangeId}`);
+      // handle ArbitrageExecuted V2 events (optional; skip if table missing)
+      this.logger.log(`Starting ArbitrageExecutedEventServiceV2 for ${deploymentKey}...`);
+      try {
+        await this.arbitrageExecutedEventServiceV2.update(endBlock, deployment);
+        console.log(`CARBON SERVICE - Finished updating arbitrage executed V2 events for ${deployment.exchangeId}`);
+      } catch (e) {
+        const code = (e as any)?.driverError?.code || (e as any)?.code;
+        const msg = ((e as any)?.message || String(e)) as string;
+        const missing = code === '42P01' || (msg && msg.includes('arbitrage-executed-events-v2') && msg.includes('does not exist'));
+        if (missing) {
+          this.logger.warn(`Skipping ArbitrageExecutedEventServiceV2 for ${deploymentKey}: table missing`);
+        } else {
+          this.logger.warn(`Continuing after ArbitrageExecutedEventServiceV2 error for ${deploymentKey}: ${msg}`);
+        }
+      }
 
       // handle VortexTradingReset events
+      this.logger.log(`Starting VortexTradingResetEventService for ${deploymentKey}...`);
       await this.vortexTradingResetEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating vortex trading reset events for ${deployment.exchangeId}`);
 
       // handle ProtectionRemoved events
+      this.logger.log(`Starting ProtectionRemovedEventService for ${deploymentKey}...`);
       await this.protectionRemovedEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating protection removed events for ${deployment.exchangeId}`);
 
@@ -212,58 +244,72 @@ export class UpdaterService {
       }
 
       // create tokens
+      this.logger.log(`Starting TokenService for ${deploymentKey}...`);
       await this.tokenService.update(endBlock, deployment);
       const tokens = await this.tokenService.allByAddress(deployment);
       this.logger.log(`CARBON SERVICE - Finished tokens for ${deployment.exchangeId}`);
 
       // create pairs
+      this.logger.log(`Starting PairService for ${deploymentKey}...`);
       await this.pairService.update(endBlock, tokens, deployment);
       const pairs = await this.pairService.allAsDictionary(deployment);
       this.logger.log(`CARBON SERVICE - Finished pairs for ${deployment.exchangeId}`);
 
       // create strategies
+      this.logger.log(`Starting StrategyService for ${deploymentKey}...`);
       await this.strategyService.update(endBlock, pairs, tokens, deployment);
       this.logger.log(`CARBON SERVICE - Finished strategies for ${deployment.exchangeId}`);
 
       // create trades
+      this.logger.log(`Starting TokensTradedEventService for ${deploymentKey}...`);
       await this.tokensTradedEventService.update(endBlock, pairs, tokens, deployment);
       this.logger.log(`CARBON SERVICE - Finished trades for ${deployment.exchangeId}`);
 
       // update carbon price
+      this.logger.log(`Starting CarbonPriceService for ${deploymentKey}...`);
       await this.carbonPriceService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating carbon price for ${deployment.exchangeId}`);
 
       // coingecko tickers - fetch quotes first and pass them to update method
       const quotesCTE = await this.quoteService.prepareQuotesForQuery(deployment);
+      this.logger.log(`Starting quotes CoingeckoService for ${deploymentKey}...`);
       await this.coingeckoService.update(deployment, quotesCTE);
       console.log(`CARBON SERVICE - Finished updating coingecko tickers for ${deployment.exchangeId}`);
 
       // DexScreener V2 - incremental processing
+      this.logger.log(`Starting DexScreenerV2Service for ${deploymentKey}...`);
       await this.dexScreenerV2Service.update(endBlock, deployment, tokens);
       console.log(`CARBON SERVICE - Finished updating DexScreener V2 for ${deployment.exchangeId}`);
 
       // trading fee events
+      this.logger.log(`Starting TradingFeePpmUpdatedEventService for ${deploymentKey}...`);
       await this.tradingFeePpmUpdatedEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating trading fee events for ${deployment.exchangeId}`);
 
       // pair trading fee events
+      this.logger.log(`Starting PairTradingFeePpmUpdatedEventService for ${deploymentKey}...`);
       await this.pairTradingFeePpmUpdatedEventService.update(endBlock, pairs, tokens, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating pair trading fee events for ${deployment.exchangeId}`);
 
+      this.logger.log(`Starting VoucherTransferEventService for ${deploymentKey}...`);
       await this.voucherTransferEventService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating voucher transfer events for ${deployment.exchangeId}`);
 
+      this.logger.log(`Starting ActivityV2Service for ${deploymentKey}...`);
       await this.activityV2Service.update(endBlock, deployment, tokens);
       console.log(`CARBON SERVICE - Finished updating activities for ${deployment.exchangeId}`);
 
       // update merkl rewards
+      this.logger.log(`Starting Merkl update for ${deploymentKey}...`);
       await this.merklProcessorService.update(endBlock, deployment);
       console.log(`CARBON SERVICE - Finished updating merkl rewards for ${deployment.exchangeId}`);
 
+      this.logger.log(`Starting TvlService for ${deploymentKey}...`);
       await this.tvlService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished updating tvl for ${deployment.exchangeId}`);
 
       // handle notifications
+      this.logger.log(`Starting NotificationService for ${deploymentKey}...`);
       await this.notificationService.update(endBlock, deployment);
       this.logger.log(`CARBON SERVICE - Finished notifications for ${deployment.exchangeId}`);
 

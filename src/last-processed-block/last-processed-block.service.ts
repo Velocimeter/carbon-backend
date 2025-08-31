@@ -8,7 +8,7 @@ import { sleep } from '../utilities';
 
 @Injectable()
 export class LastProcessedBlockService {
-  private queryDelayMs = 60000;
+  private queryDelayMs = 6000;
   private lastQueryTime: { [key: string]: number } = {};
   private readonly logger = new Logger(LastProcessedBlockService.name);
 

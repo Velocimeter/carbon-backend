@@ -401,6 +401,16 @@ export class HarvesterService {
       }
     }
 
+    // Final summary log for this entity/deployment
+    try {
+      const totalNew = result.reduce((acc, batch) => acc + (Array.isArray(batch) ? batch.length : 0), 0);
+      await this.logWithDelay(
+        'log',
+        `[${deployment.blockchainType}] Completed processing ${args.entity} up to endBlock=${args.endBlock}; newEvents=${totalNew}`,
+      );
+    } catch (_) {
+      // ignore logging errors
+    }
     return result;
   }
 
