@@ -4,19 +4,22 @@ import { Codex } from '@codex-data/sdk';
 import moment from 'moment';
 import { BlockchainType, Deployment, NATIVE_TOKEN } from '../deployment/deployment.service';
 import { TokenService } from '../token/token.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Pair } from '../pair/pair.entity';
 
 export const NETWORK_IDS = {
   // [BlockchainType.Sei]: 531,
   // [BlockchainType.Celo]: 42220,
-  [BlockchainType.Ethereum]: 1,
+  // [BlockchainType.Ethereum]: 1,
   [BlockchainType.Base]: 8453,
   // [BlockchainType.Fantom]: 250,
-  //  [BlockchainType.Mantle]: 5000,
+    // [BlockchainType.Mantle]: 5000,
   // [BlockchainType.Blast]: 81457,
   // [BlockchainType.Linea]: 59144,
-  // [BlockchainType.Berachain]: 80094,
-  // [BlockchainType.Sonic]: 146,
-  [BlockchainType.Tac]: 239,
+//  [BlockchainType.Berachain]: 80094,
+//    [BlockchainType.Sonic]: 146,
+//   [BlockchainType.Tac]: 239,
 };
 
 @Injectable()
@@ -26,7 +29,8 @@ export class CodexService {
 
   constructor(
     private configService: ConfigService,
-    @Inject(forwardRef(() => TokenService)) private tokenService: TokenService
+    @Inject(forwardRef(() => TokenService)) private tokenService: TokenService,
+    @InjectRepository(Pair) private pairRepository: Repository<Pair>
   ) {
     const apiKey = this.configService.get<string>('CODEX_API_KEY');
     this.sdk = new Codex(apiKey);
@@ -34,17 +38,31 @@ export class CodexService {
   }
 
   async getKnownTokenAddresses(deployment: Deployment): Promise<string[]> {
-    console.log(`Fetching token addresses from database for ${deployment.blockchainType}...`);
-    const tokens = await this.tokenService.getTokensByBlockchainType(deployment.blockchainType);
-    const addresses = tokens.map(token => token.address.toLowerCase());
-    
-    // Add native token alias if it exists
-    if (deployment.nativeTokenAlias) {
-      addresses.push(deployment.nativeTokenAlias.toLowerCase());
+    this.logger.log(`CODEX_BARS CODEX_KNOWN_ADDRS_FETCH start chain=${deployment.blockchainType}:${deployment.exchangeId}`);
+    // Pull distinct token addresses from pairs table for this deployment
+    const pairs = await this.pairRepository
+      .createQueryBuilder('pair')
+      .leftJoinAndSelect('pair.token0', 'token0')
+      .leftJoinAndSelect('pair.token1', 'token1')
+      .where('pair.exchangeId = :exchangeId', { exchangeId: deployment.exchangeId })
+      .andWhere('pair.blockchainType = :blockchainType', { blockchainType: deployment.blockchainType })
+      .getMany();
+
+    const addressSet = new Set<string>();
+    for (const p of pairs) {
+      if (p?.token0?.address) addressSet.add(p.token0.address.toLowerCase());
+      if (p?.token1?.address) addressSet.add(p.token1.address.toLowerCase());
     }
-    
-    console.log(`Found ${addresses.length} tokens in database for ${deployment.blockchainType}`);
-    return Array.from(new Set(addresses)); // Ensure unique addresses
+
+    if (deployment.nativeTokenAlias) {
+      addressSet.add(deployment.nativeTokenAlias.toLowerCase());
+    }
+
+    const addresses = Array.from(addressSet);
+    this.logger.log(
+      `CODEX_BARS CODEX_KNOWN_ADDRS_FETCH done chain=${deployment.blockchainType}:${deployment.exchangeId} count=${addresses.length}`,
+    );
+    return addresses;
   }
 
   async getLatestPrices(deployment: Deployment, addresses: string[]): Promise<any> {
@@ -62,7 +80,6 @@ export class CodexService {
 
     // Replace only if targetAddress (NATIVE_TOKEN) is present in addresses
     if (deployment.nativeTokenAlias) {
-      const originalAddresses = [...addresses];
       addresses = addresses.map((address) => {
         if (address.toLowerCase() === NATIVE_TOKEN.toLowerCase()) {
           this.logger.log(`Mapping native token ${NATIVE_TOKEN} to ${deployment.nativeTokenAlias}`);
@@ -72,10 +89,13 @@ export class CodexService {
       });
     }
 
+    // Normalize requested addresses to lowercase for Codex matching and diagnostics
+    const requestedLower = addresses.map((a) => a.toLowerCase());
+
     const result = {};
     this.logger.log(`Calling Codex API to fetch token data...`);
     const t0 = Date.now();
-    const tokens = await this.fetchTokens(networkId, addresses);
+    const tokens = await this.fetchTokens(networkId, requestedLower);
     const dt = Date.now() - t0;
     this.logger.log(
       `CODEX latestPrices: received ${tokens.length} tokens from Codex in ${dt}ms (requested=${addresses.length})`,
@@ -105,9 +125,24 @@ export class CodexService {
 
     this.logger.log(
       `CODEX latestPrices: mapped result count=${Object.keys(result).length} (missing=${
-        addresses.length - Object.keys(result).length
+        requestedLower.length - Object.keys(result).length
       })`,
     );
+
+    // Diagnose missing tokens with reason classification
+    const missing = requestedLower.filter((addr) => !result[addr]);
+    if (missing.length > 0) {
+      const aliasLc = (deployment.nativeTokenAlias || '').toLowerCase();
+      const details = missing
+        .map((addr) => {
+          const reason = addr === aliasLc ? 'alias_not_priced' : 'not_found_in_codex_response';
+          return `${addr}:${reason}`;
+        })
+        .join(', ');
+      this.logger.warn(
+        `CODEX_BARS CODEX_MISSING chain=${deployment.blockchainType}:${deployment.exchangeId} count=${missing.length} details=[${details}]`,
+      );
+    }
     return result;
   }
 

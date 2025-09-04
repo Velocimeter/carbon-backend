@@ -7,7 +7,7 @@
       "<node_internals>/**"
     ]
   },
-  "debug.javascript.autoAttachFilter": "disabled",
+  "debug.javascript.autoAttachFilter": "always",
   "debug.javascript.usePreview": false,
   "window.menuBarVisibility": "classic"
 }

@@ -9,6 +9,7 @@ import * as _ from 'lodash';
 import moment from 'moment';
 import Decimal from 'decimal.js';
 import { BlockchainType, Deployment, DeploymentService, NATIVE_TOKEN } from '../deployment/deployment.service';
+import { Campaign } from '../merkl/entities/campaign.entity';
 import { CodexService } from '../codex/codex.service';
 import { TokensByAddress } from 'src/token/token.service';
 
@@ -45,23 +46,21 @@ export class HistoricQuoteService implements OnModuleInit {
   private isPolling = false;
   private readonly intervalDuration: number;
   private shouldPollQuotes: boolean;
-  private priceProviders: BlockchainProviderConfig = {
-     [BlockchainType.Ethereum]: [
-       { name: 'coinmarketcap', enabled: true },
-       { name: 'codex', enabled: true },
-     ],
+  // Optional to allow commenting out entirely without type errors
+  private priceProviders?: Partial<BlockchainProviderConfig> = {
+    // [BlockchainType.Ethereum]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Sei]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Celo]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Blast]: [{ name: 'codex', enabled: true }],
-     [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Base]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Fantom]: [{ name: 'codex', enabled: true }],
-     [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Mantle]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Linea]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
-    // [BlockchainType.Coti]: [{ name: 'carbon-defi', enabled: true }],
-    [BlockchainType.Iota]: [],
-    [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
-    [BlockchainType.Tac]: [],
+    // [BlockchainType.Berachain]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Coti]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Iota]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
+    // [BlockchainType.Tac]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
@@ -71,6 +70,7 @@ export class HistoricQuoteService implements OnModuleInit {
     private schedulerRegistry: SchedulerRegistry,
     private codexService: CodexService,
     private deploymentService: DeploymentService,
+    @InjectRepository(Campaign) private campaignRepository: Repository<Campaign>,
   ) {
     this.intervalDuration = +this.configService.get('POLL_HISTORIC_QUOTES_INTERVAL') || 300000; // [interval]
     this.shouldPollQuotes = this.configService.get('SHOULD_POLL_HISTORIC_QUOTES') === '1';
@@ -82,9 +82,15 @@ export class HistoricQuoteService implements OnModuleInit {
    */
   onModuleInit() {
     if (this.shouldPollQuotes) {
-      const callback = () => this.pollForUpdates();
+      const callback = () => {
+        this.logger.log('CODEX_BARS HISTORIC_POLL tick');
+        void this.pollForUpdates();
+      };
       const interval = setInterval(callback, this.intervalDuration); // [interval]
       this.schedulerRegistry.addInterval('pollForUpdates', interval);
+      this.logger.log(`CODEX_BARS HISTORIC_POLL scheduled intervalMs=${this.intervalDuration}`);
+      this.logger.log('CODEX_BARS HISTORIC_POLL immediate_run');
+      void this.pollForUpdates();
     }
 
     // Delay Codex seeding
@@ -121,10 +127,12 @@ export class HistoricQuoteService implements OnModuleInit {
    * This method is called periodically based on the configured interval.
    */
   async pollForUpdates(): Promise<void> {
+    const startedAt = Date.now();
     if (this.isPolling) {
-      this.logger.log('Already polling for updates, skipping...');
+      this.logger.log('CODEX_BARS HISTORIC_POLL skip reason=already_running');
       return;
     }
+    this.logger.log('CODEX_BARS HISTORIC_POLL start');
     this.logger.log('HISTORIC - Starting price update polling cycle');
     this.isPolling = true;
 
@@ -134,12 +142,52 @@ export class HistoricQuoteService implements OnModuleInit {
       await this.seedAllEthereumMappedTokens();
 
       this.logger.log('HISTORIC - Starting parallel Codex updates for chains');
-      await Promise.all([
-        await this.updateCodexQuotes(BlockchainType.Berachain),
-        await this.updateCodexQuotes(BlockchainType.Base),
-        await this.updateCodexQuotes(BlockchainType.Mantle),
-        await this.updateCodexQuotes(BlockchainType.Tac),
-      ]);
+      const chains = [
+        BlockchainType.Berachain,
+        BlockchainType.Base,
+        BlockchainType.Mantle,
+        BlockchainType.Tac,
+        BlockchainType.Sonic,
+      ];
+      // Only process chains that have active campaigns for their deployment
+      const deploymentsForChains = chains.map((chain) => {
+        try {
+          return this.deploymentService.getDeploymentByBlockchainType(chain);
+        } catch (e) {
+          return null;
+        }
+      }).filter((d): d is Deployment => d !== null);
+      const campaignCounts = await Promise.all(
+        deploymentsForChains.map((d) =>
+          this.campaignRepository.count({ where: { blockchainType: d.blockchainType, exchangeId: d.exchangeId, isActive: true } }),
+        ),
+      );
+      const activeChains = deploymentsForChains
+        .map((d, idx) => ({ d, idx }))
+        .filter(({ idx }) => campaignCounts[idx] > 0)
+        .map(({ d }) => d.blockchainType);
+      const skippedChains = deploymentsForChains
+        .map((d, idx) => ({ d, idx }))
+        .filter(({ idx }) => campaignCounts[idx] === 0)
+        .map(({ d }) => d.blockchainType);
+      this.logger.log(
+        `CODEX_BARS HISTORIC_POLL chains_selected active=${activeChains.length} skipped=${skippedChains.length}` +
+          (activeChains.length ? ` active_list=[${activeChains.join(',')}]` : '') +
+          (skippedChains.length ? ` skipped_list=[${skippedChains.join(',')}]` : ''),
+      );
+      const results = await Promise.allSettled(activeChains.map((chain) => this.updateCodexQuotes(chain)));
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed = results.length - succeeded;
+      const failures = results
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) => r.status === 'rejected')
+        .map(({ r, i }) => `${activeChains[i]}:${(r as PromiseRejectedResult).reason?.message || (r as PromiseRejectedResult).reason}`)
+        .slice(0, 3)
+        .join(', ');
+      this.logger.log(
+        `CODEX_BARS HISTORIC_POLL chains total=${results.length} ok=${succeeded} failed=${failed}` +
+          (failed ? ` failures=[${failures}]` : ''),
+      );
 
       // Update any mapped Ethereum tokens that might not have been updated
       this.logger.log('Updating mapped Ethereum tokens...');
@@ -150,7 +198,9 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     this.isPolling = false;
-    this.logger.log('HISTORIC - Update cycle completed');
+    const durationMs = Date.now() - startedAt;
+    this.logger.log(`HISTORIC - Update cycle completed`);
+    this.logger.log(`CODEX_BARS HISTORIC_POLL end durationMs=${durationMs}`);
   }
 
   /**
@@ -193,19 +243,84 @@ export class HistoricQuoteService implements OnModuleInit {
     const latest = await this.getLatest(blockchainType);
     this.logger.log(`HISTORIC - existing quotes for ${blockchainType}: ${Object.keys(latest).length}`);
     
-    this.logger.log(`HISTORIC - fetching Codex token list for ${blockchainType}`);
-    const addresses = await this.codexService.getAllTokenAddresses(deployment);
-    this.logger.log(`HISTORIC - token addresses count=${addresses.length} for ${blockchainType}`);
+    // Limit polling universe to tokens actually needed (active campaigns' pair tokens)
+    const startedAt = Date.now();
+    const campaigns = await this.campaignRepository.find({
+      where: {
+        blockchainType: deployment.blockchainType,
+        exchangeId: deployment.exchangeId,
+        isActive: true,
+      },
+      relations: ['pair', 'pair.token0', 'pair.token1'],
+      order: { id: 'ASC' },
+    });
+
+    // Diagnostic: confirm campaigns loaded for the exact chain/exchange
+    try {
+      const pairSummaries = campaigns
+        .slice(0, 10)
+        .map((c) =>
+          `${c.id}:${c.pair?.token0?.address || 'n/a'}_${c.pair?.token1?.address || 'n/a'}`,
+        )
+        .join(', ');
+      this.logger.log(
+        `CODEX_BARS HISTORIC_CAMPAIGNS chain=${deployment.blockchainType}:${deployment.exchangeId} count=${campaigns.length}` +
+          (campaigns.length ? ` samplePairs=[${pairSummaries}]` : ''),
+      );
+    } catch (e) {
+      this.logger.warn(
+        `HISTORIC - failed to log campaign summary for ${deployment.blockchainType}:${deployment.exchangeId}: ${(e as any)?.message || e}`,
+      );
+    }
+
+    const addrSet = new Set<string>();
+    for (const c of campaigns) {
+      if (c.pair?.token0?.address) addrSet.add(c.pair.token0.address.toLowerCase());
+      if (c.pair?.token1?.address) addrSet.add(c.pair.token1.address.toLowerCase());
+    }
+    const addresses: string[] = Array.from(addrSet);
+    this.logger.log(`CODEX_BARS HISTORIC_POLL_CHAIN start chain=${blockchainType} tokens=${addresses.length}`);
+    if (addresses.length === 0) {
+      this.logger.warn(
+        `HISTORIC - no active campaign tokens found for ${blockchainType}; skipping Codex update for this chain`,
+      );
+      return;
+    }
     
     this.logger.log(`HISTORIC - fetching latest prices from Codex for ${blockchainType}`);
     const quotes = await this.codexService.getLatestPrices(deployment, addresses);
+    try {
+      const returnedCount = quotes ? Object.keys(quotes).length : 0;
+      const details = quotes
+        ? Object.entries(quotes)
+            .map(([addr, q]: any) => `${addr}:${q?.usd}`)
+            .join(', ')
+        : '';
+      this.logger.log(
+        `CODEX_BARS CODEX_RESPONSE chain=${blockchainType} returned=${returnedCount} details=[${details}]`,
+      );
+    } catch (e) {
+      this.logger.warn(`HISTORIC - failed to log Codex response for ${blockchainType}: ${(e as any)?.message || e}`);
+    }
     const missing = addresses.filter((a) => !quotes[a.toLowerCase()]);
-    if (missing.length) {
+    const missingCount = missing.length;
+    if (missingCount) {
       this.logger.warn(
-        `HISTORIC - Codex missing latest prices for ${missing.length}/${addresses.length} tokens on ${blockchainType} (sample=${missing
+        `HISTORIC - Codex missing latest prices for ${missingCount}/${addresses.length} tokens on ${blockchainType} (sample=${missing
           .slice(0, 5)
           .join(',')})`,
       );
+      // Attempt a quick backfill for missing campaign tokens
+      try {
+        this.logger.log(
+          `HISTORIC - attempting backfill via seedCodex for ${missingCount} missing tokens on ${blockchainType}`,
+        );
+        await this.seedCodex(blockchainType, missing);
+      } catch (seedErr) {
+        this.logger.warn(
+          `HISTORIC - backfill (seedCodex) failed for ${blockchainType}: ${(seedErr as any)?.message || seedErr}`,
+        );
+      }
     }
     const newQuotes = [];
 
@@ -230,25 +345,49 @@ export class HistoricQuoteService implements OnModuleInit {
     }
 
     if (deployment.nativeTokenAlias) {
-      const quote = quotes[deployment.nativeTokenAlias];
-      if (!quote) {
-        this.logger.warn(`HISTORIC - missing nativeTokenAlias price for ${deployment.nativeTokenAlias} on ${blockchainType}`);
+      const aliasQuote = quotes[deployment.nativeTokenAlias];
+      const nativeAddr = NATIVE_TOKEN.toLowerCase();
+      const quotesHasNative = Boolean(quotes[nativeAddr]);
+      if (!aliasQuote) {
+        this.logger.warn(
+          `HISTORIC - missing nativeTokenAlias price for ${deployment.nativeTokenAlias} on ${blockchainType}`,
+        );
+      } else if (!quotesHasNative) {
+        const nativeLatest = latest[nativeAddr];
+        const isChanged = !nativeLatest || nativeLatest.usd !== aliasQuote.usd;
+        if (isChanged) {
+          newQuotes.push(
+            this.repository.create({
+              tokenAddress: nativeAddr,
+              usd: aliasQuote.usd,
+              timestamp: moment.unix(aliasQuote.last_updated_at).utc().toISOString(),
+              provider: 'codex',
+              blockchainType: deployment.blockchainType,
+            }),
+          );
+        }
       }
-      newQuotes.push(
-        this.repository.create({
-          tokenAddress: NATIVE_TOKEN.toLowerCase(),
-          usd: quote.usd,
-          timestamp: moment.unix(quote.last_updated_at).utc().toISOString(),
-          provider: 'codex',
-          blockchainType: deployment.blockchainType,
-        }),
-      );
+    }
+
+    // De-duplicate by tokenAddress in case upstream provided overlapping entries
+    if (newQuotes.length > 0) {
+      const byAddress = new Map<string, any>();
+      for (const q of newQuotes) byAddress.set(q.tokenAddress.toLowerCase(), q);
+      const dedupedQuotes = Array.from(byAddress.values());
+      // Replace contents without reassigning constant
+      newQuotes.length = 0;
+      newQuotes.push(...dedupedQuotes);
     }
 
     this.logger.log(`HISTORIC - prepared ${newQuotes.length} quotes to save for ${blockchainType}`);
     if (newQuotes.length > 0) {
       const sample = newQuotes.slice(0, 3).map((q: any) => `${q.tokenAddress}:${q.usd}`).join(', ');
       this.logger.log(`HISTORIC - sample to save (${Math.min(3, newQuotes.length)}): ${sample}`);
+      // Full details of tokens and prices to be saved (useful for small batches like Base)
+      const fullDetails = newQuotes.map((q: any) => `${q.tokenAddress}:${q.usd}`).join(', ');
+      this.logger.log(
+        `CODEX_BARS HISTORIC_POLL_CHAIN to_save chain=${blockchainType} count=${newQuotes.length} details=[${fullDetails}]`,
+      );
       const batches = _.chunk(newQuotes, 1000);
       this.logger.log(`HISTORIC - batching count=${batches.length}`);
 
@@ -274,6 +413,10 @@ export class HistoricQuoteService implements OnModuleInit {
           }
         }
         this.logger.log(`HISTORIC - completed saving for ${blockchainType}; saved=${savedCount}/${newQuotes.length}`);
+        const durationMs = Date.now() - startedAt;
+        this.logger.log(
+          `CODEX_BARS HISTORIC_POLL_CHAIN end chain=${blockchainType} tokens=${addresses.length} missing=${missingCount} saved=${savedCount} durationMs=${durationMs}`,
+        );
       } catch (error) {
         this.logger.error(`HISTORIC - fatal error while saving quotes for ${blockchainType}:`, {
           error: error.message,
@@ -285,6 +428,10 @@ export class HistoricQuoteService implements OnModuleInit {
       }
     } else {
       this.logger.log(`HISTORIC - no new quotes to save for ${blockchainType}`);
+      const durationMs = Date.now() - startedAt;
+      this.logger.log(
+        `CODEX_BARS HISTORIC_POLL_CHAIN end chain=${blockchainType} tokens=${addresses.length} missing=${missingCount} saved=0 durationMs=${durationMs}`,
+      );
     }
   }
 
@@ -626,10 +773,12 @@ export class HistoricQuoteService implements OnModuleInit {
       return [];
     }
 
-    const enabledProviders = this.priceProviders[blockchainType]
-      .filter((p) => p.enabled)
-      .map((p) => `'${p.name}'`)
-      .join(',');
+    const providersConfig = (this.priceProviders?.[blockchainType] ?? []) as ProviderConfig[];
+    const enabledProvidersArr = providersConfig.filter((p) => p.enabled).map((p) => `'${p.name}'`);
+    const enabledProviders = enabledProvidersArr.join(',');
+    const providerFilter = enabledProvidersArr.length
+      ? `AND provider = ANY(ARRAY[${enabledProviders}]::text[])`
+      : '';
 
     const query = `
       WITH RawCounts AS (
@@ -643,7 +792,7 @@ export class HistoricQuoteService implements OnModuleInit {
           AND timestamp <= '${endQ}'
           AND "tokenAddress" IN (${addresses.map((a) => `'${a.toLowerCase()}'`).join(',')})
           AND "blockchainType" = '${blockchainType}'
-          AND provider = ANY(ARRAY[${enabledProviders}]::text[])
+          ${providerFilter}
         GROUP BY "tokenAddress", provider
       ),
       TokenStats AS (
@@ -1268,8 +1417,14 @@ export class HistoricQuoteService implements OnModuleInit {
    */
   private async updateMappedEthereumTokens(): Promise<void> {
     const deployments = this.deploymentService.getDeployments();
+    let ethereumDeployment: Deployment | null = null;
+    try {
+      ethereumDeployment = this.deploymentService.getDeploymentByBlockchainType(BlockchainType.Ethereum);
+    } catch (e) {
+      this.logger.log('CODEX_BARS HISTORIC_POLL skip reason=no_ethereum_deployment');
+      return; // Ethereum disabled: skip mapped-Ethereum updates gracefully
+    }
     const latestEthereumQuotes = await this.getLatest(BlockchainType.Ethereum);
-    const ethereumDeployment = this.deploymentService.getDeploymentByBlockchainType(BlockchainType.Ethereum);
 
     // Collect all unique Ethereum token addresses from all deployments
     const allEthereumAddresses = new Set<string>();

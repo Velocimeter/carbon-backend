@@ -129,10 +129,8 @@ export interface CustomFnArgs {
 @Injectable()
 export class HarvesterService {
   private readonly logger = new Logger(HarvesterService.name);
-  private readonly logDelay = 3000; // 3 second delay between logs
 
   private async logWithDelay(level: 'log' | 'debug' | 'error', message: string, ...args: any[]) {
-    await sleep(this.logDelay);
     this.logger[level](message, ...args);
   }
 

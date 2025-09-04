@@ -27,16 +27,16 @@ export enum ExchangeId {
   // OGSei = 'sei',
   // OGCelo = 'celo',
   // OGBlast = 'blast',
-   BaseGraphene = 'base',
+  BaseGraphene = 'base',
   // FantomGraphene = 'fantom-graphene',
-   MantleGraphene = 'mantle',
+  MantleGraphene = 'mantle',
   // MantleSupernova = 'mantle-supernova',
   // LineaXFai = 'linea-xfai',
   // BaseAlienBase = 'base-alienbase',
   BerachainGraphene = 'berachain',
   // OGCoti = 'coti',
-   IotaGraphene = 'iota',
-   OGTac = 'tac',
+  IotaGraphene = 'iota',
+  OGTac = 'tac',
 }
 
 export interface GasToken {
@@ -95,98 +95,98 @@ export class DeploymentService {
 
   private initializeDeployments(): Deployment[] {
     return [
-      {
-        exchangeId: ExchangeId.OGEthereum,
-        blockchainType: BlockchainType.Ethereum,
-        rpcEndpoint: this.configService.get('ETHEREUM_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 100000,
-        harvestConcurrency: 10,
-        multicallAddress: '0x5Eb3fa2DFECdDe21C950813C665E9364fa609bD2',
-        startBlock: 17087000,
-        gasToken: {
-          name: 'Ethereum',
-          symbol: 'ETH',
-          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-        },
-        nativeTokenAlias: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-        contracts: {
-          CarbonController: {
-            address: '0xC537e898CD774e2dCBa3B14Ea6f34C93d5eA45e1',
-          },
-          CarbonVortex: {
-            address: '0xD053Dcd7037AF7204cecE544Ea9F227824d79801',
-          },
-          CarbonPOL: {
-            address: '0xD06146D292F9651C1D7cf54A3162791DFc2bEf46',
-          },
-          CarbonVoucher: {
-            address: '0x3660F04B79751e31128f6378eAC70807e38f554E',
-          },
-          BancorArbitrage: {
-            address: '0x41Eeba3355d7D6FF628B7982F3F9D055c39488cB',
-          },
-          BancorArbitrageV2: {
-            address: '0x0f54099D787e26c90c487625B4dE819eC5A9BDAA',
-          },
-          LiquidityProtectionStore: {
-            address: '0xf5FAB5DBD2f3bf675dE4cB76517d4767013cfB55',
-          },
-        },
-        notifications: {
-          explorerUrl: this.configService.get('ETHEREUM_EXPLORER_URL'),
-          carbonWalletUrl: this.configService.get('ETHEREUM_CARBON_WALLET_URL'),
-          title: 'Ethereum',
-          regularGroupEvents: [EventTypes.ProtectionRemovedEvent],
-          telegram: {
-            botToken: this.configService.get('ETHEREUM_TELEGRAM_BOT_TOKEN'),
-            bancorProtectionToken: this.configService.get('ETHEREUM_BANCOR_PROTECTION_TOKEN'),
-            threads: {
-              carbonThreadId: this.configService.get('ETHEREUM_CARBON_THREAD_ID'),
-              fastlaneId: this.configService.get('ETHEREUM_FASTLANE_THREAD_ID'),
-              vortexId: this.configService.get('ETHEREUM_VORTEX_THREAD_ID'),
-              bancorProtectionId: this.configService.get('ETHEREUM_BANCOR_PROTECTION_THREAD_ID'),
-            },
-          },
-        },
-        mapEthereumTokens: {
-          '0xfc60fc0145d7330e5abcfc52af7b043a1ce18e7d': '0xfc60fc0145d7330e5abcfc52af7b043a1ce18e7d', // governer self mapping
-        },
-      },
       // {
-      //   exchangeId: ExchangeId.OGSonic,
-      //   blockchainType: BlockchainType.Sonic,
-      //   rpcEndpoint: this.configService.get('SONIC_RPC_ENDPOINT'),
-      //   harvestEventsBatchSize: 20000,
-      //   harvestConcurrency: 2,
-      //   multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
-      //   startBlock: 11025601,
+      //   exchangeId: ExchangeId.OGEthereum,
+      //   blockchainType: BlockchainType.Ethereum,
+      //   rpcEndpoint: this.configService.get('ETHEREUM_RPC_ENDPOINT'),
+      //   harvestEventsBatchSize: 100000,
+      //   harvestConcurrency: 10,
+      //   multicallAddress: '0x5Eb3fa2DFECdDe21C950813C665E9364fa609bD2',
+      //   startBlock: 17087000,
       //   gasToken: {
-      //     name: 'SONIC',
-      //     symbol: 'SONIC',
+      //     name: 'Ethereum',
+      //     symbol: 'ETH',
       //     address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
       //   },
-      //   nativeTokenAlias: '0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38',
+      //   nativeTokenAlias: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
       //   contracts: {
       //     CarbonController: {
-      //       address: '0x10Fa549E70Ede76C258c0808b289e4Ac3c9ab2e2',
-      //     },
-      //     CarbonVoucher: {
-      //       address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
-      //     },
-      //     BancorArbitrage: {
-      //       address: '0x0000000000000000000000000000000000000000',
+      //       address: '0xC537e898CD774e2dCBa3B14Ea6f34C93d5eA45e1',
       //     },
       //     CarbonVortex: {
-      //       address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
+      //       address: '0xD053Dcd7037AF7204cecE544Ea9F227824d79801',
       //     },
-      //     ReferralStorage: {
-      //       address: '0xcBB1fa1Df296D0DE297B6E0239f57bEdC1A37FC0',
+      //     CarbonPOL: {
+      //       address: '0xD06146D292F9651C1D7cf54A3162791DFc2bEf46',
       //     },
-      //     ReferralReader: {
-      //       address: '0xFF63F55aEC1219DFEbEac3CF1cc5Ab4eCb5c4C97',
+      //     CarbonVoucher: {
+      //       address: '0x3660F04B79751e31128f6378eAC70807e38f554E',
+      //     },
+      //     BancorArbitrage: {
+      //       address: '0x41Eeba3355d7D6FF628B7982F3F9D055c39488cB',
+      //     },
+      //     BancorArbitrageV2: {
+      //       address: '0x0f54099D787e26c90c487625B4dE819eC5A9BDAA',
+      //     },
+      //     LiquidityProtectionStore: {
+      //       address: '0xf5FAB5DBD2f3bf675dE4cB76517d4767013cfB55',
       //     },
       //   },
+      //   notifications: {
+      //     explorerUrl: this.configService.get('ETHEREUM_EXPLORER_URL'),
+      //     carbonWalletUrl: this.configService.get('ETHEREUM_CARBON_WALLET_URL'),
+      //     title: 'Ethereum',
+      //     regularGroupEvents: [EventTypes.ProtectionRemovedEvent],
+      //     telegram: {
+      //       botToken: this.configService.get('ETHEREUM_TELEGRAM_BOT_TOKEN'),
+      //       bancorProtectionToken: this.configService.get('ETHEREUM_BANCOR_PROTECTION_TOKEN'),
+      //       threads: {
+      //         carbonThreadId: this.configService.get('ETHEREUM_CARBON_THREAD_ID'),
+      //         fastlaneId: this.configService.get('ETHEREUM_FASTLANE_THREAD_ID'),
+      //         vortexId: this.configService.get('ETHEREUM_VORTEX_THREAD_ID'),
+      //         bancorProtectionId: this.configService.get('ETHEREUM_BANCOR_PROTECTION_THREAD_ID'),
+      //       },
+      //     },
+      //   },
+      //   mapEthereumTokens: {
+      //     '0xfc60fc0145d7330e5abcfc52af7b043a1ce18e7d': '0xfc60fc0145d7330e5abcfc52af7b043a1ce18e7d', // governer self mapping
+      //   },
       // },
+      {
+        exchangeId: ExchangeId.OGSonic,
+        blockchainType: BlockchainType.Sonic,
+        rpcEndpoint: this.configService.get('SONIC_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 20000,
+        harvestConcurrency: 2,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 11025601,
+        gasToken: {
+          name: 'SONIC',
+          symbol: 'SONIC',
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        },
+        nativeTokenAlias: '0x039e2fB66102314Ce7b64Ce5Ce3E5183bc94aD38',
+        contracts: {
+          CarbonController: {
+            address: '0x10Fa549E70Ede76C258c0808b289e4Ac3c9ab2e2',
+          },
+          CarbonVoucher: {
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
+          },
+          BancorArbitrage: {
+            address: '0x0000000000000000000000000000000000000000',
+          },
+          CarbonVortex: {
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
+          },
+          ReferralStorage: {
+            address: '0xcBB1fa1Df296D0DE297B6E0239f57bEdC1A37FC0',
+          },
+          ReferralReader: {
+            address: '0xFF63F55aEC1219DFEbEac3CF1cc5Ab4eCb5c4C97',
+          },
+        },
+      },
       // {
       //   exchangeId: ExchangeId.OGSei,
       //   blockchainType: BlockchainType.Sei,
@@ -844,58 +844,58 @@ export class DeploymentService {
       //     },
       //   },
       // },
-      {
-        exchangeId: ExchangeId.OGTac,
-        blockchainType: BlockchainType.Tac,
-        rpcEndpoint: this.configService.get('TAC_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 1000,
-        harvestConcurrency: 1,
-        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
-        startBlock: 975648,
-        gasToken: {
-          name: 'TAC',
-          symbol: 'TAC',
-          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-        },
-        nativeTokenAlias: '0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9',
-        contracts: {
-          CarbonController: {
-            address: '0xA4682A2A5Fe02feFF8Bd200240A41AD0E6EaF8d5',
-          },
-          CarbonVoucher: {
-            address: '0xb0d39990E1C38B50D0b7f6911525535Fbacb4C26',
-          },
-          BancorArbitrageV2: {
-            address: '0x51aA24A9230e62CfaF259c47DE3133578cE36317',
-          },
-        },
-        mapEthereumTokens: {
-          '0xb76d91340f5ce3577f0a056d29f6e3eb4e88b140': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // ton -> wtoncoin
-          '0xaf988c3f7cb2aceabb15f96b19388a259b6c438f': '0xdac17f958d2ee523a2206206994597c13d831ec7', // usdt
-          '0xecAc9C5F704e954931349Da37F60E39f515c11c1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // lbtc
-          '0xe82dbD543FD729418613d68Cd1E8FC67b0f46E31': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // mbtc
-          '0x51A30E647D33A044967FA3DBb04d6ED6F45455F6': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usn
-          '0x9bB6983Ca454320BD8691409690B4FCCD489EE96': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usd0
-          '0x6bedE1c6009a78c222D9BDb7974bb67847fdB68c': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // busd
-          '0xb1b385542B6E80F77B94393Ba8342c3Af699f15c': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usdr
-          '0x61D66bC21fED820938021B06e9b2291f3FB91945': '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // weth oft
-          '0xD44F691aeD69fe43180B95b6F82f89c18Fb93094': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // tsTON
-          '0x20512cF15E60242aB5237E0A76c873a338281397': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // bmTON
-          '0x7048c9e4aBD0cf0219E95a17A8C6908dfC4f0Ee4': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // cbBTC
-        },
-        notifications: {
-          explorerUrl: this.configService.get('TAC_EXPLORER_URL'),
-          carbonWalletUrl: this.configService.get('TAC_CARBON_WALLET_URL'),
-          title: 'TAC',
-          telegram: {
-            botToken: this.configService.get('TAC_TELEGRAM_BOT_TOKEN'),
-            threads: {
-              carbonThreadId: this.configService.get('TAC_CARBON_THREAD_ID'),
-              fastlaneId: this.configService.get('TAC_FASTLANE_THREAD_ID'),
-            },
-          },
-        },
-      },
+      //     {
+      //       exchangeId: ExchangeId.OGTac,
+      //       blockchainType: BlockchainType.Tac,
+      //       rpcEndpoint: this.configService.get('TAC_RPC_ENDPOINT'),
+      //       harvestEventsBatchSize: 1000,
+      //       harvestConcurrency: 1,
+      //       multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+      //       startBlock: 975648,
+      //       gasToken: {
+      //         name: 'TAC',
+      //         symbol: 'TAC',
+      //         address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      //       },
+      //       nativeTokenAlias: '0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9',
+      //       contracts: {
+      //         CarbonController: {
+      //           address: '0xA4682A2A5Fe02feFF8Bd200240A41AD0E6EaF8d5',
+      //         },
+      //         CarbonVoucher: {
+      //           address: '0xb0d39990E1C38B50D0b7f6911525535Fbacb4C26',
+      //         },
+      //         BancorArbitrageV2: {
+      //           address: '0x51aA24A9230e62CfaF259c47DE3133578cE36317',
+      //         },
+      //       },
+      //       mapEthereumTokens: {
+      //         '0xb76d91340f5ce3577f0a056d29f6e3eb4e88b140': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // ton -> wtoncoin
+      //         '0xaf988c3f7cb2aceabb15f96b19388a259b6c438f': '0xdac17f958d2ee523a2206206994597c13d831ec7', // usdt
+      //         '0xecAc9C5F704e954931349Da37F60E39f515c11c1': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // lbtc
+      //         '0xe82dbD543FD729418613d68Cd1E8FC67b0f46E31': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // mbtc
+      //         '0x51A30E647D33A044967FA3DBb04d6ED6F45455F6': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usn
+      //         '0x9bB6983Ca454320BD8691409690B4FCCD489EE96': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usd0
+      //         '0x6bedE1c6009a78c222D9BDb7974bb67847fdB68c': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // busd
+      //         '0xb1b385542B6E80F77B94393Ba8342c3Af699f15c': '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', // usdr
+      //         '0x61D66bC21fED820938021B06e9b2291f3FB91945': '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2', // weth oft
+      //         '0xD44F691aeD69fe43180B95b6F82f89c18Fb93094': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // tsTON
+      //         '0x20512cF15E60242aB5237E0A76c873a338281397': '0x582d872a1b094fc48f5de31d3b73f2d9be47def1', // bmTON
+      //         '0x7048c9e4aBD0cf0219E95a17A8C6908dfC4f0Ee4': '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599', // cbBTC
+      //       },
+      //       notifications: {
+      //         explorerUrl: this.configService.get('TAC_EXPLORER_URL'),
+      //         carbonWalletUrl: this.configService.get('TAC_CARBON_WALLET_URL'),
+      //         title: 'TAC',
+      //         telegram: {
+      //           botToken: this.configService.get('TAC_TELEGRAM_BOT_TOKEN'),
+      //           threads: {
+      //             carbonThreadId: this.configService.get('TAC_CARBON_THREAD_ID'),
+      //             fastlaneId: this.configService.get('TAC_FASTLANE_THREAD_ID'),
+      //           },
+      //         },
+      //       },
+      //     },
     ];
   }
 

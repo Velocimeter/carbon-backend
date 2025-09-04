@@ -152,7 +152,7 @@ export class UpdaterService {
     if (shouldUpdateAnalytics === '1') {
       setInterval(async () => {
         await this.updateAnalytics();
-      }, 5000); // [interval]
+      }, 120000); // [interval]
     }
   }
 
@@ -272,9 +272,9 @@ export class UpdaterService {
 
       // coingecko tickers - fetch quotes first and pass them to update method
       const quotesCTE = await this.quoteService.prepareQuotesForQuery(deployment);
-      this.logger.log(`Starting quotes CoingeckoService for ${deploymentKey}...`);
+      this.logger.log(`CODEX_BARS COINGECKO_TICKERS update_start chain=${deploymentKey}`);
       await this.coingeckoService.update(deployment, quotesCTE);
-      console.log(`CARBON SERVICE - Finished updating coingecko tickers for ${deployment.exchangeId}`);
+      this.logger.log(`CODEX_BARS COINGECKO_TICKERS update_end chain=${deploymentKey}`);
 
       // DexScreener V2 - incremental processing
       this.logger.log(`Starting DexScreenerV2Service for ${deploymentKey}...`);

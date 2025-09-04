@@ -1656,6 +1656,35 @@ export class MerklProcessorService {
       intervalIndex++;
     }
 
+    // Diagnostics: illustrate which cached daily prices are used across sub-epochs
+    try {
+      const tokensToCheck = [campaign.pair.token0.address, campaign.pair.token1.address];
+      for (const addr of tokensToCheck) {
+        const normalized = addr.toLowerCase();
+        const tokenRates = priceCache.rates.get(normalized) || [];
+        const usedDays = new Set<string>();
+        for (const se of subEpochs) {
+          // Find nearest cached entry (same logic as getUsdRateForTimestamp)
+          if (tokenRates.length === 0) continue;
+          let closest = tokenRates[0];
+          let minDiff = Math.abs(closest.timestamp - se.timestamp);
+          for (const r of tokenRates) {
+            const diff = Math.abs(r.timestamp - se.timestamp);
+            if (diff < minDiff) {
+              minDiff = diff;
+              closest = r;
+            }
+          }
+          usedDays.add(new Date(closest.timestamp).toISOString().slice(0, 10));
+        }
+        this.logger.log(
+          `CODEX_BARS PRICE_DIAG_EPOCH campaign=${campaign.id} epoch=${epoch.epochNumber} token=${normalized} subepochs=${subEpochs.length} distinct_cache_days=${usedDays.size} days=[${Array.from(usedDays).join(',')}]`,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(`CODEX_BARS PRICE_DIAG_EPOCH error=${(e as Error).message}`);
+    }
+
     return subEpochs;
   }
 
@@ -2064,6 +2093,20 @@ export class MerklProcessorService {
     for (const [, tokenRates] of cacheMap.entries()) {
       tokenRates.sort((a, b) => a.timestamp - b.timestamp);
     }
+
+    // CODEX_BARS: Detailed dump of price cache per token (date=usd pairs)
+    for (const [address, tokenRates] of cacheMap.entries()) {
+      const entries = tokenRates
+        .map((r) => `${new Date(r.timestamp).toISOString().slice(0, 10)}=${r.usd}`)
+        .join(', ');
+      this.logger.log(`CODEX_BARS PRICE_CACHE_TOKEN address=${address} count=${tokenRates.length} entries=[${entries}]`);
+    }
+
+    // Summarize cache counts per token
+    const summary = Array.from(cacheMap.entries())
+      .map(([address, tokenRates]) => `${address}:${tokenRates.length}`)
+      .join(', ');
+    this.logger.log(`CODEX_BARS PRICE_CACHE_SUMMARY tokens=${cacheMap.size} counts=[${summary}]`);
 
     return {
       rates: cacheMap,

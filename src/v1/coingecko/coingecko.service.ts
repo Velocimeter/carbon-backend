@@ -22,6 +22,15 @@ export class CoingeckoService {
     const prev = await this.cacheManager.get(cacheKey);
     const prevCount = Array.isArray(prev) ? prev.length : 0;
 
+    // Skip if there are no active campaigns for this deployment
+    const hasCampaigns = await this.hasActiveCampaigns(deployment);
+    if (!hasCampaigns) {
+      this.logger.log(
+        `CODEX_BARS COINGECKO_TICKERS skip reason=no_active_campaigns chain=${deployment.blockchainType}:${deployment.exchangeId}`,
+      );
+      return;
+    }
+
     const t0 = Date.now();
     const tickers = await this.getTickers(deployment, quotesCTE);
     const dt = Date.now() - t0;
@@ -30,10 +39,35 @@ export class CoingeckoService {
     const nonZeroLast = Array.isArray(tickers)
       ? tickers.filter((t) => Number((t as any).last_price || 0) > 0).length
       : 0;
+    const zeroLast = Math.max(0, count - nonZeroLast);
+    const pricedPct = count > 0 ? Math.round((nonZeroLast / count) * 100) : 0;
+    const volNonZero = Array.isArray(tickers)
+      ? tickers.filter(
+          (t) => Number((t as any).base_volume || 0) > 0 || Number((t as any).target_volume || 0) > 0,
+        ).length
+      : 0;
+    const zeroSample = Array.isArray(tickers)
+      ? tickers
+          .filter((t) => Number((t as any).last_price || 0) === 0)
+          .slice(0, 3)
+          .map((t) => (t as any).ticker_id || `${(t as any).base_currency}_${(t as any).target_currency}`)
+          .join(', ')
+      : '';
     const sample = Array.isArray(tickers)
       ? tickers
           .slice(0, 3)
           .map((t) => (t as any).ticker_id || `${(t as any).base_currency}_${(t as any).target_currency}`)
+          .join(', ')
+      : '';
+
+    // Per-ticker campaign coverage: 1 if has quote (last_price>0), else 0
+    const perTickerCoverage = Array.isArray(tickers)
+      ? tickers
+          .map((t) => {
+            const id = (t as any).ticker_id || `${(t as any).base_currency}_${(t as any).target_currency}`;
+            const priced = Number((t as any).last_price || 0) > 0 ? 1 : 0;
+            return `${id}:${priced}`;
+          })
           .join(', ')
       : '';
 
@@ -48,19 +82,63 @@ export class CoingeckoService {
     } else {
       this.logger.log(msg);
     }
+
+    // Focused coverage summary for quick health checks
+    this.logger.log(
+      `CODEX_BARS COINGECKO_TICKERS coverage chain=${deployment.blockchainType}:${deployment.exchangeId} ` +
+        `priced=${nonZeroLast}/${count} (${pricedPct}%) zero=${zeroLast} volNonZero=${volNonZero}` +
+        (zeroSample ? ` zeroSample=[${zeroSample}]` : ''),
+    );
+
+    if (perTickerCoverage) {
+      this.logger.log(
+        `CODEX_BARS COINGECKO_TICKERS campaign_status chain=${deployment.blockchainType}:${deployment.exchangeId} ` +
+          `tickers=${count} status=[${perTickerCoverage}]`,
+      );
+    }
   }
 
   async getCachedTickers(deployment: Deployment): Promise<any> {
     return this.cacheManager.get(`${deployment.blockchainType}:${deployment.exchangeId}:${TICKERS_CACHE_KEY_SUFFIX}`);
   }
 
+  private async hasActiveCampaigns(deployment: Deployment): Promise<boolean> {
+    try {
+      const rows = await this.strategy.query(
+        `select 1 from merkl_campaigns where "blockchainType" = $1 and "exchangeId" = $2 and "isActive" = true limit 1`,
+        [deployment.blockchainType, deployment.exchangeId],
+      );
+      return Array.isArray(rows) && rows.length > 0;
+    } catch (e) {
+      this.logger.warn(
+        `COINGECKO hasActiveCampaigns check failed for ${deployment.blockchainType}:${deployment.exchangeId}: ${(e as any)?.message || e}`,
+      );
+      // Be safe: if we can't determine, do not skip
+      return true;
+    }
+  }
+
   private async getTickers(deployment: Deployment, quotesCTE: string): Promise<any> {
-    const query = `WITH ${quotesCTE || ''} created_pairs as (
+    const query = `WITH ${quotesCTE || ''} active_campaign_pairs as (
+          select distinct c."pairId" as pair_id
+          from merkl_campaigns c
+          where c."blockchainType" = '${deployment.blockchainType}' and c."exchangeId" = '${deployment.exchangeId}' and c."isActive" = true
+      ),
+      raw_pairs as (
+          Select p.id as "pairId", p.name, 
+          CAST(t0.address as varchar) || '_' || CAST(t1.address as varchar) as native_pair,
+          p."token0Id", t0.address as token0, t0.symbol as symbol0, t0.decimals as decimals0, 
+          p."token1Id", t1.address as token1, t1.symbol as symbol1, t1.decimals as decimals1
+          from "pairs" p
+          left join tokens t0 on t0.id = p."token0Id" and t0."blockchainType" = '${deployment.blockchainType}' and t0."exchangeId" = '${deployment.exchangeId}'
+          left join tokens t1 on t1.id = p."token1Id" and t1."blockchainType" = '${deployment.blockchainType}' and t1."exchangeId" = '${deployment.exchangeId}'
+          where p."blockchainType" = '${deployment.blockchainType}' and p."exchangeId" = '${deployment.exchangeId}' and p.id in (select pair_id from active_campaign_pairs)
+      ),
+      created_pairs as (
           Select token0, token1, 
           CAST(token0 as varchar) || '_' || CAST(token1 as varchar) as native_pair,
           LEAST(CAST(token0 as varchar), CAST(token1 as varchar)) || '_' || GREATEST(CAST(token0 as varchar), CAST(token1 as varchar)) AS pair_alpha
-          from "pair-created-events"
-          where "blockchainType" = '${deployment.blockchainType}' and "exchangeId" = '${deployment.exchangeId}'
+          from raw_pairs
       ),
       all_carbon_trades as (
           Select s."timestamp" as evt_block_time, s."sourceAmount", t0.address as sourceToken, s."targetAmount", t1.address as targetToken,
@@ -161,20 +239,6 @@ export class CoingeckoService {
                   ELSE target_volume                
               END as target_volume
           from prefinal
-      ),
-      raw_pairs as (
-          Select p.id as "pairId", p.name, 
-          CAST(t0.address as varchar) || '_' || CAST(t1.address as varchar) as native_pair,
-          p."token0Id", t0.address as token0, t0.symbol as symbol0, t0.decimals as decimals0, 
-          p."token1Id", t1.address as token1, t1.symbol as symbol1, t1.decimals as decimals1
-          from "pairs" p
-          left join tokens t0 on t0.id = p."token0Id" and t0."blockchainType" = '${
-            deployment.blockchainType
-          }' and t0."exchangeId" = '${deployment.exchangeId}'
-          left join tokens t1 on t1.id = p."token1Id" and t1."blockchainType" = '${
-            deployment.blockchainType
-          }' and t1."exchangeId" = '${deployment.exchangeId}'
-          where p."blockchainType" = '${deployment.blockchainType}' and p."exchangeId" = '${deployment.exchangeId}'
       ),
       raw_strategies as (
           Select 
