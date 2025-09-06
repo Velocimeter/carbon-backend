@@ -445,13 +445,17 @@ npm run merkl:create-campaign -- --blockchainType=TAC --exchangeId=OGTac --pairI
 --active=true
 
 
-// use lowercase for exID bcType (match db)
+// use lowercase for exID bcType (match db) -- pairId wont be the same between local and prod!
 
 powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=tac --exchangeId=tac --pairId=4 --rewardAmount=1000000000000000000 --rewardTokenAddress=0xB63B9f0eb4A6E6f191529D71d4D88cc8900Df2C9 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test cbBTC-USDT Campaign (1w)' --active=true"
 
-powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=492 --rewardAmount=1000000000000000000 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test WETH-USDC Campaign (1w)' --active=true"
+powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=1 --rewardAmount=100 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='WETH-USDC Campaign (1w)' --active=true"
 
-powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=829 --rewardAmount=1000000000000000000 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test WETH-WBTC Campaign (1w)' --active=true"
+// WSL command
+
+npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=849 --rewardAmount=100 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$(date -u +%Y-%m-%dT%H:%M:%S.000Z) --end=$(date -u -d '+7 days' +%Y-%m-%dT%H:%M:%S.000Z) --opportunityName="WETH-WBTC Campaign (1w)" --active=true
+
+powershell -NoProfile -Command "npm run merkl:create-campaign -- --blockchainType=base --exchangeId=base --pairId=849 --rewardAmount=100 --rewardTokenAddress=0x1722df4bcea726af38fa11b217a5fd722587d266 --start=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --end=$((Get-Date).AddDays(7).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')) --opportunityName='Test WETH-WBTC Campaign (1w)' --active=true"
 
 ```sql
 INSERT INTO merkl_campaigns (

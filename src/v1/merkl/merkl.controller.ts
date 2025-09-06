@@ -224,6 +224,7 @@ export class MerklController {
 
     // Get USD price of reward token from last 30 days
     let rewardTokenUsdPrice = new Decimal(0);
+    const fallbackRewardTokenUsdPrice = new Decimal(29); // Fallback when no price is available
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const nowIso = new Date().toISOString();
 
@@ -242,7 +243,11 @@ export class MerklController {
     if (rewardTokenRates.length > 0) {
       // Sort by day (timestamp) and take the most recent
       const mostRecentRate = rewardTokenRates.sort((a, b) => b.day - a.day)[0];
-      rewardTokenUsdPrice = new Decimal(mostRecentRate.usd || 0);
+      const latestUsd = new Decimal(mostRecentRate.usd || 0);
+      rewardTokenUsdPrice = latestUsd.gt(0) ? latestUsd : fallbackRewardTokenUsdPrice;
+    } else {
+      // Use fallback price when no rates are found
+      rewardTokenUsdPrice = fallbackRewardTokenUsdPrice;
     }
 
     // Convert reward amount to USD

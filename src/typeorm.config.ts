@@ -1,8 +1,8 @@
 import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 
-// Only load .env in development
-if (process.env.NODE_ENV !== 'production') {
+// Load .env file (always for scripts, only in development for app)
+if (process.env.NODE_ENV !== 'production' || process.argv.includes('ts-node')) {
   dotenv.config({ override: true });
 }
 
