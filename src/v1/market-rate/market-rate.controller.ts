@@ -28,6 +28,7 @@ export class MarketRateController {
     [BlockchainType.Iota]: [],
     [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Tac]: [],
+    [BlockchainType.Plasma]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
