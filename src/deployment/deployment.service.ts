@@ -19,6 +19,7 @@ export enum BlockchainType {
   Iota = 'iota',
   Tac = 'tac',
   Sonic = 'sonic',
+  Plasma = 'plasma',
 }
 
 export enum ExchangeId {
@@ -37,6 +38,7 @@ export enum ExchangeId {
   // OGCoti = 'coti',
   IotaGraphene = 'iota',
   OGTac = 'tac',
+  Plasma = 'plasma',
 }
 
 export interface GasToken {
@@ -349,6 +351,58 @@ export class DeploymentService {
           },
           ReferralReader: {
             address: '0x48Ec31130E3A1eFD4DaC4eb0273863eD047C3334',
+          },
+        },
+      },
+      {
+        exchangeId: ExchangeId.Plasma,
+        blockchainType: BlockchainType.Plasma,
+        rpcEndpoint: this.configService.get('PLASMA_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 0,
+        harvestConcurrency: 0,
+        harvestSleep: 0,
+        multicallAddress: '',
+        startBlock: 0,
+        gasToken: {
+          name: 'Plasma',
+          symbol: 'XPL',
+          address: NATIVE_TOKEN,
+        },
+        nativeTokenAlias: '',
+        contracts: {
+          CarbonController: {
+            address: '0xbf279b9fbDC4c62A42Eb507F02516D02B88fbEc2',
+          },
+          CarbonVoucher: {
+            address: '0xFd47534C90adD3728dfE8Af8e318461C8038d626',
+          },
+          BancorArbitrage: {
+            address: '',
+          },
+          BancorArbitrageV2: {
+            address: '',
+          },
+          CarbonVortex: {
+            address: '',
+          },
+          ReferralStorage: {
+            address: '',
+          },
+          ReferralReader: {
+            address: '',
+          },
+        },
+        notifications: {
+          explorerUrl: this.configService.get('PLASMA_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('PLASMA_CARBON_WALLET_URL'),
+          title: 'Plasma Mainnet Beta',
+          telegram: {
+            botToken: this.configService.get('PLASMA_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              carbonThreadId: this.configService.get('PLASMA_CARBON_THREAD_ID'),
+              fastlaneId: this.configService.get('PLASMA_FASTLANE_THREAD_ID'),
+              vortexId: this.configService.get('PLASMA_VORTEX_THREAD_ID'),
+            },
           },
         },
       },

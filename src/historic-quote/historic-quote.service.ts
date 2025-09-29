@@ -61,6 +61,7 @@ export class HistoricQuoteService implements OnModuleInit {
     // [BlockchainType.Iota]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Tac]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Plasma]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
@@ -98,8 +99,8 @@ export class HistoricQuoteService implements OnModuleInit {
       this.logger.log('HISTORIC - SEED_CODEX_ON_STARTUP=1: scheduling Codex seeding');
       setTimeout(async () => {
         try {
-          this.logger.log('HISTORIC - starting delayed Codex seeding for Base');
-          await this.seedCodex(BlockchainType.Base);
+          this.logger.log('HISTORIC - starting delayed Codex seeding for Plasma');
+          await this.seedCodex(BlockchainType.Plasma);
         } catch (error) {
           this.logger.error('HISTORIC - error during delayed Codex seeding:', error);
         }
@@ -148,6 +149,7 @@ export class HistoricQuoteService implements OnModuleInit {
         BlockchainType.Mantle,
         BlockchainType.Tac,
         BlockchainType.Sonic,
+        BlockchainType.Plasma,
       ];
       // Only process chains that have active campaigns for their deployment
       const deploymentsForChains = chains.map((chain) => {

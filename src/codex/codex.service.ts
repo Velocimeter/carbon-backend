@@ -20,6 +20,7 @@ export const NETWORK_IDS = {
 //  [BlockchainType.Berachain]: 80094,
 //    [BlockchainType.Sonic]: 146,
 //   [BlockchainType.Tac]: 239,
+  [BlockchainType.Plasma]: 9745,
 };
 
 @Injectable()
