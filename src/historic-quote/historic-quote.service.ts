@@ -62,6 +62,7 @@ export class HistoricQuoteService implements OnModuleInit {
     // [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
     // [BlockchainType.Tac]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Plasma]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Hyperliquid]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
@@ -150,6 +151,7 @@ export class HistoricQuoteService implements OnModuleInit {
         BlockchainType.Tac,
         BlockchainType.Sonic,
         BlockchainType.Plasma,
+        BlockchainType.Hyperliquid,
       ];
       // Only process chains that have active campaigns for their deployment
       const deploymentsForChains = chains.map((chain) => {

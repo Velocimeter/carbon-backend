@@ -20,6 +20,7 @@ export enum BlockchainType {
   Tac = 'tac',
   Sonic = 'sonic',
   Plasma = 'plasma',
+  Hyperliquid = 'hyperliquid',
 }
 
 export enum ExchangeId {
@@ -39,6 +40,7 @@ export enum ExchangeId {
   IotaGraphene = 'iota',
   OGTac = 'tac',
   Plasma = 'plasma',
+  Hyperliquid = 'hyperliquid',
 }
 
 export interface GasToken {
@@ -375,6 +377,58 @@ export class DeploymentService {
           },
           CarbonVoucher: {
             address: '0xFd47534C90adD3728dfE8Af8e318461C8038d626',
+          },
+          BancorArbitrage: {
+            address: '',
+          },
+          BancorArbitrageV2: {
+            address: '',
+          },
+          CarbonVortex: {
+            address: '',
+          },
+          ReferralStorage: {
+            address: '',
+          },
+          ReferralReader: {
+            address: '',
+          },
+        },
+        notifications: {
+          explorerUrl: this.configService.get('PLASMA_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('PLASMA_CARBON_WALLET_URL'),
+          title: 'Plasma Mainnet Beta',
+          telegram: {
+            botToken: this.configService.get('PLASMA_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              carbonThreadId: this.configService.get('PLASMA_CARBON_THREAD_ID'),
+              fastlaneId: this.configService.get('PLASMA_FASTLANE_THREAD_ID'),
+              vortexId: this.configService.get('PLASMA_VORTEX_THREAD_ID'),
+            },
+          },
+        },
+      },
+      {
+        exchangeId: ExchangeId.Hyperliquid,
+        blockchainType: BlockchainType.Hyperliquid,
+        rpcEndpoint: this.configService.get('PLASMA_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 0,
+        harvestConcurrency: 0,
+        harvestSleep: 0,
+        multicallAddress: '',
+        startBlock: 0,
+        gasToken: {
+          name: 'Hyperliquid',
+          symbol: 'HYPE',
+          address: NATIVE_TOKEN,
+        },
+        nativeTokenAlias: '',
+        contracts: {
+          CarbonController: {
+            address: '0xF6D1789826122926c93320E08D870E765BE0584F',
+          },
+          CarbonVoucher: {
+            address: '0xd9a727D5a9ce4cD66880Cf78A3A307AF0e76Ea62',
           },
           BancorArbitrage: {
             address: '',

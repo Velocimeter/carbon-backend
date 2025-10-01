@@ -21,6 +21,7 @@ export const NETWORK_IDS = {
 //    [BlockchainType.Sonic]: 146,
 //   [BlockchainType.Tac]: 239,
   [BlockchainType.Plasma]: 9745,
+  [BlockchainType.Hyperliquid]: 999,
 };
 
 @Injectable()

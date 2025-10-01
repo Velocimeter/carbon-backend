@@ -29,6 +29,7 @@ export class MarketRateController {
     [BlockchainType.Sonic]: [{ name: 'codex', enabled: true }],
     [BlockchainType.Tac]: [],
     [BlockchainType.Plasma]: [{ name: 'codex', enabled: true }],
+    [BlockchainType.Hyperliquid]: [{ name: 'codex', enabled: true }],
   };
 
   constructor(
