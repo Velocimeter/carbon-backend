@@ -101,7 +101,7 @@ export class HistoricQuoteService implements OnModuleInit {
       setTimeout(async () => {
         try {
           this.logger.log('HISTORIC - starting delayed Codex seeding for Plasma');
-          await this.seedCodex(BlockchainType.Plasma);
+          await this.seedCodex(BlockchainType.Hyperliquid);
         } catch (error) {
           this.logger.error('HISTORIC - error during delayed Codex seeding:', error);
         }
