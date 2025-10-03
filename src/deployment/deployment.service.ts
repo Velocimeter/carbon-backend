@@ -360,10 +360,9 @@ export class DeploymentService {
         exchangeId: ExchangeId.Plasma,
         blockchainType: BlockchainType.Plasma,
         rpcEndpoint: this.configService.get('PLASMA_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 0,
-        harvestConcurrency: 0,
-        harvestSleep: 0,
-        multicallAddress: '',
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 3,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
         startBlock: 0,
         gasToken: {
           name: 'Plasma',
@@ -411,12 +410,11 @@ export class DeploymentService {
       {
         exchangeId: ExchangeId.Hyperliquid,
         blockchainType: BlockchainType.Hyperliquid,
-        rpcEndpoint: this.configService.get('PLASMA_RPC_ENDPOINT'),
-        harvestEventsBatchSize: 0,
-        harvestConcurrency: 0,
-        harvestSleep: 0,
-        multicallAddress: '',
-        startBlock: 0,
+        rpcEndpoint: this.configService.get('HYPERLIQUID_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 3,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 15491930,
         gasToken: {
           name: 'Hyperliquid',
           symbol: 'HYPE',
@@ -825,46 +823,46 @@ export class DeploymentService {
       //     },
       //   },
       // },
-      // {
-      //   exchangeId: ExchangeId.BerachainGraphene,
-      //   blockchainType: BlockchainType.Berachain,
-      //   rpcEndpoint: this.configService.get('BERACHAIN_RPC_ENDPOINT'),
-      //   harvestEventsBatchSize: 5000,
-      //   harvestConcurrency: 4,
-      //   multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
-      //   startBlock: 1377587,
-      //   gasToken: {
-      //     name: 'Ether',
-      //     symbol: 'ETH',
-      //     address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
-      //   },
-      //   nativeTokenAlias: '0x6969696969696969696969696969696969696969',
-      //   contracts: {
-      //     CarbonController: {
-      //       address: '0x10fa549e70ede76c258c0808b289e4ac3c9ab2e2',
-      //     },
-      //     CarbonVoucher: {
-      //       address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
-      //     },
-      //     BancorArbitrage: {
-      //       address: '0xC7Dd38e64822108446872c5C2105308058c5C55C',
-      //     },
-      //     BancorArbitrageV2: {
-      //       address: '0x773B75CfB146bd5d1095fa9d6d45637f02B05119',
-      //     },
-      //   },
-      //   notifications: {
-      //     explorerUrl: this.configService.get('BERACHAIN_EXPLORER_URL'),
-      //     carbonWalletUrl: this.configService.get('BERACHAIN_WALLET_URL'),
-      //     title: 'Berachain',
-      //     telegram: {
-      //       botToken: this.configService.get('BERACHAIN_TELEGRAM_BOT_TOKEN'),
-      //       threads: {
-      //         fastlaneId: this.configService.get('BERACHAIN_FASTLANE_THREAD_ID'),
-      //       },
-      //     },
-      //   },
-      // },
+      {
+        exchangeId: ExchangeId.BerachainGraphene,
+        blockchainType: BlockchainType.Berachain,
+        rpcEndpoint: this.configService.get('BERACHAIN_RPC_ENDPOINT'),
+        harvestEventsBatchSize: 5000,
+        harvestConcurrency: 4,
+        multicallAddress: '0xcA11bde05977b3631167028862bE2a173976CA11',
+        startBlock: 1377587,
+        gasToken: {
+          name: 'Ether',
+          symbol: 'ETH',
+          address: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+        },
+        nativeTokenAlias: '0x6969696969696969696969696969696969696969',
+        contracts: {
+          CarbonController: {
+            address: '0x10fa549e70ede76c258c0808b289e4ac3c9ab2e2',
+          },
+          CarbonVoucher: {
+            address: '0x248594Be9BE605905B8912cf575f03fE42d89054',
+          },
+          BancorArbitrage: {
+            address: '0xC7Dd38e64822108446872c5C2105308058c5C55C',
+          },
+          BancorArbitrageV2: {
+            address: '0x773B75CfB146bd5d1095fa9d6d45637f02B05119',
+          },
+        },
+        notifications: {
+          explorerUrl: this.configService.get('BERACHAIN_EXPLORER_URL'),
+          carbonWalletUrl: this.configService.get('BERACHAIN_WALLET_URL'),
+          title: 'Berachain',
+          telegram: {
+            botToken: this.configService.get('BERACHAIN_TELEGRAM_BOT_TOKEN'),
+            threads: {
+              fastlaneId: this.configService.get('BERACHAIN_FASTLANE_THREAD_ID'),
+            },
+          },
+        },
+      },
       // {
       //   exchangeId: ExchangeId.OGCoti,
       //   blockchainType: BlockchainType.Coti,
