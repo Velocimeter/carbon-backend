@@ -12,7 +12,8 @@ async function bootstrap() {
       console.log('Incoming origin:', origin);  // Debug log
       if (!origin || /\.velocimeter\.xyz$/.test(origin) || 
           ['http://localhost:3000', 'http://localhost:3001', 
-           'http://localhost:8000', 'http://localhost:8001'].includes(origin)) {
+           'http://localhost:8000', 'http://localhost:8001',
+           'http://localhost:5173'].includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
